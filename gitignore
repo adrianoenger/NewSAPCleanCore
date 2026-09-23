@@ -1,0 +1,258 @@
+# ============================================================
+# SAP Clean Core PoC - .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# Environment / secrets
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+.secret/
+credentials/
+.aws/
+.azure/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling / caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.tox/
+.nox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------
+# Node / React / Electron
+# ------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Build outputs
+frontend/dist/
+frontend/build/
+frontend/out/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+dist-electron/
+release/
+out/
+
+# Electron packaging
+*.app
+*.dmg
+*.exe
+*.msi
+*.AppImage
+*.deb
+*.rpm
+*.snap
+
+# ------------------------------------------------------------
+# TypeScript / JavaScript caches
+# ------------------------------------------------------------
+*.tsbuildinfo
+.eslintcache
+
+# ------------------------------------------------------------
+# IDE / editors
+# ------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+.idea/
+*.iml
+
+# ------------------------------------------------------------
+# OS generated files
+# ------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------
+# Logs / runtime files
+# ------------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+*.pid
+*.pid.lock
+
+# ------------------------------------------------------------
+# Local databases / persistence
+# ------------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+postgres-data/
+pgdata/
+data/postgres/
+data/pgvector/
+
+# ------------------------------------------------------------
+# Assessment / SAP source data
+# Large or client-specific source files must stay local
+# ------------------------------------------------------------
+assessments/
+assessment-data/
+sap-data/
+sap-exports/
+source-data/
+raw-data/
+input/
+uploads/
+
+# Generated analytical artifacts
+artifacts/
+generated/
+processed/
+output/
+exports/
+reports/generated/
+
+# Embeddings / vector indexes / local model cache
+embeddings/
+vector-store/
+vector_store/
+indexes/
+models/
+model-cache/
+.cache/
+huggingface/
+torch-cache/
+
+# ------------------------------------------------------------
+# MCP local runtime / indexes
+# Keep source/configuration, ignore generated runtime data
+# ------------------------------------------------------------
+mcp-data/
+mcp-cache/
+mcp-index/
+mcp-indexes/
+
+# ------------------------------------------------------------
+# Docker local overrides / runtime
+# ------------------------------------------------------------
+docker-compose.override.yml
+compose.override.yml
+*.local.yml
+
+# Keep Docker / Dev Container definitions versioned
+!.devcontainer/
+!.devcontainer/**
+!docker-compose.yml
+!compose.yml
+!Dockerfile
+!**/Dockerfile
+
+# ------------------------------------------------------------
+# Test / demo runtime data
+# Keep canonical fixtures explicitly under tests/fixtures or demo/
+# ------------------------------------------------------------
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# ------------------------------------------------------------
+# Miscellaneous
+# ------------------------------------------------------------
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+.history/
+
+# ------------------------------------------------------------
+# Claude Code
+# Keep project commands and instructions, ignore local/session noise
+# ------------------------------------------------------------
+.claude/settings.local.json
+.claude/*.local.json
+.claude/session*
+.claude/cache/
+
+# ------------------------------------------------------------
+# Explicitly keep canonical project documentation
+# ------------------------------------------------------------
+!CLAUDE.md
+!README.md
+!docs/
+!docs/**
+!.claude/commands/
+!.claude/commands/**

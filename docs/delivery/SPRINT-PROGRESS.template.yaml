@@ -1,0 +1,13 @@
+sprint: SPRINT-XX
+status: not_started
+started_at: null
+completed_at: null
+current_checkpoint: null
+capabilities:
+  - id: CAP-001
+    description: replace-me
+    status: pending
+    validation: null
+blocking_issues: []
+failed_checks: []
+notes: []
