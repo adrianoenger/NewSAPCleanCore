@@ -28,3 +28,9 @@ Store at least:
 - execution timestamp;
 - confidence;
 - source/input version where relevant.
+
+## Schema evolution
+Use Alembic migrations for schema changes after persistence is introduced. A developer should be able to bring an existing development database to the current sprint schema without manually recreating it as the normal path.
+
+## Seed/demo data
+Maintain a small synthetic seed dataset for reproducible sprint demonstrations. Seed content must not contain customer data or secrets.

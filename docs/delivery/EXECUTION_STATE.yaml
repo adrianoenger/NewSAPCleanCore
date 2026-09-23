@@ -1,10 +1,16 @@
 project: sap-clean-core-analysis-poc
-baseline: 2026-09-23-R1
+baseline: 2026-09-23-R2
 status: documentation_ready
+implementation_started: false
 active_sprint: null
+active_sprint_status: not_started
+active_branch: null
 active_checkpoint: null
 last_completed_sprint: null
-implementation_started: false
+next_sprint: SPRINT-00
 notes:
-  - Set active_sprint to SPRINT-00 when implementation begins.
-  - Do not infer completion from documentation; implementation state starts empty.
+  - The initial /clean-core-run-sprint initializes SPRINT-00 and its canonical branch.
+  - /clean-core-run-sprint starts or resumes; it does not create commits or finish a sprint.
+  - /clean-core-finish-sprint is the only command that can mark a sprint completed and create its official commit.
+  - After finish, remain on main with the next sprint ready but not started.
+  - Do not infer implementation completion from planning documentation.

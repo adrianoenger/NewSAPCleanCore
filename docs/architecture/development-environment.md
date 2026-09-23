@@ -17,3 +17,9 @@ Electron/React runs on the host during development unless a later sprint demonst
 
 ## Configuration
 Use `.env.example` plus non-secret application configuration. Never commit provider credentials. The existing legacy `.env` is not a source of truth and must not be copied into the new baseline.
+
+## Database evolution
+Use Alembic for schema evolution once SQLAlchemy persistence is introduced. Development startup may initialize a new database, but existing developer databases should normally advance through migrations rather than manual recreation.
+
+## Seed/demo support
+Provide a small synthetic seed mechanism that can initialize safe demo entities and later grow into a reproducible reference assessment. Never use customer data as repository seed content.

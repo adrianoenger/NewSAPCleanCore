@@ -1,13 +1,18 @@
 sprint: SPRINT-XX
+branch: sprint/xx-sprint-slug
 status: not_started
+progress_percent: 0
 started_at: null
 completed_at: null
 current_checkpoint: null
+ready_for_review: false
 capabilities:
   - id: CAP-001
     description: replace-me
     status: pending
     validation: null
 blocking_issues: []
+architectural_conflicts: []
 failed_checks: []
+backlog_items_created: []
 notes: []

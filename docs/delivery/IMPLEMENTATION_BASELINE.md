@@ -7,6 +7,7 @@ This document is the implementation contract for the initial PoC. Claude Code mu
 - Electron + React desktop application on host.
 - FastAPI/Python backend in Dev Container.
 - PostgreSQL + pgvector.
+- SQLAlchemy with Alembic for schema evolution.
 - local filesystem assessment source mounted/accessible to backend.
 - optional local Docker MCPs: `mcp-sap-docs`, `mcp-abap`.
 - LLM providers: AWS Bedrock and Azure AI Foundry through adapters.
@@ -29,6 +30,21 @@ Client → SAP System → Assessment → Source Scan → Classification → Pars
 12. Chat may route to SQL, semantic search, source retrieval and MCP.
 13. Chat never mutates assessment state without an explicit user action.
 14. Testing remains intentionally lean.
+15. Database schema changes are represented by Alembic migrations; do not rely on manually recreating the database as the normal development path.
+16. Reproducible seed/demo data should be maintained to demonstrate capabilities quickly without requiring a large customer assessment.
+
+## Canonical delivery rules
+1. Sprints execute sequentially and cumulatively.
+2. Every sprint must leave a runnable and demonstrable increment.
+3. One sprint uses one canonical local branch and produces exactly one official commit.
+4. `/clean-core-run-sprint` initializes or resumes the sprint and continues to readiness for review; it never commits or formally closes the sprint.
+5. `/clean-core-review-sprint` is read-only.
+6. `/clean-core-finish-sprint` is the only closure path and must update status/result documentation before creating the official commit.
+7. Finish advances `main` by fast-forward and removes the local sprint branch.
+8. Finishing does not start the next sprint.
+9. Out-of-scope discoveries go to the controlled backlog.
+10. Accepted architecture must not be changed silently during sprint implementation.
+11. The finish command does not push to remote automatically.
 
 ## PoC acceptance narrative
 A successful final demonstration should allow a user to:

@@ -8,6 +8,7 @@ Implement the core navigation hierarchy.
 - Create CRUD-light APIs necessary for PoC creation/listing.
 - Build Client Hub and system/assessment navigation.
 - Keep current context visible in top bar.
+- Extend the synthetic seed/demo data with at least one Client, SAP System and Assessment for reproducible navigation.
 
 ## Demonstrable outcome
 Create a client, SAP system and assessment, then reopen and navigate back to it.

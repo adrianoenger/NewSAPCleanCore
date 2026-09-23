@@ -1,11 +1,11 @@
 # Development Roadmap
 
-The PoC is built through sequential, cumulative sprints. Each sprint must leave an executable and demonstrable product increment.
+The PoC is built through sequential, cumulative sprints. Each sprint must leave an executable and demonstrable product increment. The canonical lifecycle for every sprint is defined in `sprint-execution-model.md`.
 
 | Sprint | Theme | Demonstrable outcome |
 |---|---|---|
-| 00 | Engineering Foundation | Dev Container, services, backend/frontend shell and health path run |
-| 01 | Client / SAP System / Assessment | Create and navigate core assessment hierarchy |
+| 00 | Engineering Foundation | Dev Container, services, backend/frontend shell, migration foundation and health path run |
+| 01 | Client / SAP System / Assessment | Create and navigate core assessment hierarchy with reproducible seed data |
 | 02 | Source Ingestion | Select/scan directory and persist fingerprinted files |
 | 03 | SAP Object Parsing | Build and browse normalized SAP object catalog |
 | 04 | Dependencies & ATC | Browse dependencies, ATC and deterministic findings |
@@ -18,6 +18,11 @@ The PoC is built through sequential, cumulative sprints. Each sprint must leave 
 | 11 | Embeddings & Semantic Retrieval | Semantic search works within assessment boundaries |
 | 12 | Navigation Perspectives | Four tailored navigation views over the same assessment |
 | 13 | AI Copilot | Permanent contextual chat routes across facts, semantic data, source and MCP |
-| 14 | Demo Readiness | Refined UX, graphs, code explorer, demo dataset and end-to-end journey |
+| 14 | Demo Readiness | Refined UX, graphs, code explorer, reference assessment and end-to-end journey |
 
-A sprint may be split only if the increment becomes too large to remain testable and demonstrable.
+## Delivery invariant
+For every sprint:
+
+`run/resume → review → validate as needed → finish → one commit on main → branch removed`
+
+A sprint may be split only if the increment becomes too large to remain testable and demonstrable. A split is a planning change and must be reflected in canonical documentation before implementation proceeds.

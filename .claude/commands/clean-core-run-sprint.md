@@ -1,12 +1,20 @@
 # /clean-core-run-sprint
 
-Execute the sprint identified by `docs/delivery/EXECUTION_STATE.yaml` autonomously until completion or a genuine blocker.
+Start or resume the sprint identified by `docs/delivery/EXECUTION_STATE.yaml` and continue autonomously until the sprint implementation is ready for review or a genuine blocker is reached.
 
-1. Read `CLAUDE.md`, implementation baseline, active sprint, progress file and relevant ADRs.
-2. Resume from the first incomplete capability/checkpoint; do not repeat validated work unnecessarily.
-3. Implement in small checkpoints.
-4. After each checkpoint, run only the minimal validations required by the sprint and update progress.
-5. Correct failures before advancing when they block the sprint's demonstrable outcome.
-6. Do not stop merely to ask for routine implementation choices already decided by the documentation.
-7. If a decision is genuinely absent and materially architectural, record the blocker in progress/handoff and stop cleanly.
-8. On sprint completion, update `EXECUTION_STATE.yaml`, `SESSION_HANDOFF.md`, and sprint progress.
+1. Read `CLAUDE.md`, implementation baseline, sprint execution model, accepted ADRs, execution state, active/next sprint file, progress file if present, and session handoff.
+2. Run preflight checks:
+   - when starting a new sprint, current branch must be `main` and working tree must be clean;
+   - previous sprint must be completed or this must be the initial sprint;
+   - no secret/customer/runtime data may be staged.
+3. Resolve the canonical sprint branch from the sprint filename.
+4. If the sprint has not started, create/switch to the canonical sprint branch, initialize progress from the template, and update execution state to `in_progress`.
+5. If the sprint is already in progress, reuse/switch to its existing canonical branch and resume from the first incomplete capability/checkpoint.
+6. Implement in small checkpoints, run only the sprint's minimal validations, and persist progress after each validated checkpoint.
+7. Record useful but out-of-scope discoveries in `docs/delivery/BACKLOG.md`; do not expand sprint scope silently.
+8. If an accepted architectural decision must be contradicted, record the conflict in progress/handoff and stop only the affected work for human resolution.
+9. Correct blocking failures before advancing. Routine implementation choices already covered by the documentation should not require user confirmation.
+10. When all sprint implementation capabilities are complete and the demonstrable flow works, set `ready_for_review: true`, update handoff, and stop.
+
+## Git rule
+Do **not** execute `git commit`, merge, delete the sprint branch, push, or start the next sprint. Formal closure belongs exclusively to `/clean-core-finish-sprint`.
