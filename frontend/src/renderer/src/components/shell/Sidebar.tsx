@@ -6,8 +6,9 @@ import {
   Network,
   ScrollText,
   Settings,
-  type LucideIcon
+  type LucideIcon,
 } from 'lucide-react'
+import type { ClientContext } from '@/lib/useClientContext'
 import type { Connectivity } from '@/lib/useHealth'
 import { cn } from '@/lib/utils'
 import { ConnectionIndicator } from './ConnectionIndicator'
@@ -26,16 +27,31 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'rules', label: 'Business Rules', icon: ScrollText },
   { id: 'engineering', label: 'Engineering', icon: Code2 },
   { id: 'runs', label: 'Analysis Runs', icon: Activity },
-  { id: 'settings', label: 'Settings', icon: Settings }
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
 interface SidebarProps {
   activeId: string
   onSelect: (id: string) => void
   connectivity: Connectivity
+  ctx: ClientContext
 }
 
-export function Sidebar({ activeId, onSelect, connectivity }: SidebarProps) {
+export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps) {
+  const contextLabel = ctx.assessment
+    ? ctx.assessment.name
+    : ctx.system
+      ? ctx.system.name
+      : ctx.client
+        ? ctx.client.name
+        : null
+
+  const contextSub = ctx.assessment
+    ? `${ctx.client?.name} · ${ctx.system?.sid ?? ctx.system?.name}`
+    : ctx.system
+      ? ctx.client?.name ?? null
+      : null
+
   return (
     <aside
       data-region="sidebar"
@@ -64,7 +80,7 @@ export function Sidebar({ activeId, onSelect, connectivity }: SidebarProps) {
                 'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
                 active
                   ? 'bg-surface-elevated text-text-primary'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
               )}
             >
               {active && (
@@ -78,9 +94,20 @@ export function Sidebar({ activeId, onSelect, connectivity }: SidebarProps) {
       </nav>
 
       <div className="space-y-1.5 border-t border-border-soft px-4 py-3">
-        <div className="text-[10.5px] tracking-wide text-text-tertiary uppercase">
-          No SAP system selected
-        </div>
+        {contextLabel ? (
+          <div data-testid="sidebar-context">
+            <div className="truncate text-[12px] font-medium text-text-primary">
+              {contextLabel}
+            </div>
+            {contextSub && (
+              <div className="truncate text-[11px] text-text-tertiary">{contextSub}</div>
+            )}
+          </div>
+        ) : (
+          <div className="text-[10.5px] tracking-wide text-text-tertiary uppercase">
+            No SAP system selected
+          </div>
+        )}
         <ConnectionIndicator connectivity={connectivity} />
       </div>
     </aside>

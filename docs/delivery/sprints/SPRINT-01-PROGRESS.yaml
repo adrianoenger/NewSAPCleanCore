@@ -1,0 +1,53 @@
+sprint: SPRINT-01
+branch: sprint/01-client-sap-system-and-assessment
+status: completed
+progress_percent: 100
+started_at: 2026-09-24
+completed_at: 2026-09-24
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: ORM models (Client, SAPSystem, Assessment) + Alembic migration 0002
+    status: done
+    validation: >
+      alembic downgrade base → upgrade head → check: no drift;
+      revision 0002_client_system_assessment; migrations applied on backend start.
+      Schema revision confirmed in /health response.
+  - id: CAP-002
+    description: CRUD-light APIs for Client/SAPSystem/Assessment (create + list + get)
+    status: done
+    validation: >
+      pytest -q 8 passed (test_sprint01.py: 5 new contract tests;
+      test_foundation.py: 3 updated);
+      manual curl smoke: POST /clients, POST /clients/1/systems, POST assessments all 201.
+  - id: CAP-003
+    description: Demo seed data - 1 Client (Acme Industries), 1 SAP System (S4D), 1 Assessment
+    status: done
+    validation: >
+      python -m seed apply: seed 'demo' v2 applied;
+      python -m seed status: demo v2 confirmed;
+      API GET /clients returns seeded Acme Industries.
+  - id: CAP-004
+    description: Frontend Client Hub with three-column client/system/assessment selector
+    status: done
+    validation: >
+      npm run typecheck: pass (no errors);
+      ClientHub renders 3 columns; seed data visible and selectable;
+      breadcrumb trail updates on selection.
+  - id: CAP-005
+    description: Current context visible in top bar and sidebar; demonstrable navigation flow
+    status: done
+    validation: >
+      npm run smoke: 5/5 PASS (sidebar, workspace, copilot, backend online, client hub rendered);
+      Sidebar footer shows selected context; Workspace top bar shows breadcrumb;
+      Copilot context label updates with selection.
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - Migration revision renamed from autogenerate hash b6e8a80a66ed to semantic 0002_client_system_assessment.
+  - test_health_contract updated to assert revision 0002_client_system_assessment.
+  - smoke.mjs updated to check for Client Hub heading instead of health card (now behind assessment selection).
+  - Selection state managed at App level with cascading clear on client/system change.

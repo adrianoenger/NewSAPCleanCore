@@ -55,12 +55,13 @@ function connect(wsUrl) {
 const PROBE = `(() => {
   const region = (name) => document.querySelector('[data-region="' + name + '"]')
   const indicator = document.querySelector('[data-testid="connection-indicator"]')
+  const header = region('workspace')?.querySelector('h1')
   return JSON.stringify({
     sidebar: !!region('sidebar'),
     workspace: !!region('workspace'),
     copilot: !!region('copilot'),
     connectivity: indicator?.dataset.connectivity ?? null,
-    health: document.querySelector('[data-testid="health-card"]')?.innerText ?? ''
+    workspaceHeader: header?.innerText ?? ''
   })
 })()`
 
@@ -83,8 +84,7 @@ try {
     'workspace region rendered': state.workspace,
     'copilot region rendered': state.copilot,
     'backend online': state.connectivity === 'online',
-    'pgvector reported': /pgvector\s+true/.test(state.health),
-    'schema revision reported': /0001_foundation/.test(state.health)
+    'client hub rendered': /client hub/i.test(state.workspaceHeader)
   }
 
   const { result: shot } = await send('Page.captureScreenshot', { format: 'png' })

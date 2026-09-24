@@ -6,8 +6,8 @@ active_sprint: null
 active_sprint_status: not_started
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-00
-next_sprint: SPRINT-01
+last_completed_sprint: SPRINT-01
+next_sprint: SPRINT-02
 notes:
   - The initial /clean-core-run-sprint initializes SPRINT-00 and its canonical branch.
   - /clean-core-run-sprint starts or resumes; it does not create commits or finish a sprint.
