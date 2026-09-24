@@ -32,5 +32,7 @@ Concise description of the functional increment actually delivered.
 - Sprint branch: `<branch>`
 - Official commit message: `<message>`
 - Final branch after closure: `main`
+- Sprint branch pushed to remote: yes/no
+- `main` pushed and equal to `origin/main`: yes/no
 - Local sprint branch removed: yes/no
 - Working tree clean: yes/no

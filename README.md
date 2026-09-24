@@ -25,9 +25,9 @@ Transform a large set of SAP/ABAP artifacts into structured technical knowledge,
 
 - This is a **PoC**, not a production enterprise platform.
 - Development is sequential by sprint and every sprint leaves an executable, testable and demonstrable increment.
-- Each sprint uses one local branch and produces exactly one official Git commit when it is formally finished.
+- Each sprint uses one sprint branch (created from the synced `main`) and produces exactly one official Git commit when it is formally finished.
 - `/clean-core-run-sprint` starts or resumes the current sprint and never creates the official sprint commit.
-- `/clean-core-finish-sprint` is the only project command allowed to finalize sprint status, create the sprint commit, fast-forward `main`, and delete the local sprint branch.
+- `/clean-core-finish-sprint` is the only project command allowed to finalize sprint status, create the sprint commit, push the sprint branch, fast-forward and push `main`, delete the local sprint branch and update local `main`.
 - New ideas outside the active sprint go to `docs/delivery/BACKLOG.md`; they must not silently expand sprint scope.
 - Architectural decisions must not be changed silently during implementation.
 - Prefer deterministic extraction for facts; use AI for interpretation; use SAP knowledge providers for authoritative guidance.

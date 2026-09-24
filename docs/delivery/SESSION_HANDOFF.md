@@ -17,7 +17,8 @@ Next sprint: **SPRINT-01 — Client, SAP System and Assessment**, ready but **no
 
 ## Git lifecycle
 - One official commit is allowed per sprint and is created only by `/clean-core-finish-sprint`.
-- No push is performed automatically.
+- Lifecycle amended 2026-09-24 (ADR-013): run-sprint syncs `main` and creates the sprint branch; finish commits, pushes the sprint branch, fast-forwards and pushes `main`, deletes the local sprint branch and updates local `main`.
+- SPRINT-00 commit `feat(sprint-00): complete engineering foundation` was created before this amendment and was not pushed.
 
 ## Restart instruction
 1. read `CLAUDE.md`;

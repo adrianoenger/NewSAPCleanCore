@@ -15,16 +15,16 @@ Use documents in this order:
 If documents conflict, the higher item wins. Do not infer enterprise requirements that the PoC explicitly excludes.
 
 ## Sprint execution rules
-- One sprint = one local branch = one official commit on `main`.
+- One sprint = one sprint branch = one official commit on `main`.
 - Sprint branch naming is canonical: `sprint/<NN>-<sprint-slug>`, derived from the sprint filename.
-- `/clean-core-run-sprint` creates the sprint branch when needed or resumes it when already present.
+- `/clean-core-run-sprint` always starts a new sprint by syncing `main` with the remote and creating the canonical sprint branch from it, or resumes the branch when already present. All checkpoints and development happen on the sprint branch.
 - Re-running `/clean-core-run-sprint` after interruption must continue from persisted progress; do not restart validated work unnecessarily.
 - Do **not** execute `git commit` during sprint development. The official sprint commit is created only by `/clean-core-finish-sprint`.
 - Do not automatically start the next sprint after finishing the current sprint.
 - `/clean-core-review-sprint` is read-only and evaluates readiness for closure.
-- `/clean-core-finish-sprint` is the only command allowed to mark the sprint completed, generate its result record, commit it, fast-forward `main`, and delete the local sprint branch.
+- `/clean-core-finish-sprint` is the only command allowed to mark the sprint completed, generate its result record, commit it, push the sprint branch, fast-forward and push `main`, delete the local sprint branch and update local `main` — leaving the repository ready for the next sprint.
 - The finish command must abort before commit if mandatory validations, documentation consistency, repository hygiene, or sprint Definition of Done fail.
-- Do not push automatically unless the user explicitly asks for a push.
+- Pushing is performed only by `/clean-core-finish-sprint` (sprint branch and `main`). Never force-push; never push during sprint development.
 
 ## Scope control
 - Work only on the active sprint unless a prerequisite defect blocks it.

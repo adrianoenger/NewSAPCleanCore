@@ -36,15 +36,15 @@ Client → SAP System → Assessment → Source Scan → Classification → Pars
 ## Canonical delivery rules
 1. Sprints execute sequentially and cumulatively.
 2. Every sprint must leave a runnable and demonstrable increment.
-3. One sprint uses one canonical local branch and produces exactly one official commit.
+3. One sprint uses one canonical sprint branch, created from the synced `main` at sprint start, and produces exactly one official commit.
 4. `/clean-core-run-sprint` initializes or resumes the sprint and continues to readiness for review; it never commits or formally closes the sprint.
 5. `/clean-core-review-sprint` is read-only.
 6. `/clean-core-finish-sprint` is the only closure path and must update status/result documentation before creating the official commit.
-7. Finish advances `main` by fast-forward and removes the local sprint branch.
+7. Finish pushes the sprint branch, advances `main` by fast-forward, pushes `main`, removes the local sprint branch and updates local `main`.
 8. Finishing does not start the next sprint.
 9. Out-of-scope discoveries go to the controlled backlog.
 10. Accepted architecture must not be changed silently during sprint implementation.
-11. The finish command does not push to remote automatically.
+11. The finish command is the only lifecycle step that pushes to the remote; it never force-pushes.
 
 ## PoC acceptance narrative
 A successful final demonstration should allow a user to:

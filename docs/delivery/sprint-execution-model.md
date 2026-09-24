@@ -5,7 +5,7 @@ Define the canonical development lifecycle for the PoC. This process favors trac
 
 ## Core invariant
 
-**One sprint = one local sprint branch = one official commit on `main`.**
+**One sprint = one sprint branch = one official commit on `main`.**
 
 Development changes remain uncommitted during the sprint. Progress and recovery are represented by persisted project state files, not intermediate commits.
 
@@ -24,6 +24,7 @@ Do not invent alternate branch names.
 Before a new sprint starts:
 - current branch is `main`;
 - working tree is clean;
+- local `main` is synced with the remote (`git fetch origin` + `git pull --ff-only origin main`);
 - previous sprint is completed or no sprint has started yet;
 - required canonical files exist;
 - no secret/customer data is staged;
@@ -32,10 +33,11 @@ Before a new sprint starts:
 ### 2. Run or resume
 `/clean-core-run-sprint`:
 - reads canonical documentation and current execution state;
-- creates the canonical sprint branch only if it does not already exist;
+- for a new sprint, always creates the canonical sprint branch from the synced `main`;
 - if the sprint branch already exists, switches to/reuses it;
 - creates a sprint progress file from the template if missing;
 - resumes from the first incomplete capability/checkpoint;
+- performs all checkpoints, development and progress updates on the sprint branch;
 - continues autonomously until implementation is ready for review or a genuine blocker is reached;
 - never creates the sprint commit;
 - never starts the next sprint.
@@ -57,7 +59,7 @@ Before a new sprint starts:
 `/clean-core-finish-sprint` is the only official sprint closure command.
 
 It must, in order:
-1. confirm the current branch is the canonical branch of the active sprint;
+1. confirm the current branch is the canonical branch of the active sprint and that `origin/main` has not advanced beyond the sprint base;
 2. confirm all required sprint capabilities are complete or explicitly deferred with accepted rationale;
 3. run the mandatory lean validation set;
 4. verify migrations are applicable when database schema changed;
@@ -68,12 +70,17 @@ It must, in order:
 9. update `EXECUTION_STATE.yaml` so the finished sprint is recorded and the next sprint is marked `not_started`/ready, without starting it;
 10. `git add -A`;
 11. create exactly one official sprint commit using the canonical message;
-12. switch to `main`;
-13. fast-forward `main` with `git merge --ff-only <sprint-branch>`;
-14. delete the local sprint branch with `git branch -d <sprint-branch>`;
-15. verify current branch is `main`, working tree is clean, and the sprint branch no longer exists locally.
+12. push the sprint branch: `git push -u origin <sprint-branch>`;
+13. switch to `main`;
+14. fast-forward `main` with `git merge --ff-only <sprint-branch>`;
+15. push `main`: `git push origin main`;
+16. delete the local sprint branch with `git branch -d <sprint-branch>` (the remote sprint branch is kept as the sprint record);
+17. update local `main`: `git pull --ff-only origin main`;
+18. verify current branch is `main`, working tree is clean, the local sprint branch is absent and `main` equals `origin/main`.
 
-If any mandatory step fails before the commit, closure must abort. Do not mark the sprint complete prematurely.
+After a successful finish the repository is ready for the next `/clean-core-run-sprint`.
+
+If any mandatory step fails before the commit, closure must abort. Do not mark the sprint complete prematurely. If a push fails after the commit, stop without additional commits, keep the local sprint branch and report the pending steps.
 
 ## Commit convention
 Canonical format:
@@ -92,5 +99,5 @@ During a sprint, discoveries that do not block the current demonstrable outcome 
 ## Architectural conflicts
 Claude Code may make normal implementation choices autonomously. It must not contradict accepted ADRs or canonical architecture silently. Record the conflict in progress/handoff and stop only the affected work when a material architectural decision is required.
 
-## No automatic push
-The sprint lifecycle manipulates the local repository only. Push to a remote is explicit and outside the automatic finish command unless the user specifically requests otherwise.
+## Remote synchronization
+Only `/clean-core-finish-sprint` pushes: the sprint branch and `main`, after the official commit. Sprint development never pushes. Force-push is never used (ADR-013, amendment 2026-09-24).
