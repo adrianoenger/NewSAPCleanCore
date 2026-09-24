@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+/* Design tokens from docs/design/design-system.md. Dark mode is the default and only theme in the PoC. */
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-surface-background: #0d0f12;
+  --color-surface-sidebar: #111318;
+  --color-surface-card: #171a20;
+  --color-surface-elevated: #1d2128;
+  --color-surface-hover: #242831;
+  --color-border-default: #2b3038;
+  --color-border-soft: #23272e;
+
+  --color-text-primary: #f4f5f7;
+  --color-text-secondary: #a7adb7;
+  --color-text-tertiary: #737a85;
+  --color-text-button: #d4d7dd;
+
+  --color-brand: #e30074;
+  --color-brand-hover: #f21c88;
+  --color-brand-text: #ff5fae;
+  --color-brand-text-soft: #ff8cc4;
+  --color-brand-tint: #1e1118;
+  --color-brand-border: #6a1f45;
+
+  --color-success: #4cc38a;
+  --color-attention: #e5b53c;
+  --color-legacy: #e8944a;
+  --color-risk: #f0605a;
+  --color-info: #7ea6e8;
+  --color-low: #8fa3bf;
+
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 1px solid var(--color-brand);
+  outline-offset: 1px;
+}

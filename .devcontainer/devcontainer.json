@@ -1,0 +1,23 @@
+{
+  "name": "SAP Clean Core — backend",
+  "dockerComposeFile": ["../compose.yml"],
+  "service": "backend",
+  "runServices": ["postgres", "backend"],
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.extraPaths": ["/workspace/backend/src"],
+        "python.testing.pytestEnabled": true,
+        "python.testing.cwd": "/workspace/backend"
+      }
+    }
+  }
+}

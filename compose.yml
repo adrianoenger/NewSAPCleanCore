@@ -1,0 +1,44 @@
+name: sap-clean-core
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${CCA_POSTGRES_DB:-cleancore}
+      POSTGRES_USER: ${CCA_POSTGRES_USER:-cleancore}
+      POSTGRES_PASSWORD: ${CCA_POSTGRES_PASSWORD:-cleancore}
+    ports:
+      - "${CCA_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CCA_DATABASE_URL: postgresql+psycopg://${CCA_POSTGRES_USER:-cleancore}:${CCA_POSTGRES_PASSWORD:-cleancore}@postgres:5432/${CCA_POSTGRES_DB:-cleancore}
+    ports:
+      - "${CCA_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - .:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # mcp-sap-docs / mcp-abap services are introduced in SPRINT-09 (SAP knowledge via MCP).
+
+volumes:
+  postgres-data:

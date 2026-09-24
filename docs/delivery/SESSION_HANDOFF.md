@@ -1,20 +1,30 @@
 # Session Handoff
 
 ## Current state
-Documentation baseline R2 created. Implementation has not started.
+SPRINT-00 (Engineering Foundation) is **completed** — see `docs/delivery/results/SPRINT-00-RESULT.md`. The official commit is on `main` (derive the hash from Git history: `feat(sprint-00): complete engineering foundation`).
+
+Next sprint: **SPRINT-01 — Client, SAP System and Assessment**, ready but **not started**. Canonical branch: `sprint/01-client-sap-system-and-assessment`.
+
+## Foundation available to SPRINT-01
+- `docker compose up -d --build` → postgres (pgvector) + backend; Alembic migrations applied on backend start (head `0001_foundation`).
+- Add domain models in `backend/src/persistence/models.py` and a new Alembic revision (`alembic revision --autogenerate`).
+- Extend the synthetic seed by adding steps to the `demo` dataset in `backend/src/seed/registry.py` and bumping its version.
+- Desktop shell: `cd frontend && npm run dev`; smoke: `npm run smoke` (backend must be running).
+- Node.js is at `C:\Program Files\nodejs` (add to PATH in Git Bash if missing); Docker Desktop must be running.
+
+## Open backlog
+- BL-001 — duplicate root `gitignore` file.
 
 ## Git lifecycle
-- Repository baseline is expected to be committed on `main` by the user.
-- Initial implementation sprint: `SPRINT-00`.
-- Canonical initial sprint branch: `sprint/00-engineering-foundation`.
 - One official commit is allowed per sprint and is created only by `/clean-core-finish-sprint`.
+- No push is performed automatically.
 
 ## Restart instruction
 1. read `CLAUDE.md`;
 2. read `docs/delivery/IMPLEMENTATION_BASELINE.md`;
 3. read `docs/delivery/sprint-execution-model.md`;
-4. read `EXECUTION_STATE.yaml` and the current sprint progress file, if present;
-5. run `/clean-core-run-sprint` to initialize or resume the active sprint;
+4. read `EXECUTION_STATE.yaml`;
+5. run `/clean-core-run-sprint` to initialize SPRINT-01 from a clean `main`;
 6. do not create intermediate Git commits.
 
 ## Important

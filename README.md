@@ -42,3 +42,50 @@ Transform a large set of SAP/ABAP artifacts into structured technical knowledge,
 - Seed/demo data should exist from early sprints so each increment can be reproduced quickly.
 
 Start with `CLAUDE.md`, `docs/delivery/IMPLEMENTATION_BASELINE.md`, and `docs/delivery/sprint-execution-model.md`.
+
+## Running the application (development)
+
+### Prerequisites
+- Docker Desktop (Compose v2.24+).
+- Node.js 22+ on the host (Electron/React run on the host, see ADR-003).
+- Optional: VS Code with the Dev Containers extension.
+
+### 1. Configuration
+```bash
+cp .env.example .env   # optional; defaults work out of the box. Never commit .env.
+```
+
+### 2. Backend + PostgreSQL/pgvector
+```bash
+docker compose up -d --build            # starts postgres + backend; applies Alembic migrations on start
+curl http://localhost:8000/health       # {"status":"ok", "database":{"pgvector":true, ...}}
+```
+Alternatively open the folder in VS Code and choose **Reopen in Container** (`.devcontainer/`), which attaches to the same `backend` service.
+
+Backend commands (run inside the container, e.g. `docker compose exec backend <cmd>`):
+
+| Purpose | Command |
+|---|---|
+| Apply migrations | `alembic upgrade head` |
+| New migration | `alembic revision --autogenerate -m "<message>"` |
+| Apply synthetic demo seed (idempotent) | `python -m seed apply demo` |
+| Show applied seeds | `python -m seed status` |
+| Backend smoke/contract tests | `pytest -q` |
+
+### 3. Desktop shell (host)
+```bash
+cd frontend
+npm install
+npm run dev          # Electron + Vite with hot reload
+npm run typecheck
+npm run smoke        # builds, launches Electron, checks shell regions + health (backend must be running)
+```
+
+### Layout
+```text
+backend/     FastAPI + SQLAlchemy + Alembic (runs in Docker)
+frontend/    Electron + React + TypeScript + Tailwind/shadcn (runs on host)
+compose.yml  postgres (pgvector) + backend
+.devcontainer/
+docs/        canonical documentation
+```

@@ -1,0 +1,49 @@
+sprint: SPRINT-00
+branch: sprint/00-engineering-foundation
+status: completed
+progress_percent: 100
+started_at: 2026-09-24
+completed_at: 2026-09-24
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Repository/application structure, Dev Container and Docker Compose
+    status: done
+    validation: 'compose.yml + .devcontainer/devcontainer.json; `docker compose up -d --build` starts postgres and backend healthy; `docker compose config` valid with and without .env'
+  - id: CAP-002
+    description: PostgreSQL with pgvector and FastAPI backend start
+    status: done
+    validation: 'pgvector/pgvector:pg17 healthy; GET /health returns status ok with pgvector true'
+  - id: CAP-003
+    description: SQLAlchemy + Alembic migration foundation
+    status: done
+    validation: 'alembic downgrade base -> upgrade head -> check: no drift; revision 0001_foundation; migrations applied on backend start'
+  - id: CAP-004
+    description: Electron + React + TypeScript shell with permanent three-panel layout placeholder
+    status: done
+    validation: 'npm run typecheck + build pass; npm run dev serves renderer on :5173 and launches Electron; smoke confirms sidebar/workspace/copilot regions; Copilot collapses to rail'
+  - id: CAP-005
+    description: Backend /health exposed and connectivity state rendered in UI
+    status: done
+    validation: 'pytest test_health_contract + test_cors_allows_renderer_origin pass; npm run smoke PASS backend online, pgvector true, schema revision 0001_foundation (screenshot frontend/test-results/shell.png, ignored)'
+  - id: CAP-006
+    description: .env.example, secrets ignored, startup commands documented
+    status: done
+    validation: '.env.example added; .env/credentials ignored (git check-ignore); .gitignore lib/ exception for frontend source; README "Running the application" section'
+  - id: CAP-007
+    description: Minimal synthetic seed mechanism (no customer data)
+    status: done
+    validation: 'python -m seed apply/status; test_demo_seed_is_idempotent passes'
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - BL-001
+notes:
+  - 'Host prerequisites installed during sprint with user approval: Node.js 24 LTS (winget); Docker Desktop started.'
+  - 'electron-vite 5 supports Vite <=7, so Vite is pinned to ^7; TypeScript pinned to ~5.9.'
+  - 'npm 11 blocks install scripts by default; electron and esbuild are approved in frontend/package.json allowScripts.'
+  - 'The generic `lib/` rule in .gitignore hid frontend/src/renderer/src/lib; an explicit exception was added (prerequisite defect).'
+  - 'Dev Container definition validated as JSON and via the same compose service; "Reopen in Container" in VS Code was not exercised interactively.'
+  - 'MCP compose services are deferred to SPRINT-09 as planned in the roadmap.'

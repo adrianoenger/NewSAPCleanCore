@@ -4,6 +4,7 @@ This file captures useful discoveries that are outside the active sprint. Record
 
 | ID | Title | Description | Origin | Priority | Suggested Sprint | Status |
 |---|---|---|---|---|---|---|
+| BL-001 | Remove duplicate root `gitignore` file | Repository root contains `gitignore` (no dot), identical to `.gitignore` and without effect. Remove it or confirm it is intentional. | SPRINT-00 hygiene review | Low | Any (administrative) | Open |
 
 ## Rules
 - Use a stable ID such as `BL-001`.
