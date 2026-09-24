@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import health
 from api.routes.clients import router as clients_router
+from api.routes.ingestion import assessments_router as ingestion_router
+from api.routes.ingestion import config_router as ingestion_config_router
 from settings import get_settings
 
 
@@ -19,6 +21,8 @@ def create_app() -> FastAPI:
     )
     app.include_router(health.router)
     app.include_router(clients_router)
+    app.include_router(ingestion_router)
+    app.include_router(ingestion_config_router)
     return app
 
 

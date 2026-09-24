@@ -1,5 +1,6 @@
+import { dirname } from 'node:path'
 import { join } from 'node:path'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -33,6 +34,14 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('dialog:selectDirectory', async () => {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  // Returns the repo root on the host — used by the renderer to map host paths to /workspace
+  ipcMain.handle('app:getProjectRoot', () => dirname(app.getAppPath()))
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

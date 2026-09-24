@@ -260,3 +260,6 @@ coverage/
 # Application source directories whose names collide with generic ignore rules above (e.g. `lib/`)
 !frontend/src/**/lib/
 !frontend/src/**/lib/**
+
+# Pasta com os arquivos origem de clientes
+SAP_Files/

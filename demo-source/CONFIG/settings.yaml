@@ -1,0 +1,9 @@
+system: S4D
+environment: development
+features:
+  custom_order_processing: true
+  legacy_bapi_integration: false
+  clean_core_compliance_mode: true
+thresholds:
+  max_custom_tables: 50
+  max_custom_function_groups: 20

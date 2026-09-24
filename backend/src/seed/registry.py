@@ -1,12 +1,25 @@
 """Registry of seed datasets and idempotent application logic."""
 
+import hashlib
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from persistence.models import Assessment, AssessmentStatus, Client, SAPSystem, SeedRun
+from ingestion.classifier import classify
+from persistence.models import (
+    Assessment,
+    AssessmentStatus,
+    Client,
+    SAPSystem,
+    ScanStatus,
+    SeedRun,
+    SourceFile,
+    SourceScan,
+)
 
 SeedStep = Callable[[Session], None]
 
@@ -70,6 +83,106 @@ def _seed_demo_client_system_assessment(session: Session) -> None:
         )
 
 
+def _seed_demo_source_scan(session: Session) -> None:
+    """Seed a completed source scan for the demo assessment using demo-source files."""
+    assessment = session.scalars(
+        select(Assessment)
+        .join(Assessment.sap_system)
+        .join(SAPSystem.client)
+        .where(
+            Client.name == "Acme Industries",
+            Assessment.name == "Clean Core PoC Assessment",
+        )
+    ).first()
+    if assessment is None:
+        return
+
+    # Skip if a completed scan already exists
+    existing = session.scalars(
+        select(SourceScan).where(
+            SourceScan.assessment_id == assessment.id,
+            SourceScan.status == ScanStatus.COMPLETED.value,
+        )
+    ).first()
+    if existing is not None:
+        return
+
+    demo_root = Path("/workspace/demo-source")
+    if not demo_root.is_dir():
+        return
+
+    files = [p for p in sorted(demo_root.rglob("*")) if p.is_file()]
+    scan = SourceScan(
+        assessment_id=assessment.id,
+        source_path=str(demo_root),
+        status=ScanStatus.COMPLETED.value,
+        total_files=len(files),
+        scanned_files=len(files),
+    )
+    session.add(scan)
+    session.flush()
+
+    for abs_path in files:
+        stat = abs_path.stat()
+        rel = str(abs_path.relative_to(demo_root)).replace(os.sep, "/")
+        h = hashlib.sha256()
+        with open(abs_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        session.add(
+            SourceFile(
+                scan_id=scan.id,
+                assessment_id=assessment.id,
+                rel_path=rel,
+                size_bytes=stat.st_size,
+                mtime=stat.st_mtime,
+                sha256=h.hexdigest(),
+                category=classify(rel),
+            )
+        )
+
+
+def _seed_rodobens_client_system_assessment(session: Session) -> None:
+    """Seed Rodobens/ECC/Assessment01 — no pre-loaded scan, for full ingestion flow testing."""
+    client = session.scalars(select(Client).where(Client.name == "Rodobens")).first()
+    if client is None:
+        client = Client(
+            name="Rodobens",
+            description="Cliente demo para testes de ingestão de fontes.",
+        )
+        session.add(client)
+        session.flush()
+
+    system = session.scalars(
+        select(SAPSystem).where(SAPSystem.client_id == client.id, SAPSystem.sid == "ECC")
+    ).first()
+    if system is None:
+        system = SAPSystem(
+            client_id=client.id,
+            name="ECC 6.0",
+            sid="ECC",
+            description="Sistema SAP ECC 6.0 demo.",
+        )
+        session.add(system)
+        session.flush()
+
+    assessment = session.scalars(
+        select(Assessment).where(
+            Assessment.sap_system_id == system.id,
+            Assessment.name == "Assessment01",
+        )
+    ).first()
+    if assessment is None:
+        session.add(
+            Assessment(
+                sap_system_id=system.id,
+                name="Assessment01",
+                description="Assessment inicial para testes de ingestão de fontes.",
+                status=AssessmentStatus.CREATED.value,
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Dataset registry
 # ---------------------------------------------------------------------------
@@ -77,9 +190,13 @@ def _seed_demo_client_system_assessment(session: Session) -> None:
 DATASETS: dict[str, SeedDataset] = {
     "demo": SeedDataset(
         name="demo",
-        version=2,  # bumped: CAP-003 adds Client/SAPSystem/Assessment rows
-        description="Synthetic demo dataset with one Client, SAP System and Assessment.",
-        steps=[_seed_demo_client_system_assessment],
+        version=4,  # bumped: adds Rodobens/ECC/Assessment01 for ingestion flow testing
+        description="Synthetic demo dataset: Acme (with scan) + Rodobens (no scan, for full flow test).",
+        steps=[
+            _seed_demo_client_system_assessment,
+            _seed_demo_source_scan,
+            _seed_rodobens_client_system_assessment,
+        ],
     ),
 }
 

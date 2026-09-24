@@ -1,0 +1,11 @@
+DDIC Table Definition: ZCUST_ORDER_HEADER
+Table Type: Transparent table
+Delivery Class: A
+
+Fields:
+  MANDT    MANDT     3  Client
+  ORDER_ID CHAR      20 Order ID (Key)
+  CUST_ID  CHAR      10 Customer ID
+  STATUS   CHAR      2  Order Status
+  CREATED  DATS      8  Creation Date
+  AMOUNT   CURR      15 Order Amount

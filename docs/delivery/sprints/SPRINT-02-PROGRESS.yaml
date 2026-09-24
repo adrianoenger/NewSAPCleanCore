@@ -1,0 +1,47 @@
+sprint: SPRINT-02
+branch: sprint/02-source-ingestion
+status: completed
+progress_percent: 100
+started_at: "2026-09-24"
+completed_at: "2026-09-24"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Electron directory picker — UI to select a local source directory and send path to backend
+    status: completed
+    validation: "Electron IPC handler (dialog:selectDirectory), preload bridge (window.desktop.selectDirectory), SourceIngestion component with Browse button"
+  - id: CAP-002
+    description: Backend path mapping/validation — validate path is accessible, return metadata
+    status: completed
+    validation: "GET /ingestion/config returns scan_root + demo_path; POST /assessments/{id}/scans validates assessment exists, creates SourceScan record, returns 404 for unknown assessment"
+  - id: CAP-003
+    description: File scanner — walk directory, persist path/size/mtime/SHA-256 per file
+    status: completed
+    validation: "scanner.py walks dir, computes SHA-256, persists SourceFile rows; demo seed scanned 9 files from /workspace/demo-source; test_scan_lifecycle verified SHA-256 correctness"
+  - id: CAP-004
+    description: File classifier — assign artifact categories (ABAP, config, docs, etc.) without parsing content
+    status: completed
+    validation: "classifier.py maps 25 extensions to 7 categories including multi-extension (.clas.xml → abap_source); 10 parametrized classifier tests pass"
+  - id: CAP-005
+    description: Scan progress UI — show real-time scan progress and file counts per category
+    status: completed
+    validation: "SourceIngestion component: progress bar, category bar chart, category legend, file inventory table, scan history; TanStack Query refetchInterval polls pending/scanning scans every 1.5s"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - "demo-source/ created with 9 synthetic SAP files (ABAP classes, FMs, DDIC tables, config, docs)"
+  - "Alembic 0003_source_ingestion adds source_scan and source_file tables"
+  - "FastAPI BackgroundTasks runs scan in background thread; run_scan opens its own SQLAlchemy session"
+  - "scan_root defaults to /workspace (Docker container); demo_path to /workspace/demo-source"
+  - "Workspace.tsx simplified: replaced health-card placeholder with SourceIngestion component"
+  - "22/22 pytest pass; typecheck clean"
+  - "Security: path traversal fix — _validate_scan_path enforces source_path inside scan_root via realpath; scanner.py re-validates each entry (defense in depth)"
+  - "Path mapping: Electron IPC app:getProjectRoot + preload bridge; frontend auto-maps host path C:\\...  to /workspace/... before sending to backend"
+  - "Resume: scanner skips already-persisted source_file rows; start_scan resumes existing PENDING/SCANNING scan for same path"
+  - "Progress: commits every 10 files; total_files set after initial file collection"
+  - "Classifier: .html/.htm added as abap_source (SAP HTML exports embed ABAP code)"
+  - "Error display: launchError state shown in UI with AlertTriangle icon"
+  - "Tested with SAP_Files/MASS_ABAP (3469 .html files, completed in ~25s)"

@@ -1,0 +1,9 @@
+DDIC Domain: ZDOMAIN_ORDER_STATUS
+Data Type: CHAR
+Length: 2
+
+Fixed Values:
+  OP  Open
+  IP  In Progress
+  CL  Closed
+  CA  Cancelled

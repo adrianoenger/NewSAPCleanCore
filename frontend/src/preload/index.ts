@@ -1,10 +1,11 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Minimal, explicit bridge. Native capabilities (e.g. directory selection) are added per sprint.
 contextBridge.exposeInMainWorld('desktop', {
   platform: process.platform,
   versions: {
     electron: process.versions.electron,
-    chrome: process.versions.chrome
-  }
+    chrome: process.versions.chrome,
+  },
+  selectDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:selectDirectory'),
+  getProjectRoot: (): Promise<string> => ipcRenderer.invoke('app:getProjectRoot'),
 })

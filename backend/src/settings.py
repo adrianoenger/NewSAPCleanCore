@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Renderer origins allowed to call the API: Vite dev server and packaged Electron (file:// -> "null").
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "null"]
 
+    # Source ingestion: root under which scans are permitted (must be accessible from the container).
+    scan_root: str = "/workspace"
+    demo_source_path: str = "/workspace/demo-source"
+
 
 @lru_cache
 def get_settings() -> Settings:
