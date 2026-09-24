@@ -1,6 +1,6 @@
-# SAP Clean Core Analysis PoC — Documentation Baseline R2
+# SAP Clean Core Analysis PoC — Documentation Baseline R3.1
 
-**Baseline date:** 2026-09-23  
+**Baseline date:** 2026-09-24  
 **Purpose:** canonical documentation for the initial PoC generation of the SAP Clean Core analysis application.
 
 This repository is documentation-first. The existing notebook-based solution is a source of proven parsing and analysis ideas, not the target runtime architecture.
@@ -30,9 +30,12 @@ Transform a large set of SAP/ABAP artifacts into structured technical knowledge,
 - `/clean-core-finish-sprint` is the only project command allowed to finalize sprint status, create the sprint commit, push the sprint branch, fast-forward and push `main`, delete the local sprint branch and update local `main`.
 - New ideas outside the active sprint go to `docs/delivery/BACKLOG.md`; they must not silently expand sprint scope.
 - Architectural decisions must not be changed silently during implementation.
+- Canonical ownership is `Client → Assessment`; SAP source system is Assessment metadata, not an independent managed entity.
+- The left sidebar is hidden on Assessments Home and appears only inside an Assessment.
 - Prefer deterministic extraction for facts; use AI for interpretation; use SAP knowledge providers for authoritative guidance.
+- Treat ATC XLSX as semi-structured external evidence: preserve raw rows/header mapping and tolerate optional/additional columns.
 - Persist long-running processing state so work can pause, resume, retry and recover.
-- The same assessment is explored through four navigation views: Executive, Architecture & Clean Core, Business & Rules, Engineering & Code.
+- The application opens on Assessments Home; inside an Assessment, results are explored through Dashboard Geral plus Executive, Technical, Functional and Architecture views.
 - The right side of the application is permanently dedicated to the AI Copilot.
 - LLM providers are **AWS Bedrock** and **Azure AI Foundry** behind a provider abstraction.
 - SAP knowledge uses `mcp-sap-docs` and `mcp-abap`, configurable by URL.

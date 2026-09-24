@@ -8,7 +8,7 @@
 
 The product needs to connect executive understanding, business rules, architecture, Clean Core findings, engineering evidence and modernization recommendations. A conventional chat window beside independent pages would force users to repeat context and would not exploit the structured application model built by the analysis pipeline.
 
-The high-fidelity Architecture & Clean Core mockup validated a stronger interaction model: the Copilot is permanently available, receives the current application/view/selection context and can return typed references and supported UI actions.
+The high-fidelity Architecture View mockup validated a stronger interaction model: the Copilot is permanently available, receives the current application/view/selection context and can return typed references and supported UI actions.
 
 ## Decision
 
@@ -46,7 +46,7 @@ The model cannot execute arbitrary frontend code. Only whitelisted actions are i
 ### Positive
 
 - less repeated context in chat;
-- stronger continuity between business and technical views;
+- stronger continuity between functional and technical views;
 - explainability and traceability become visible product capabilities;
 - the Copilot differentiates itself from a passive side chat;
 - frontend interactions can remain deterministic despite LLM-generated language;

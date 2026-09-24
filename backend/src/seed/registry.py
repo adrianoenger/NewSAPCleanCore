@@ -10,11 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ingestion.classifier import classify
+from parsing.dispatcher import parse_file
 from persistence.models import (
     Assessment,
     AssessmentStatus,
     Client,
     SAPSystem,
+    SAPObject,
     ScanStatus,
     SeedRun,
     SourceFile,
@@ -142,6 +144,68 @@ def _seed_demo_source_scan(session: Session) -> None:
         )
 
 
+def _seed_demo_sap_objects(session: Session) -> None:
+    """Parse demo-source ABAP/DDIC files and persist SAPObject entities."""
+    assessment = session.scalars(
+        select(Assessment)
+        .join(Assessment.sap_system)
+        .join(SAPSystem.client)
+        .where(
+            Client.name == "Acme Industries",
+            Assessment.name == "Clean Core PoC Assessment",
+        )
+    ).first()
+    if assessment is None:
+        return
+
+    scan = session.scalars(
+        select(SourceScan).where(
+            SourceScan.assessment_id == assessment.id,
+            SourceScan.status == ScanStatus.COMPLETED.value,
+        )
+    ).first()
+    if scan is None:
+        return
+
+    # Skip if objects already exist for this assessment
+    existing_count = session.query(SAPObject).filter(
+        SAPObject.assessment_id == assessment.id
+    ).count()
+    if existing_count > 0:
+        return
+
+    files = list(
+        session.scalars(
+            select(SourceFile).where(
+                SourceFile.scan_id == scan.id,
+                SourceFile.category.in_(["abap_source", "ddic"]),
+            )
+        )
+    )
+
+    demo_root = Path("/workspace/demo-source")
+    for sf in files:
+        abs_path = demo_root / sf.rel_path
+        try:
+            content = abs_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        parsed = parse_file(content, sf.rel_path, sf.category)
+        for p in parsed:
+            session.add(
+                SAPObject(
+                    assessment_id=assessment.id,
+                    source_file_id=sf.id,
+                    object_type=p.object_type,
+                    object_name=p.object_name,
+                    description=p.description,
+                    line_start=p.line_start,
+                    line_end=p.line_end,
+                    attributes=p.attributes,
+                )
+            )
+
+
 def _seed_rodobens_client_system_assessment(session: Session) -> None:
     """Seed Rodobens/ECC/Assessment01 — no pre-loaded scan, for full ingestion flow testing."""
     client = session.scalars(select(Client).where(Client.name == "Rodobens")).first()
@@ -190,11 +254,12 @@ def _seed_rodobens_client_system_assessment(session: Session) -> None:
 DATASETS: dict[str, SeedDataset] = {
     "demo": SeedDataset(
         name="demo",
-        version=4,  # bumped: adds Rodobens/ECC/Assessment01 for ingestion flow testing
-        description="Synthetic demo dataset: Acme (with scan) + Rodobens (no scan, for full flow test).",
+        version=5,  # bumped: adds SAP object parsing step for demo-source files
+        description="Synthetic demo dataset: Acme (with scan + parsed objects) + Rodobens (no scan).",
         steps=[
             _seed_demo_client_system_assessment,
             _seed_demo_source_scan,
+            _seed_demo_sap_objects,
             _seed_rodobens_client_system_assessment,
         ],
     ),

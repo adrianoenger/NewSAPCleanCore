@@ -1,4 +1,8 @@
-# Application Experience — SAP Clean Core Analyzer
+# Application Experience
+
+## Current canonical framing
+The application is Assessment-centric. It opens on an Assessments Home grid without a left sidebar. `Client → Assessment` is the managed hierarchy; the SAP source system is Assessment metadata. The left processing/results menu appears only after opening an Assessment, while the AI Copilot remains on the right.
+ — SAP Clean Core Analyzer
 
 **Status:** Product baseline for PoC
 
@@ -27,19 +31,19 @@ Primary views: Executive Overview, Modernization Opportunities.
 
 Needs: architecture, dependencies, Clean Core, integrations, modernization strategy.
 
-Primary views: Architecture & Clean Core, Clean Core Findings, Application Discovery.
+Primary views: Architecture View, Clean Core Findings, Application Discovery.
 
 ### Functional Specialist
 
 Needs: processes, rules, behavior and business dependencies.
 
-Primary views: Business Rules, Application Discovery.
+Primary views: Functional View, Application Discovery.
 
 ### Developer
 
 Needs: code, objects, methods, dependencies and technical evidence.
 
-Primary views: Engineering, Clean Core Findings, Architecture & Clean Core.
+Primary views: Technical View, Clean Core Findings, Architecture View.
 
 ## 3. Core views
 
@@ -67,7 +71,7 @@ Shows the analysis pipeline and progress across stages such as:
 
 Business-oriented summary with application purpose, principal risks, Clean Core assessment and modernization signals.
 
-### Architecture & Clean Core
+### Architecture View
 
 Interactive dependency graph connecting custom code, SAP standard, released APIs, legacy integration and Clean Core risk. This is the first high-fidelity reference view.
 
@@ -75,11 +79,11 @@ Interactive dependency graph connecting custom code, SAP standard, released APIs
 
 Evidence-based findings with severity, object, category, business/technical impact and recommended approach.
 
-### Business Rules
+### Functional View
 
 Business-readable rules extracted from the implementation, with confidence and source evidence.
 
-### Engineering
+### Technical View
 
 SAP object tree + ABAP code viewer + contextual annotations for rule, dependency, finding, standard call and technical debt.
 

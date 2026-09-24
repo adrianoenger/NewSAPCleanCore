@@ -1,5 +1,10 @@
 # Plano: Entrega 2 — DDL SQLite (schema.sql + seed)
 
+> **R3.1 ATC compatibility note (2026-09-24):** this is historical/analytical material. Any fixed counts, column lists, pre-seeded ATC checks, packages or values described below reflect a reviewed sample and are **not** the runtime XLSX contract. Canonical ATC ingestion is schema-tolerant and defined by `docs/data/atc-import-contract.md` and ADR-016.
+
+
+> **HISTORICAL ANALYTICAL DOCUMENT:** Preserved as prior analysis/reference. It is not the current runtime/domain/UX source of truth. Baseline R3.1, accepted ADRs, and current `docs/data`, `docs/product`, `docs/ux`, `docs/design`, and `docs/delivery` documents prevail on conflicts.
+
 ## Contexto
 
 Projeto Copa Energia — migração SAP ECC → S/4HANA. A Entrega 1 (modelagem conceitual em `docs/modelagem_conceitual.md`) foi aprovada. Esta entrega produz o DDL SQLite executável que materialize essa modelagem.
@@ -130,7 +135,7 @@ Todos os índices identificados no plano:
 ### `simplification_item_category` (6 registros)
 `I`=Information, `W`=Warning, `B`=Blocker, `S`=Structural, `A`=Automatic, `C`=Compatible
 
-### `atc_check` (12 registros — checks do variant S4HANA_READINESS_2025_NO_FLE)
+### `atc_check` (catálogo dinâmico; o arquivo de referência apresentou 12 checks)
 - Search problematic statements for SELECT/OPEN CURSOR without ORDER BY
 - S/4HANA: Search for Usages of Simplified Objects
 - S/4HANA: Field Length Extensions

@@ -1,0 +1,36 @@
+sprint: SPRINT-03
+branch: sprint/03-sap-object-parsing
+status: completed
+progress_percent: 100
+started_at: "2026-09-24"
+completed_at: "2026-09-24"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: "Parsers ABAP (class, function, program) e DDIC (table, domain) — extração de objetos SAP de source files"
+    status: completed
+    validation: "13 parser unit tests passando; 6 objetos extraídos do demo-source"
+  - id: CAP-002
+    description: "Modelo SAPObject no banco + migração Alembic 0004"
+    status: completed
+    validation: "Migração 0004_sap_object_parsing aplicada; health retorna revisão correta"
+  - id: CAP-003
+    description: "API routes: trigger parsing, listar objetos, detalhe de objeto"
+    status: completed
+    validation: "35/35 pytest passando; endpoints smoke-testados manualmente"
+  - id: CAP-004
+    description: "Frontend: ObjectBrowser — browse técnico de objetos SAP por assessment"
+    status: completed
+    validation: "Componente criado; typecheck OK; integrado em Workspace view 'engineering'"
+  - id: CAP-005
+    description: "Seed atualizado: demo-source parseado e objetos SAP persistidos"
+    status: completed
+    validation: "seed v5 aplicado; 6 objetos SAP persistidos para Acme/S4D/Clean Core PoC Assessment"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - "Parsers migrados de referência legada; estrutura nova, sem notebooks ou SQLite"
+  - "SAPObject é entidade distinta de SourceFile (regra de baseline)"

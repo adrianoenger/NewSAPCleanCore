@@ -44,7 +44,7 @@ export function App() {
         connectivity={health.connectivity}
         ctx={ctx}
       />
-      <Workspace viewLabel={viewLabel} health={health} ctx={ctx} />
+      <Workspace viewLabel={viewLabel} activeView={activeView} health={health} ctx={ctx} />
       <CopilotPanel
         collapsed={copilotCollapsed}
         onToggle={() => setCopilotCollapsed((value) => !value)}

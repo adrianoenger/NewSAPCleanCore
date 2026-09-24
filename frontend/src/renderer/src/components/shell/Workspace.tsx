@@ -1,17 +1,19 @@
 import { ClientHub } from '@/components/hub/ClientHub'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
+import { ObjectBrowser } from '@/components/parsing/ObjectBrowser'
 import type { ClientContext } from '@/lib/useClientContext'
 import type { useHealth } from '@/lib/useHealth'
 import { ConnectionIndicator } from './ConnectionIndicator'
 
 interface WorkspaceProps {
   viewLabel: string
+  activeView: string
   health: ReturnType<typeof useHealth>
   ctx: ClientContext
 }
 
 /** Center workspace. Shows Client Hub until an assessment is selected; then shows the active view. */
-export function Workspace({ viewLabel, health, ctx }: WorkspaceProps) {
+export function Workspace({ viewLabel, activeView, health, ctx }: WorkspaceProps) {
   const { connectivity } = health
 
   const contextLine = ctx.assessment
@@ -41,9 +43,11 @@ export function Workspace({ viewLabel, health, ctx }: WorkspaceProps) {
         <ConnectionIndicator connectivity={connectivity} />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         {!ctx.assessment ? (
           <ClientHub ctx={ctx} />
+        ) : activeView === 'engineering' ? (
+          <ObjectBrowser assessmentId={ctx.assessment.id} />
         ) : (
           <SourceIngestion assessmentId={ctx.assessment.id} />
         )}

@@ -1,3 +1,5 @@
+> **REFERENCE SCOPE NOTICE (2026-09-24):** This high-fidelity artifact remains useful as visual inspiration for an in-Assessment Architecture View. It is not authoritative for the application home, hierarchy, menu labels or shell rules; ADR-015 and current design/UX docs prevail.
+
 # Handoff: SAP Clean Core Analyzer — Architecture & Clean Core screen
 
 ## Overview

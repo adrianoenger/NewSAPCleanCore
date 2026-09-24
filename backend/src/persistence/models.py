@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, BigInteger, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from persistence.database import Base
@@ -99,6 +99,9 @@ class Assessment(Base):
     scans: Mapped[list["SourceScan"]] = relationship(
         "SourceScan", back_populates="assessment", cascade="all, delete-orphan"
     )
+    sap_objects: Mapped[list["SAPObject"]] = relationship(
+        "SAPObject", back_populates="assessment", cascade="all, delete-orphan"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +172,37 @@ class SourceFile(Base):
     category: Mapped[str] = mapped_column(String(30), nullable=False)
 
     scan: Mapped["SourceScan"] = relationship("SourceScan", back_populates="files")
+    sap_objects: Mapped[list["SAPObject"]] = relationship(
+        "SAPObject", back_populates="source_file", cascade="all, delete-orphan"
+    )
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-03 domain models
+# ---------------------------------------------------------------------------
+
+
+class SAPObject(Base):
+    """A SAP object (class, function module, report, DDIC table, etc.) extracted from a SourceFile."""
+
+    __tablename__ = "sap_object"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_file_id: Mapped[int] = mapped_column(
+        ForeignKey("source_file.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    object_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    line_start: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attributes: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    parsed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="sap_objects")
+    source_file: Mapped["SourceFile"] = relationship("SourceFile", back_populates="sap_objects")

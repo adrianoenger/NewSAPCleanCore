@@ -1,5 +1,10 @@
 # Modelagem Conceitual — Banco de Dados de Análise SAP Clean Core
 
+> **R3.1 ATC compatibility note (2026-09-24):** this is historical/analytical material. Any fixed counts, column lists, pre-seeded ATC checks, packages or values described below reflect a reviewed sample and are **not** the runtime XLSX contract. Canonical ATC ingestion is schema-tolerant and defined by `docs/data/atc-import-contract.md` and ADR-016.
+
+
+> **HISTORICAL ANALYTICAL DOCUMENT:** Preserved as prior analysis/reference. It is not the current runtime/domain/UX source of truth. Baseline R3.1, accepted ADRs, and current `docs/data`, `docs/product`, `docs/ux`, `docs/design`, and `docs/delivery` documents prevail on conflicts.
+
 **Projeto:** Copa Energia — Migração SAP ECC → S/4HANA
 **Cliente:** Copa Energia | **Executor:** T-Systems do Brasil
 **Documento:** Entrega 1 — Modelagem conceitual (pré-DDL)
@@ -116,7 +121,7 @@ flowchart TB
 
 - **Camada 0** lê os arquivos físicos e popula a Camada 1 (relação determinística, uma vez por arquivo)
 - **Camada 1** é o catálogo objetivo do ambiente SAP — não muda após ingestão
-- **Camada 2** é importada uma única vez do Excel ATC e cruzada com a Camada 1 via nome+tipo
+- **Camada 2** pode conter múltiplos `atc_run`s por Assessment; cada XLSX é descoberto/mapeado dinamicamente e cruzado com a Camada 1 quando os identificadores disponíveis permitem
 - **Camada 3** consome as Camadas 1 e 2, com auxílio da Camada 4 (RAG), e produz interpretações versionadas
 - **Camada 4** é construída a partir da Camada 1 e usada como contexto nas execuções de IA
 - O **relatório final** é a materialização final, agregando recomendações da Camada 3 com evidências das Camadas 1 e 2
@@ -351,7 +356,7 @@ Esta entidade é **central** para responder perguntas como:
 | `description` | Opcional |
 | `is_custom` | True se Z/Y |
 
-Pacotes vêm primariamente do Excel ATC (56 distintos identificados). Servem como agrupamento natural de objetos por área funcional.
+Pacotes podem vir do Excel ATC. O arquivo de referência apresentou 56 valores distintos, mas o catálogo é dinâmico e não possui cardinalidade fixa.
 
 ---
 
@@ -426,7 +431,7 @@ O campo `referenced_object_name` é especialmente importante: liga o finding ao 
 | `note_url` | https://launchpad.support.sap.com/#/notes/{number} |
 | `note_content` | Texto completo (quando recuperável — opcional) |
 
-56 notas distintas no relatório atual. Servem como contexto autoritativo para os agentes IA gerarem recomendações.
+O relatório de referência apresentou 56 SAP Notes distintas após desconsiderar o valor sentinela observado. A cardinalidade é dinâmica por run; notas válidas servem como contexto autoritativo para recomendações.
 
 ### 4.5 Catálogos auxiliares
 

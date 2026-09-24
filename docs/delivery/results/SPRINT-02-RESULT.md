@@ -1,3 +1,5 @@
+> **HISTORICAL UX NOTICE (2026-09-24):** This result records the source-ingestion implementation at Sprint 02. Baseline R3.1 now requires an empty initial source-directory field and Start Scan disabled until explicit valid selection. Sprint 04 performs that UI/config alignment.
+
 # SPRINT-02 Result — Source Ingestion
 
 **Status:** Completed  

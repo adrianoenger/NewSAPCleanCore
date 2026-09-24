@@ -71,3 +71,9 @@ backend/src/
   chat/
   persistence/
 ```
+
+
+## Assessment-centric ownership
+The runtime domain boundary is `Client → Assessment`. The source SAP system is Assessment metadata (`sap_source_system`), not an independently managed aggregate. Source scans, parsed objects, ATC findings, pipeline state, AI outputs and results are Assessment-scoped.
+
+The React shell has two states: Assessments Home without a left sidebar, and Assessment Workspace with the left process/results sidebar. The right-side Copilot remains present in both.

@@ -46,7 +46,7 @@ Uma tela está pronta para implementação quando responde positivamente a:
 - navegação para objeto/finding/rule/evidence está definida?
 - loading/empty/error foram considerados quando críticos?
 - a tela respeita os tokens do design system?
-- a experiência continua coerente com Architecture & Clean Core?
+- a experiência continua coerente com o shell Assessment-centric e com as perspectivas Executive, Technical, Functional e Architecture?
 
 ## 6. Interaction contract
 
@@ -92,14 +92,15 @@ Pixel-perfect não é um requisito absoluto da PoC; coerência e usabilidade sã
 
 ## 9. Recommended next screens
 
-Após Architecture & Clean Core, priorizar:
+Priorizar conforme o roadmap vigente:
 
-1. Executive Overview
-2. Clean Core Findings
-3. Business Rules
-4. Engineering
-5. Application Discovery
-6. Modernization Opportunities
-7. Applications list / Analysis Runs / New Analysis wizard
+1. Assessments Home e shell Assessment-centric (Sprint 04)
+2. ATC Analysis
+3. AI Processing/progress
+4. Dashboard Geral
+5. Executive View
+6. Technical View
+7. Functional View
+8. Architecture View
 
-A ordem pode ser ajustada conforme a sprint, mas as quatro primeiras ampliam rapidamente a cobertura das principais personas.
+O mockup histórico Architecture & Clean Core continua útil como referência visual interna para Architecture View, mas não define a navegação canônica.

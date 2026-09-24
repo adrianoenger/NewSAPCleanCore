@@ -1,6 +1,6 @@
 # SAP Clean Core Analyzer — Documentation Index
 
-> Status: baseline de documentação da PoC atualizada em 23/09/2026.
+> Status: baseline de documentação da PoC atualizada em 24/09/2026 — R3.1.
 
 Este diretório consolida a documentação funcional, de dados, arquitetura e experiência de usuário da PoC **SAP Clean Core Analyzer**.
 
@@ -14,11 +14,12 @@ Este diretório consolida a documentação funcional, de dados, arquitetura e ex
 6. Toda saída de IA que represente análise, finding, regra ou recomendação deve manter **rastreabilidade até evidências** e o respectivo Analysis Run.
 7. A PoC utiliza uma estratégia de testes enxuta, priorizando fluxos críticos, contratos principais, persistência, retomada do pipeline e integrações centrais.
 8. O design padrão é **Dark Enterprise**, com **#E30074** como cor oficial T-Systems para ações primárias, seleção, foco, IA e identidade.
+9. Relatórios ATC em `.xlsx` são tratados como fontes semi-estruturadas: colunas opcionais/novas não devem quebrar a ingestão; dado bruto e mapeamento devem ser preservados.
 
 ## Documentos de design e experiência
 
 - [`design/design-system.md`](design/design-system.md) — tokens visuais, cores, tipografia, espaçamento e componentes.
-- [`design/application-shell.md`](design/application-shell.md) — shell permanente Sidebar + Workspace + AI Copilot.
+- [`design/application-shell.md`](design/application-shell.md) — shell em dois estados: Assessments Home sem sidebar e Assessment Workspace com sidebar; AI Copilot permanente.
 - [`design/interaction-model.md`](design/interaction-model.md) — navegação contextual, seleção, highlights e sincronização entre visões.
 - [`design/ai-copilot-ux.md`](design/ai-copilot-ux.md) — comportamento do Copilot, evidências e contrato de resposta estruturada.
 - [`design/screen-design-process.md`](design/screen-design-process.md) — fluxo enxuto de design antes da implementação.
@@ -39,4 +40,12 @@ Esse material é uma **referência de design/handoff**, não código de produç�
 - [`plano_data_base.md`](plano_data_base.md)
 - [`plano_sap_clean_core.md`](plano_sap_clean_core.md)
 
-Esses documentos preservam o histórico e o detalhamento da modelagem/analítica já produzida. As decisões de UX descritas neste índice e na pasta `design/` passam a ser a fonte de verdade para a experiência da PoC.
+Esses documentos preservam o histórico e o detalhamento da modelagem/analítica já produzida. Esses documentos são históricos/analíticos e não prevalecem sobre `delivery/IMPLEMENTATION_BASELINE.md`, ADRs aceitas ou a documentação atual em `product/`, `ux/` e `design/`.
+
+
+## Current product correction — 2026-09-24
+
+ATC import is governed by `data/atc-import-contract.md` and `adr/016-variable-atc-xlsx-import.md`: the reviewed 21-column sample is a reference, not a fixed schema.
+
+
+The canonical UX/domain model is Assessment-centric: `Client → Assessment`, with `sap_source_system` as Assessment metadata. The application starts on Assessments Home without a left sidebar; the Assessment sidebar appears only after an Assessment is opened; the AI Copilot stays on the right. See `adr/015-assessment-centric-workspace.md` and `delivery/IMPLEMENTATION_BASELINE.md`.

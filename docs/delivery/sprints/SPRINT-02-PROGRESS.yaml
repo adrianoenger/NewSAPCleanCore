@@ -1,3 +1,5 @@
+# current_target_notice: historical scan_root/demo_path behavior must not pre-populate the Source Ingestion user path; Sprint 04 aligns the UI with Baseline R3.
+
 sprint: SPRINT-02
 branch: sprint/02-source-ingestion
 status: completed

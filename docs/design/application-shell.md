@@ -1,105 +1,92 @@
 # Application Shell — SAP Clean Core Analyzer
 
-**Status:** Approved for PoC
+**Status:** Approved for PoC — revised 2026-09-24
 
 ## 1. Core decision
+The shell has two states:
 
-Todas as visões da aplicação devem operar dentro de um shell único composto por três regiões permanentes:
+1. **Assessments Home:** Main Workspace | AI Copilot — no left sidebar.
+2. **Assessment Workspace:** Sidebar | Main Workspace | AI Copilot.
 
-**Sidebar | Main Workspace | AI Copilot**
-
-Essa estrutura é uma decisão de produto e de arquitetura frontend, não apenas uma preferência estética.
+The AI Copilot is permanently available on the right in both states.
 
 ## 2. Desktop composition
+Target: desktop widescreen, reference 1920×1080.
 
-Target principal da PoC: desktop widescreen, com referência visual em 1920×1080.
+Assessment Workspace recommended distribution:
+- Sidebar: ~220–250px;
+- Main Workspace: flexible;
+- AI Copilot: ~360–480px, resizable.
 
-Distribuição recomendada:
+On Assessments Home the workspace receives the space normally occupied by the sidebar.
 
-- Sidebar: aproximadamente 12–14% ou 220–250px.
-- Main Workspace: aproximadamente 56–58% quando o Copilot está aberto.
-- AI Copilot: aproximadamente 28–32%.
+## 3. Assessments Home
+First application screen. It contains:
+- title / product identity;
+- filters for Client and Assessment;
+- assessment grid/list;
+- `Novo Assessment`;
+- `Novo Cliente`;
+- status/last-updated metadata when available.
 
-O Copilot pode ser recolhido para um rail estreito, liberando espaço para o workspace, mas deve permanecer imediatamente acessível.
+No navigation sidebar is rendered here.
 
-## 3. Sidebar
+## 4. Assessment Sidebar
+Only visible with an active Assessment:
 
-Navegação sugerida:
+```text
+Clean Core
+  1 - Ingestão dos dados
+  2 - Análise ATC
+  3 - Processamento por IA
 
-- Applications / Dashboard
-- Application Discovery
-- Architecture & Clean Core
-- Business Rules
-- Engineering
-- Analysis Runs
-- Settings
+Resultado
+  Dashboard Geral
+  Executive View
+  Technical View
+  Functional View
+  Architecture View
+```
 
-A seleção ativa usa indicador magenta `#E30074`, sem preencher toda a sidebar com a cor de marca.
+Active selection uses T-Systems magenta `#E30074` as an accent, not as a full background fill.
 
-Na região inferior podem aparecer:
+## 5. Main Workspace
+Inside an Assessment show Client / Assessment context and relevant source SAP system metadata. The workspace should feel like stages and perspectives of one Assessment, not separate products.
 
-- sistema SAP conectado;
-- ambiente;
-- status de conexão;
-- usuário/configurações.
+Source Ingestion has no pre-populated source path. Browse must precede Start Scan; Start Scan is disabled until a valid selection exists.
 
-## 4. Main Workspace
+AI Processing completion should surface KPI cards such as:
+- Objetos analisados;
+- Customizações identificadas;
+- Findings críticos;
+- Objetos com alto impacto;
+- Regras de negócio identificadas.
 
-A região central representa a visão atual da mesma aplicação SAP analisada. Mudanças entre Executive, Architecture, Rules e Engineering não devem parecer troca entre produtos independentes.
+## 6. Permanent AI Copilot
+The right panel remains available on:
+- Assessments Home;
+- ingestion;
+- ATC analysis;
+- AI processing;
+- Dashboard Geral;
+- Executive, Technical, Functional and Architecture views.
 
-Elementos compartilhados recomendados:
-
-- breadcrumb;
-- application identity;
-- Analysis Run atual;
-- status da análise;
-- ações de re-run / compare / changes quando aplicável;
-- seleção corrente;
-- links para evidência.
-
-## 5. Permanent AI Copilot
-
-O painel direito é estrutural e permanece disponível em todas as visões:
-
-- Executive Overview
-- Application Discovery
-- Architecture & Clean Core
-- Clean Core Findings
-- Business Rules
-- Engineering
-- Modernization Opportunities
-- Analysis Runs, quando houver valor contextual
-
-O painel deve conhecer no mínimo:
-
-- application id/name;
-- current view;
-- selected object/finding/rule/code range;
-- current Analysis Run;
+Inside an Assessment it should know at least:
+- client / assessment identity;
+- current stage or result view;
+- selected object/finding/rule/application/code range;
+- ATC context;
 - relevant evidence references.
 
-## 6. Context synchronization
+## 7. Context synchronization
+Selecting a workspace element updates Copilot context without requiring copy/paste. Structured Copilot navigation actions may change the central workspace only through supported controlled UI actions.
 
-Ao selecionar um elemento no workspace, o contexto do Copilot deve atualizar sem exigir que o usuário repita o que está vendo.
+## 8. Collapsed Copilot behavior
+If collapsed:
+- workspace expands;
+- a persistent rail remains visible;
+- context/conversation are preserved;
+- reopening restores state.
 
-Exemplos:
-
-- selecionar `ZCL_ORDER_VALIDATION` atualiza o chip de contexto do Copilot;
-- abrir `CC-003` torna o finding parte do contexto;
-- selecionar linhas ABAP informa objeto, método e range;
-- navegar pelo Copilot atualiza a interface central quando a ação estruturada solicitar isso.
-
-## 7. Collapsed Copilot behavior
-
-Quando recolhido:
-
-- workspace expande para ocupar o espaço liberado;
-- um rail persistente continua visível;
-- contexto e conversa não são descartados;
-- reabrir o painel restaura o estado anterior.
-
-## 8. Responsive scope for PoC
-
-A PoC prioriza desktop. Responsividade completa mobile/tablet não é requisito inicial.
-
-O frontend deve, porém, evitar hard-coding que inviabilize evolução futura. Breakpoints e dimensões podem ser parametrizados por tokens/layout primitives.
+## 9. Responsive scope
+PoC prioritizes desktop. Avoid layout hard-coding that prevents future evolution.

@@ -1,16 +1,18 @@
 project: sap-clean-core-analysis-poc
-baseline: 2026-09-23-R2
-status: implementation_in_progress
+baseline: 2026-09-24-R3
+status: not_started
 implementation_started: true
 active_sprint: null
-active_sprint_status: not_started
+active_sprint_status: null
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-02
-next_sprint: SPRINT-03
+last_completed_sprint: SPRINT-03
+next_sprint: SPRINT-04
+next_sprint_slug: assessment-centric-product-alignment
 notes:
-  - The initial /clean-core-run-sprint initializes SPRINT-00 and its canonical branch.
-  - /clean-core-run-sprint starts or resumes; it does not create commits or finish a sprint.
-  - /clean-core-finish-sprint is the only command that can mark a sprint completed and create its official commit.
-  - After finish, remain on main with the next sprint ready but not started.
+  - SPRINT-03 completed. SAP Object Parsing delivered with parsers, SAPObject model, API routes, ObjectBrowser frontend and seed v5.
+  - Baseline R3.1 accepts ADR-015 and supersedes the old Client -> SAP System -> Assessment target hierarchy.
+  - SPRINT-04 is a mandatory corrective alignment sprint before further analysis capabilities.
+  - Future unstarted sprints were shifted by one number; Dependencies & ATC is now SPRINT-05 and Demo Readiness is SPRINT-15.
+  - Historical Sprint 01/02/03 result records remain evidence of what was implemented, not the current target architecture.
   - Do not infer implementation completion from planning documentation.

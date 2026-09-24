@@ -1,3 +1,5 @@
+# historical_target_notice: Sprint 01 implemented Client -> SAPSystem -> Assessment; ADR-015/R3 supersedes this target and Sprint 04 will migrate it.
+
 sprint: SPRINT-01
 branch: sprint/01-client-sap-system-and-assessment
 status: completed

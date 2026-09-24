@@ -21,6 +21,7 @@
 ## Data
 - `data/domain-model.md`
 - `data/persistence-model.md`
+- `data/atc-import-contract.md`
 
 ## AI
 - `ai/ai-architecture.md`
@@ -55,3 +56,9 @@
 
 ## Legacy
 - `legacy/current-solution-assessment.md`
+
+
+## Current baseline correction
+- `adr/015-assessment-centric-workspace.md` — Client → Assessment, Assessments Home, conditional sidebar and permanent Copilot.
+- `adr/016-variable-atc-xlsx-import.md` — schema-tolerant ATC XLSX ingestion with raw evidence preservation.
+- `delivery/CLAUDE_CODE_ALIGNMENT_PROMPT.md` — implementation alignment prompt for Sprint 04.

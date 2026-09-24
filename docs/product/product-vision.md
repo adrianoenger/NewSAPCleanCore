@@ -17,7 +17,7 @@ Given a completed assessment, the solution should answer:
 
 ## PoC boundaries
 Included:
-- multiple clients, SAP systems and assessments;
+- multiple clients and assessments, with SAP source system stored as Assessment metadata;
 - directory-based source ingestion;
 - reusable parsing from the current solution;
 - ATC ingestion;
@@ -27,7 +27,7 @@ Included:
 - SAP documentation MCP access;
 - Clean Core assessment;
 - embeddings and semantic retrieval;
-- four navigation perspectives;
+- Dashboard Geral plus four result perspectives (Executive, Technical, Functional, Architecture);
 - permanent AI Copilot;
 - durable pause/resume/retry processing.
 

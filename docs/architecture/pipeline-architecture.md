@@ -26,7 +26,7 @@ Facts are extracted deterministically first. AI interprets facts later. SAP MCPs
 | Classification | source file |
 | Parsing | source file |
 | Dependencies | SAP object |
-| ATC | input file/batch |
+| ATC | workbook/sheet/import row batch |
 | Technical findings | SAP object |
 | Object understanding | SAP object or structural chunk |
 | Business rules | object/cluster |
@@ -37,3 +37,13 @@ Facts are extracted deterministically first. AI interprets facts later. SAP MCPs
 
 ## Incrementality
 Each source file records path, size, modified timestamp and SHA-256. Unchanged inputs should be reused. Changed inputs invalidate dependent derived outputs and enqueue only affected work when feasible.
+
+
+## ATC import sub-pipeline
+`ATC_IMPORT` is internally evidence-first and schema-tolerant:
+
+```text
+XLSX → sheet/header discovery → mapping snapshot → raw row preservation → canonical normalization → object correlation
+```
+
+Missing optional columns and unknown extra columns do not fail a readable report. Downstream ATC-dependent stages must branch on available normalized attributes and import warnings rather than assume every field exists. See `docs/data/atc-import-contract.md`.

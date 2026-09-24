@@ -126,3 +126,44 @@ export const fetchSourceFiles = (
   const qs = scanId != null ? `?scan_id=${scanId}` : ''
   return api(`/assessments/${assessmentId}/source-files${qs}`)
 }
+
+// ---------------------------------------------------------------------------
+// SPRINT-03: SAP Object Parsing types + fetchers
+// ---------------------------------------------------------------------------
+
+export interface SAPObjectRecord {
+  id: number
+  assessment_id: number
+  source_file_id: number
+  object_type: string
+  object_name: string
+  description: string
+  line_start: number
+  line_end: number | null
+  parsed_at: string
+}
+
+export interface SAPObjectDetail extends SAPObjectRecord {
+  attributes: Record<string, unknown>
+}
+
+export interface ParseJobResult {
+  scan_id: number
+  status: string
+}
+
+export const triggerParse = (assessmentId: number, scanId: number): Promise<ParseJobResult> =>
+  api(`/assessments/${assessmentId}/scans/${scanId}/parse`, { method: 'POST' })
+
+export const fetchSAPObjects = (
+  assessmentId: number,
+  objectType?: string,
+): Promise<SAPObjectRecord[]> => {
+  const qs = objectType ? `?object_type=${encodeURIComponent(objectType)}` : ''
+  return api(`/assessments/${assessmentId}/objects${qs}`)
+}
+
+export const fetchSAPObject = (
+  assessmentId: number,
+  objectId: number,
+): Promise<SAPObjectDetail> => api(`/assessments/${assessmentId}/objects/${objectId}`)

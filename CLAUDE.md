@@ -14,6 +14,8 @@ Use documents in this order:
 
 If documents conflict, the higher item wins. Do not infer enterprise requirements that the PoC explicitly excludes.
 
+Current structural invariant: `Client → Assessment`; `sap_source_system` is Assessment metadata. Historical Sprint 01/02 result files describe previous implementation and never override Baseline R3.1 / ADR-015. ATC implementation must follow ADR-016 and `docs/data/atc-import-contract.md`; never hard-code the reviewed sample as the only valid XLSX schema.
+
 ## Sprint execution rules
 - One sprint = one sprint branch = one official commit on `main`.
 - Sprint branch naming is canonical: `sprint/<NN>-<sprint-slug>`, derived from the sprint filename.

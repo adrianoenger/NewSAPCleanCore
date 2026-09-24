@@ -1,5 +1,10 @@
 # Plano: Modelagem do banco SQLite para análise de código SAP customizado (Clean Core)
 
+> **R3.1 ATC compatibility note (2026-09-24):** this is historical/analytical material. Any fixed counts, column lists, pre-seeded ATC checks, packages or values described below reflect a reviewed sample and are **not** the runtime XLSX contract. Canonical ATC ingestion is schema-tolerant and defined by `docs/data/atc-import-contract.md` and ADR-016.
+
+
+> **HISTORICAL ANALYTICAL DOCUMENT:** Preserved as prior analysis/reference. It is not the current runtime/domain/UX source of truth. Baseline R3.1, accepted ADRs, and current `docs/data`, `docs/product`, `docs/ux`, `docs/design`, and `docs/delivery` documents prevail on conflicts.
+
 ## Context
 
 Projeto de apoio à migração **SAP ECC → S/4HANA** do cliente **Copa Energia**, executado pela **T-Systems do Brasil**, sob o conceito **Clean Core**. A aplicação vai automatizar análise, remediação, modernização e classificação de código ABAP customizado (programas Z, user exits, enhancements, relatórios, interfaces, regras de negócio), reduzindo o esforço manual.
@@ -497,11 +502,11 @@ Modelo conceitual aprovado em `docs/modelagem_conceitual.md`. A Entrega 2 materi
    - Enums de `object_type` (incluindo ENHO/AQQU/AQSG/SHLP/SSFO/LDBA/FUGS/FUGX/VIEW/INTF).
    - Enums de `dependency_kind` (TABLE_USAGE/FUNCTION_CALL/METHOD_CALL/INCLUDE_USE/MESSAGE_USE/SUBMIT/SCREEN_CALL/INTERFACE_IMPL/INHERITANCE/TYPE_REF/VIEW_BASE/ATC_REFERENCES_SIMPLIFIED_OBJECT).
    - Enums de `clean_core_classification.classification` (DESCONTINUAR/REMEDIAR/MODERNIZAR/SUBSTITUIR_STANDARD/REIMPLEMENTAR_EXTENSAO/**ATUALIZAR_OSS**/MANTER_AS_IS).
-   - `atc_check` pré-populado com as 12 Check Titles conhecidas.
+   - `atc_check` populado dinamicamente a partir dos imports. O exemplo revisado contém 12 Check Titles, mas não há lista fixa obrigatória.
    - `simplification_item_category` (B/A/C/I/S/W).
    - Catálogo de `finding_type` em `ai_finding` (HARDCODED_MESSAGE, OBSOLETE_FIELD_EXIT, EMPTY_IMPLEMENTATION, NATIVE_SQL, LEGACY_OFFSET_SUBSTRING, LEGACY_MESSAGE_PLACEHOLDER, …).
    - `embedding_model` pré-populado com `BAAI/bge-m3` (dim 1024, provider `local`).
-   - `package` populado a partir dos 56 distintos do ATC.
+   - `package` populado dinamicamente a partir dos valores disponíveis no ATC; o exemplo revisado contém 56 distintos.
 3. **Decisão pendente na Entrega 2**: reintroduzir ou não um `raw_code_hash` em `source_file` / `code_object` para detectar equivalência de código entre formatos (HTML canônico vs TXT do `objetos/`). Recomendação: **incluir `source_file.raw_code_hash`** (SHA-256 do código limpo extraído) como defesa contra duplicação lógica.
 4. **Diagrama ER Mermaid** já está na §8 do `docs/modelagem_conceitual.md`.
 
@@ -514,7 +519,7 @@ Entrega 3 (SQLAlchemy) e Entrega 4 (notebooks) ficam para sessões seguintes.
 - Smoke test bge-m3: carregar modelo (`BAAI/bge-m3`), embeddar um cabeçalho `*$*$` real em PT-BR (via `object_header_metadata.purpose`) e a query `"apuração de ICMS"`; verificar que retorna o cabeçalho do sistema ANEXO no topo do KNN.
 - Smoke test dedupe: ingerir `ZTBCAI_DOC_A` duas vezes (dump global + anexo ao programa) e validar que `code_object` tem 1 linha, `table_field` tem N linhas (não 2N), e `source_file` tem 2 linhas apontando para o mesmo `code_object_id`.
 - **Smoke test ATC**: importar o XLSX real; validar que:
-  - Totais batem com o cabeçalho do DOCX: 7 899 findings, 2 139 E / 1 614 W / 4 146 I, 1 264 objetos únicos, 56 pacotes, 14 tipos de objeto, 12 checks, 56 SAP Notes.
+  - Para o **fixture de referência específico**, validar 7 899 findings, prioridades 2 139/1 614/4 146, 56 pacotes, 14 tipos de objeto, 12 checks e 56 SAP Notes válidas; estes números não são contrato para outros arquivos.
   - Query *"quais custom tocam tabelas simplificadas"* retorna linhas com `referenced_object_name='VBUK'`, `WRBTR`, `ATWRT`.
   - Agregação por `sap_note` lista 56 notas (ex.: 2610650, 2215424, 2198647, 3320010, **2296016** para orphaned objects).
   - Agregação por `package` mostra ZSD, ZMM, ZFI, ZINCORPORACAO com volumes esperados.

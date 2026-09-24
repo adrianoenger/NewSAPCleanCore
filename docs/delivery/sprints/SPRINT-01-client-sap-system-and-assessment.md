@@ -1,3 +1,5 @@
+> **SUPERSEDED TARGET MODEL (2026-09-24):** This sprint file documents the scope that was implemented historically. ADR-015 and Implementation Baseline R3.1 replace `Client → SAPSystem → Assessment` with `Client → Assessment` plus `Assessment.sap_source_system`. Do not use this file as the current domain target.
+
 # SPRINT-01 — Client, SAP System and Assessment
 
 ## Goal
