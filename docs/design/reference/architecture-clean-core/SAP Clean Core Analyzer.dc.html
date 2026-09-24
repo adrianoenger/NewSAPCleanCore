@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-908802e0-fa30-4e64-93cb-9ac8adcb8335/styles.css">
+<script src="_ds/nocturne-908802e0-fa30-4e64-93cb-9ac8adcb8335/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<style>body{margin:0;background:#0D0F12;color:#F4F5F7;font-family:Inter,system-ui,sans-serif}a{color:#FF4FA3}a:hover{color:#FF7DBB}button{font-family:inherit}::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#2B3038;border-radius:4px}::-webkit-scrollbar-track{background:transparent}</style>
+</helmet>
+<div style="width:1920px; height:1080px; display:flex; background:#0D0F12; color:#F4F5F7; font-family:Inter,system-ui,sans-serif; font-size:13px; line-height:1.45; overflow:hidden">
+
+  <!-- Sidebar -->
+  <aside data-screen-label="Sidebar" style="width:240px; flex:none; background:#111318; border-right:1px solid #1F232A; display:flex; flex-direction:column">
+    <div style="height:76px; display:flex; flex-direction:column; justify-content:center; gap:9px; padding:0 18px; border-bottom:1px solid #1F232A">
+      <img src="assets/tsystems-wordmark.png" alt="T-Systems" style="height:18px; width:auto; align-self:flex-start">
+      <span style="font-size:13px; font-weight:500; color:#F4F5F7; letter-spacing:-0.005em">SAP Clean Core Analyzer</span>
+    </div>
+    <nav style="display:flex; flex-direction:column; gap:2px; padding:16px 10px">
+      <div style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85; padding:0 10px 8px">Workspace</div>
+      <a style="display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; color:#A7ADB7; text-decoration:none" style-hover="background:#1A1D23; color:#F4F5F7"><i class="ph ph-squares-four" style="font-size:17px"></i>Dashboard</a>
+      <a style="display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; color:#A7ADB7; text-decoration:none" style-hover="background:#1A1D23; color:#F4F5F7"><i class="ph ph-compass" style="font-size:17px"></i>Application Discovery</a>
+      <a style="position:relative; display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; background:#1D2128; color:#F4F5F7; text-decoration:none; font-weight:500"><span style="position:absolute; left:-10px; top:8px; bottom:8px; width:3px; border-radius:0 2px 2px 0; background:#E30074"></span><i class="ph ph-graph" style="font-size:17px; color:#E30074"></i>Architecture &amp; Clean Core</a>
+      <a style="display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; color:#A7ADB7; text-decoration:none" style-hover="background:#1A1D23; color:#F4F5F7"><i class="ph ph-scroll" style="font-size:17px"></i>Business Rules</a>
+      <a style="display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; color:#A7ADB7; text-decoration:none" style-hover="background:#1A1D23; color:#F4F5F7"><i class="ph ph-code" style="font-size:17px"></i>Engineering</a>
+      <a style="display:flex; align-items:center; gap:10px; height:36px; padding:0 10px; border-radius:6px; color:#A7ADB7; text-decoration:none" style-hover="background:#1A1D23; color:#F4F5F7"><i class="ph ph-pulse" style="font-size:17px"></i>Analysis Runs</a>
+      <div style="height:14px"></div>
+      <div style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85; padding:0 10px 8px">Application</div>
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; border:1px solid #2B3038; background:#15181D">
+        <i class="ph ph-cube" style="font-size:16px; color:#7EA6E8"></i>
+        <div style="display:flex; flex-direction:column; line-height:1.25; min-width:0">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#F4F5F7">ZSD_ORDER_MANAGEMENT</span>
+          <span style="font-size:11px; color:#737A85">47 objects · SD</span>
+        </div>
+      </div>
+    </nav>
+    <div style="margin-top:auto; padding:12px 10px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid #1F232A">
+      <div style="display:flex; align-items:center; gap:10px; padding:10px; border-radius:6px; background:#171A20; border:1px solid #23272E">
+        <i class="ph ph-database" style="font-size:17px; color:#A7ADB7"></i>
+        <div style="display:flex; flex-direction:column; line-height:1.3; flex:1">
+          <span style="font-size:12.5px; color:#F4F5F7; font-weight:500">SAP ECC · PRD</span>
+          <span style="display:flex; align-items:center; gap:6px; font-size:11px; color:#A7ADB7"><span style="width:6px; height:6px; border-radius:50%; background:#3FBF7F"></span>Connected · RFC</span>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 10px">
+        <div style="width:28px; height:28px; border-radius:50%; background:#242831; border:1px solid #2B3038; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:500; color:#A7ADB7">MA</div>
+        <div style="display:flex; flex-direction:column; line-height:1.25; flex:1">
+          <span style="font-size:12.5px; color:#F4F5F7">Marta Albers</span>
+          <span style="font-size:11px; color:#737A85">SAP Architect</span>
+        </div>
+        <i class="ph ph-gear" style="font-size:17px; color:#737A85"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Workspace -->
+  <main data-screen-label="Architecture & Clean Core" style="flex:1; min-width:0; display:flex; flex-direction:column">
+    <div style="height:52px; flex:none; display:flex; align-items:center; gap:14px; padding:0 24px; border-bottom:1px solid #1F232A">
+      <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#737A85; white-space:nowrap; flex:none">
+        <span>Applications</span><i class="ph ph-caret-right" style="font-size:11px"></i>
+        <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#A7ADB7">ZSD_ORDER_MANAGEMENT</span><i class="ph ph-caret-right" style="font-size:11px"></i>
+        <span style="color:#F4F5F7">Architecture &amp; Clean Core</span>
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:10px; font-size:12px; color:#A7ADB7; white-space:nowrap; flex:none">
+        <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#F4F5F7">Run #2026-0042</span>
+        <span style="display:flex; align-items:center; gap:5px; color:#4CC38A"><i class="ph-fill ph-check-circle" style="font-size:14px"></i>Completed</span>
+        <span style="color:#737A85">23 Sep 2026</span>
+        <button style="height:30px; padding:0 11px; border-radius:6px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; width:30px; padding:0" title="Compare Runs" style-hover="background:#1D2128"><i class="ph ph-git-diff" style="font-size:15px"></i></button>
+        <button style="height:30px; padding:0 11px; border-radius:6px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; width:30px; padding:0" title="View Changes" style-hover="background:#1D2128"><i class="ph ph-clock-counter-clockwise" style="font-size:15px"></i></button>
+        <button style="height:30px; padding:0 13px; border-radius:6px; border:1px solid #E30074; background:#E30074; color:#fff; font-size:12px; font-weight:500; display:flex; align-items:center; gap:6px; cursor:pointer" style-hover="background:#F21C88; border-color:#F21C88"><i class="ph ph-arrows-clockwise" style="font-size:14px"></i>Re-run Analysis</button>
+      </div>
+    </div>
+
+    <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:14px; padding:18px 24px 20px">
+      <!-- Header -->
+      <div style="display:flex; align-items:flex-end; gap:24px">
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <div style="display:flex; align-items:center; gap:10px">
+            <h1 style="margin:0; font-size:24px; font-weight:500; letter-spacing:-0.01em; font-family:'JetBrains Mono',monospace">ZSD_ORDER_MANAGEMENT</h1>
+            <span style="font-size:11px; padding:2px 8px; border-radius:4px; border:1px solid #2B3038; color:#A7ADB7">SD · Sales &amp; Distribution</span>
+          </div>
+          <div style="color:#A7ADB7; font-size:13.5px">Sales Order Management — dependency graph and Clean Core assessment</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:stretch; gap:10px">
+          <div style="display:flex; flex-direction:column; gap:6px; padding:9px 14px; min-width:170px; background:#171A20; border:1px solid #23272E; border-radius:8px">
+            <span style="font-size:11px; color:#737A85; text-transform:uppercase; letter-spacing:0.06em">Clean Core Score</span>
+            <div style="display:flex; align-items:center; gap:10px">
+              <span style="font-size:22px; font-weight:500; line-height:1">42%</span>
+              <div style="flex:1; height:4px; border-radius:2px; background:#2B3038; overflow:hidden"><div style="width:42%; height:100%; background:#E8944A"></div></div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; padding:9px 14px; min-width:120px; background:#171A20; border:1px solid #23272E; border-radius:8px">
+            <span style="font-size:11px; color:#737A85; text-transform:uppercase; letter-spacing:0.06em">Risk</span>
+            <span style="display:flex; align-items:center; gap:7px; font-size:18px; font-weight:500; line-height:1.2; color:#F4F5F7"><i class="ph-fill ph-warning-octagon" style="color:#F0605A; font-size:17px"></i>High</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; padding:9px 14px; min-width:120px; background:#171A20; border:1px solid #23272E; border-radius:8px">
+            <span style="font-size:11px; color:#737A85; text-transform:uppercase; letter-spacing:0.06em">Findings</span>
+            <span style="font-size:18px; font-weight:500; line-height:1.2">12 <span style="font-size:12px; color:#A7ADB7; font-weight:400">· 4 high</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div style="display:flex; align-items:center; gap:14px">
+        <div style="display:flex; gap:5px; flex-wrap:nowrap; flex:none">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="9">
+            <button onClick="{{ f.onClick }}" style="height:28px; padding:0 8px; border-radius:6px; font-size:11.5px; white-space:nowrap; cursor:pointer; border:1px solid {{ f.border }}; background:{{ f.bg }}; color:{{ f.color }}" style-hover="border-color:#4A505B">{{ f.label }}</button>
+          </sc-for>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px; font-size:11px; color:#A7ADB7; white-space:nowrap; flex:none">
+          <span style="display:flex; align-items:center; gap:6px"><span style="width:10px; height:10px; border-radius:3px; background:#141C2A; border:1px solid #3A5E98"></span>Custom</span>
+          <span style="display:flex; align-items:center; gap:6px"><span style="width:10px; height:10px; border-radius:3px; background:#191C22; border:1px solid #4A515C"></span>SAP Standard</span>
+          <span style="display:flex; align-items:center; gap:6px"><span style="width:10px; height:10px; border-radius:3px; background:#12211A; border:1px solid #2F7A55"></span>Released API</span>
+          <span style="display:flex; align-items:center; gap:6px"><span style="width:10px; height:10px; border-radius:3px; background:#231A12; border:1px solid #8A5A30"></span>Legacy</span>
+          <span style="display:flex; align-items:center; gap:6px"><span style="width:10px; height:10px; border-radius:3px; background:#261517; border:1px solid #9A3A40"></span>Clean Core Risk</span>
+        </div>
+      </div>
+
+      <!-- Graph -->
+      <div style="position:relative; flex:1; min-height:0; border-radius:8px; border:1px solid #23272E; background-color:#111318; background-image:radial-gradient(#1E2229 1px, transparent 1px); background-size:20px 20px; overflow:hidden">
+        <div style="position:absolute; top:0; bottom:0; left:812px; right:0; background:#14161B; border-left:1px dashed #2B3038"></div>
+        <div style="position:absolute; top:12px; left:14px; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85">Custom code · Z namespace</div>
+        <div style="position:absolute; top:12px; left:826px; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85">SAP Standard · ECC 6.0 EhP8</div>
+        {{ edgesSvg }}
+        <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="15">
+          <div onClick="{{ n.onClick }}" style="position:absolute; left:{{ n.x }}px; top:{{ n.y }}px; width:{{ n.w }}px; height:52px; box-sizing:border-box; padding:7px 10px; border-radius:6px; background:{{ n.bg }}; border:1px solid {{ n.border }}; box-shadow:{{ n.shadow }}; opacity:{{ n.opacity }}; cursor:pointer; display:flex; flex-direction:column; gap:3px; transition:opacity .2s, box-shadow .2s, border-color .2s" style-hover="border-color:#5A616D">
+            <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#A7ADB7; line-height:1">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:500; padding:2px 4px; border-radius:3px; border:1px solid {{ n.badgeBorder }}; color:{{ n.badgeColor }}">{{ n.abbr }}</span>
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ n.type }}</span>
+              <sc-if value="{{ n.hasFindings }}" hint-placeholder-val="{{ false }}">
+                <span style="margin-left:auto; display:flex; align-items:center; gap:3px; color:#F0605A; font-size:10.5px"><i class="ph-fill ph-warning" style="font-size:11px"></i>{{ n.findings }}</span>
+              </sc-if>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#F4F5F7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ n.name }}</div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ hasHl }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute; left:14px; bottom:12px; display:flex; align-items:center; gap:8px; height:30px; padding:0 6px 0 10px; border-radius:6px; background:#1D2128; border:1px solid #5A1E3D; font-size:12px; color:#F4F5F7">
+            <i class="ph-fill ph-sparkle" style="color:#E30074; font-size:14px"></i>
+            <span>{{ hlLabel }}</span>
+            <button onClick="{{ clearHl }}" style="height:22px; padding:0 8px; border-radius:4px; border:1px solid #2B3038; background:transparent; color:#A7ADB7; font-size:11.5px; cursor:pointer" style-hover="color:#F4F5F7">Clear</button>
+          </div>
+        </sc-if>
+        <div style="position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; border-radius:6px; border:1px solid #2B3038; background:#171A20; overflow:hidden">
+          <button style="width:30px; height:28px; border:0; border-bottom:1px solid #2B3038; background:transparent; color:#A7ADB7; cursor:pointer" style-hover="background:#242831"><i class="ph ph-plus"></i></button>
+          <button style="width:30px; height:28px; border:0; border-bottom:1px solid #2B3038; background:transparent; color:#A7ADB7; cursor:pointer" style-hover="background:#242831"><i class="ph ph-minus"></i></button>
+          <button style="width:30px; height:28px; border:0; background:transparent; color:#A7ADB7; cursor:pointer" style-hover="background:#242831"><i class="ph ph-corners-out"></i></button>
+        </div>
+      </div>
+
+      <!-- Selected object panel -->
+      <div style="height:262px; flex:none; display:flex; gap:12px">
+        <div style="width:300px; flex:none; display:flex; flex-direction:column; gap:12px; padding:14px 16px; background:#171A20; border:1px solid #23272E; border-radius:8px">
+          <div style="display:flex; flex-direction:column; gap:3px">
+            <span style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85">Selected object</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:14.5px; color:#F4F5F7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ selNode.name }}</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:#23272E; border:1px solid #23272E; border-radius:6px; overflow:hidden">
+            <div style="background:#171A20; padding:8px 10px; display:flex; flex-direction:column; gap:2px"><span style="font-size:11px; color:#737A85">Type</span><span style="font-size:13px">{{ selNode.type }}</span></div>
+            <div style="background:#171A20; padding:8px 10px; display:flex; flex-direction:column; gap:2px"><span style="font-size:11px; color:#737A85">Risk</span><span style="font-size:13px; display:flex; align-items:center; gap:6px"><span style="width:7px; height:7px; border-radius:50%; background:{{ selRiskColor }}"></span>{{ selNode.risk }}</span></div>
+            <div style="background:#171A20; padding:8px 10px; display:flex; flex-direction:column; gap:2px"><span style="font-size:11px; color:#737A85">Dependencies</span><span style="font-size:18px; font-weight:500">{{ selNode.deps }}</span></div>
+            <div style="background:#171A20; padding:8px 10px; display:flex; flex-direction:column; gap:2px"><span style="font-size:11px; color:#737A85">Business Rules</span><span style="font-size:18px; font-weight:500">{{ selRuleCount }}</span></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:auto">
+            <button style="flex:1; height:30px; border-radius:6px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer" style-hover="background:#1D2128"><i class="ph ph-code" style="font-size:14px"></i>Open in Engineering</button>
+            <button onClick="{{ askSelected }}" style="flex:1; height:30px; border-radius:6px; border:1px solid #6A1F45; background:transparent; color:#FF5FAE; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer" style-hover="background:#24121B"><i class="ph-fill ph-sparkle" style="font-size:13px"></i>Ask Copilot</button>
+          </div>
+        </div>
+
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; background:#171A20; border:1px solid #23272E; border-radius:8px; overflow:hidden">
+          <div style="height:42px; flex:none; display:flex; align-items:stretch; gap:4px; padding:0 12px; border-bottom:1px solid #23272E">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="position:relative; display:flex; align-items:center; gap:7px; padding:0 10px; border:0; background:transparent; font-size:12.5px; cursor:pointer; color:{{ t.color }}" style-hover="color:#F4F5F7">
+                {{ t.label }}<span style="font-size:11px; padding:1px 6px; border-radius:8px; background:#242831; color:#A7ADB7">{{ t.count }}</span>
+                <span style="position:absolute; left:8px; right:8px; bottom:-1px; height:2px; background:{{ t.bar }}"></span>
+              </button>
+            </sc-for>
+            <span style="margin-left:auto; align-self:center; font-size:11.5px; color:#737A85">for <span style="font-family:'JetBrains Mono',monospace; color:#A7ADB7">{{ selNode.name }}</span></span>
+          </div>
+          <div style="flex:1; min-height:0; overflow:auto; padding:6px 8px">
+            <sc-if value="{{ isFindings }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ findingRows }}" as="r" hint-placeholder-count="3">
+                <div onClick="{{ r.onClick }}" style="display:grid; grid-template-columns:78px 64px minmax(0,1fr) 120px 170px; align-items:center; gap:12px; padding:9px 10px; border-radius:6px; cursor:pointer; background:{{ r.bg }}; border:1px solid {{ r.border }}" style-hover="background:#1D2128">
+                  <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:{{ r.sevColor }}"><span style="width:6px; height:6px; border-radius:50%; background:{{ r.sevColor }}"></span>{{ r.sev }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#A7ADB7">{{ r.id }}</span>
+                  <span style="font-size:13px; color:#F4F5F7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.title }}</span>
+                  <span style="font-size:11.5px; color:#A7ADB7">{{ r.cat }}</span>
+                  <span style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:#FF5FAE; justify-content:flex-end"><i class="ph ph-file-code" style="font-size:13px"></i><span style="font-family:'JetBrains Mono',monospace">{{ r.ev }}</span></span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noFindings }}" hint-placeholder-val="{{ false }}"><div style="padding:18px 10px; color:#737A85">No Clean Core findings for this object.</div></sc-if>
+            </sc-if>
+            <sc-if value="{{ isRules }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ ruleRows }}" as="r" hint-placeholder-count="3">
+                <div onClick="{{ r.onClick }}" style="display:grid; grid-template-columns:64px minmax(0,1fr) 150px 140px 110px; align-items:center; gap:12px; padding:9px 10px; border-radius:6px; cursor:pointer; background:{{ r.bg }}; border:1px solid {{ r.border }}" style-hover="background:#1D2128">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#A7ADB7">{{ r.id }}</span>
+                  <span style="font-size:13px; color:#F4F5F7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.title }}</span>
+                  <span style="font-size:11.5px; color:#A7ADB7">{{ r.process }}</span>
+                  <span style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:#A7ADB7"><span style="flex:1; height:3px; border-radius:2px; background:#2B3038; overflow:hidden"><span style="display:block; height:100%; width:{{ r.conf }}%; background:#A7ADB7"></span></span>{{ r.conf }}%</span>
+                  <span style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:#FF5FAE; justify-content:flex-end"><i class="ph ph-link-simple" style="font-size:13px"></i>{{ r.src }} sources</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noRules }}" hint-placeholder-val="{{ false }}"><div style="padding:18px 10px; color:#737A85">No business rules are implemented in this object.</div></sc-if>
+            </sc-if>
+            <sc-if value="{{ isDeps }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ depRows }}" as="r" hint-placeholder-count="3">
+                <div onClick="{{ r.onClick }}" style="display:grid; grid-template-columns:90px minmax(0,1fr) 220px 120px; align-items:center; gap:12px; padding:9px 10px; border-radius:6px; cursor:pointer" style-hover="background:#1D2128">
+                  <span style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:#A7ADB7"><i class="ph {{ r.icon }}" style="font-size:13px"></i>{{ r.dir }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#F4F5F7">{{ r.name }}</span>
+                  <span style="font-size:11.5px; color:#A7ADB7">{{ r.type }}</span>
+                  <span style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:{{ r.kindColor }}"><span style="width:6px; height:6px; border-radius:2px; background:{{ r.kindColor }}"></span>{{ r.kindLabel }}</span>
+                </div>
+              </sc-for>
+              <div style="padding:8px 10px; font-size:11.5px; color:#737A85">{{ depsMore }}</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Copilot -->
+  <sc-if value="{{ open }}" hint-placeholder-val="{{ true }}">
+    <aside data-screen-label="AI Copilot" style="width:576px; flex:none; background:#111318; border-left:1px solid #2B3038; display:flex; flex-direction:column; min-height:0">
+      <div style="height:52px; flex:none; display:flex; align-items:center; gap:10px; padding:0 18px; border-bottom:1px solid #1F232A">
+        <div style="width:26px; height:26px; border-radius:6px; border:1px solid #6A1F45; background:#1E1118; display:flex; align-items:center; justify-content:center"><i class="ph-fill ph-sparkle" style="color:#E30074; font-size:15px"></i></div>
+        <span style="font-size:14px; font-weight:500">AI Copilot</span>
+        <span style="display:flex; align-items:center; gap:5px; font-size:10.5px; color:#737A85"><img src="assets/tsystems-t.png" alt="" style="width:14px; height:14px; border-radius:3px">by T-Systems</span>
+        <div style="margin-left:auto; display:flex; gap:4px">
+          <button style="width:30px; height:30px; border-radius:6px; border:0; background:transparent; color:#737A85; cursor:pointer" style-hover="background:#1D2128; color:#F4F5F7"><i class="ph ph-clock-counter-clockwise" style="font-size:16px"></i></button>
+          <button style="width:30px; height:30px; border-radius:6px; border:0; background:transparent; color:#737A85; cursor:pointer" style-hover="background:#1D2128; color:#F4F5F7"><i class="ph ph-note-pencil" style="font-size:16px"></i></button>
+          <button onClick="{{ toggleOpen }}" style="width:30px; height:30px; border-radius:6px; border:0; background:transparent; color:#737A85; cursor:pointer" style-hover="background:#1D2128; color:#F4F5F7"><i class="ph ph-sidebar-simple" style="font-size:16px"></i></button>
+        </div>
+      </div>
+
+      <div style="flex:none; margin:14px 18px 0; padding:10px 12px; border-radius:8px; background:#171A20; border:1px solid #23272E; display:flex; flex-direction:column; gap:8px">
+        <span style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#737A85">Context</span>
+        <div style="display:flex; flex-wrap:wrap; gap:6px">
+          <span style="display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:4px; background:#1D2128; border:1px solid #2B3038; font-family:'JetBrains Mono',monospace; font-size:11px; color:#D4D7DD"><i class="ph ph-cube" style="font-size:12px; color:#7EA6E8"></i>ZSD_ORDER_MANAGEMENT</span>
+          <span style="display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:4px; background:#1D2128; border:1px solid #2B3038; font-size:11.5px; color:#D4D7DD"><i class="ph ph-graph" style="font-size:12px; color:#A7ADB7"></i>Architecture &amp; Clean Core</span>
+          <span style="display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:4px; background:#1E1118; border:1px solid #6A1F45; font-family:'JetBrains Mono',monospace; font-size:11px; color:#FF8CC4"><i class="ph ph-cursor-click" style="font-size:12px"></i>{{ selNode.name }}</span>
+        </div>
+      </div>
+
+      <div ref="{{ chatRef }}" style="flex:1; min-height:0; overflow:auto; padding:16px 18px; display:flex; flex-direction:column; gap:16px">
+        <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="2">
+          <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:flex-end; max-width:82%; padding:9px 12px; border-radius:8px 8px 2px 8px; background:#1D2128; border:1px solid #2B3038; font-size:13px; color:#F4F5F7">{{ m.text }}</div>
+          </sc-if>
+          <sc-if value="{{ m.isCtx }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:center; gap:10px; font-size:11px; color:#737A85">
+              <span style="flex:1; height:1px; background:linear-gradient(90deg, transparent, #2B3038)"></span>
+              <span style="display:flex; align-items:center; gap:6px"><i class="ph ph-crosshair" style="font-size:12px"></i>Context updated · <span style="font-family:'JetBrains Mono',monospace; color:#A7ADB7">{{ m.text }}</span></span>
+              <span style="flex:1; height:1px; background:linear-gradient(90deg, #2B3038, transparent)"></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isAi }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <div style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:#A7ADB7"><i class="ph-fill ph-sparkle" style="color:#E30074; font-size:13px"></i><span style="color:#F4F5F7; font-weight:500">Copilot</span><span style="color:#737A85">· grounded in Run #2026-0042</span></div>
+              <p style="margin:0; font-size:13.5px; line-height:1.6; color:#E3E5E9; text-wrap:pretty">{{ m.intro }}</p>
+              <sc-if value="{{ m.hasItems }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:8px">
+                  <sc-for list="{{ m.items }}" as="it">
+                    <div style="display:flex; gap:10px; font-size:13px; line-height:1.55; color:#D4D7DD"><span style="flex:none; width:20px; height:20px; border-radius:4px; background:#1D2128; border:1px solid #2B3038; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#FF5FAE">{{ it.n }}</span><span style="text-wrap:pretty">{{ it.text }}</span></div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ m.hasOutro }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:0; font-size:13px; line-height:1.6; color:#A7ADB7; text-wrap:pretty">{{ m.outro }}</p>
+              </sc-if>
+              <div style="display:flex; flex-wrap:wrap; gap:6px">
+                <sc-for list="{{ m.refs }}" as="r">
+                  <button onClick="{{ r.onClick }}" style="display:flex; align-items:center; gap:6px; height:26px; padding:0 9px; border-radius:4px; border:1px solid #3A1A2C; background:#1A1217; color:#FF5FAE; font-size:11.5px; cursor:pointer" style-hover="border-color:#E30074; background:#24121B"><i class="ph {{ r.icon }}" style="font-size:12px"></i><span style="font-family:{{ r.font }}">{{ r.label }}</span></button>
+                </sc-for>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding-top:2px">
+                <button onClick="{{ m.onEv }}" style="display:flex; align-items:center; gap:6px; height:26px; padding:0 9px; border-radius:4px; border:1px solid #2B3038; background:transparent; color:#A7ADB7; font-size:11.5px; cursor:pointer" style-hover="color:#F4F5F7; background:#1D2128"><i class="ph ph-seal-check" style="font-size:13px"></i>View Evidence · {{ m.srcCount }} Sources<i class="ph {{ m.evIcon }}" style="font-size:11px"></i></button>
+                <sc-if value="{{ m.hasAction }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ m.onAction }}" style="display:flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:4px; border:1px solid #E30074; background:transparent; color:#FF5FAE; font-size:11.5px; cursor:pointer" style-hover="background:#24121B"><i class="ph ph-magic-wand" style="font-size:13px"></i>{{ m.actionLabel }}</button>
+                </sc-if>
+                <span style="margin-left:auto; display:flex; gap:2px; color:#737A85"><i class="ph ph-copy" style="font-size:14px; padding:4px"></i><i class="ph ph-thumbs-up" style="font-size:14px; padding:4px"></i><i class="ph ph-thumbs-down" style="font-size:14px; padding:4px"></i></span>
+              </div>
+              <sc-if value="{{ m.showEv }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; border:1px solid #23272E; border-radius:6px; background:#15181D; overflow:hidden">
+                  <sc-for list="{{ m.sources }}" as="s">
+                    <div style="display:grid; grid-template-columns:18px minmax(0,1fr) auto; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid #1F232A; font-size:12px">
+                      <i class="ph ph-file-code" style="font-size:14px; color:#7EA6E8"></i>
+                      <span style="display:flex; flex-direction:column; line-height:1.35"><span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#F4F5F7">{{ s.obj }}</span><span style="color:#A7ADB7; font-size:11.5px">{{ s.loc }}</span></span>
+                      <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#737A85">Run 2026-0042</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ m.hasNote }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:#A7ADB7"><i class="ph ph-graph" style="font-size:13px; color:#E30074"></i>{{ m.note }}</div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </sc-for>
+        <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#A7ADB7">
+            <i class="ph-fill ph-sparkle" style="color:#E30074; font-size:13px"></i>Tracing dependencies and evidence for <span style="font-family:'JetBrains Mono',monospace">{{ selNode.name }}</span>…
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="flex:none; padding:10px 18px 16px; display:flex; flex-direction:column; gap:10px; border-top:1px solid #1F232A">
+        <div style="display:flex; flex-wrap:wrap; gap:6px">
+          <button onClick="{{ askExplain }}" style="height:28px; padding:0 10px; border-radius:14px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; cursor:pointer" style-hover="border-color:#E30074; color:#F4F5F7">Explain architecture</button>
+          <button onClick="{{ askRisks }}" style="height:28px; padding:0 10px; border-radius:14px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; cursor:pointer" style-hover="border-color:#E30074; color:#F4F5F7">Summarize risks</button>
+          <button onClick="{{ askAlt }}" style="height:28px; padding:0 10px; border-radius:14px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; cursor:pointer" style-hover="border-color:#E30074; color:#F4F5F7">Find SAP standard alternatives</button>
+          <button onClick="{{ askRules }}" style="height:28px; padding:0 10px; border-radius:14px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; cursor:pointer" style-hover="border-color:#E30074; color:#F4F5F7">Show affected business rules</button>
+          <button onClick="{{ askSummary }}" style="height:28px; padding:0 10px; border-radius:14px; border:1px solid #2B3038; background:transparent; color:#D4D7DD; font-size:12px; cursor:pointer" style-hover="border-color:#E30074; color:#F4F5F7">Create modernization summary</button>
+        </div>
+        <div style="display:flex; align-items:flex-end; gap:8px; padding:8px 8px 8px 12px; border-radius:8px; background:#171A20; border:1px solid #2B3038" style-focus-within="border-color:#E30074">
+          <textarea value="{{ input }}" onChange="{{ onInput }}" onKeyDown="{{ onKey }}" placeholder="Ask about this application…" rows="2" style="flex:1; resize:none; border:0; outline:none; background:transparent; color:#F4F5F7; font-family:inherit; font-size:13px; line-height:1.5; padding:3px 0"></textarea>
+          <div style="display:flex; align-items:center; gap:6px">
+            <i class="ph ph-at" style="font-size:16px; color:#737A85; padding:6px"></i>
+            <button onClick="{{ send }}" style="width:34px; height:34px; border-radius:6px; border:0; background:#E30074; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer" style-hover="background:#F21C88"><i class="ph ph-arrow-up" style="font-size:17px"></i></button>
+          </div>
+        </div>
+        <span style="font-size:10.5px; color:#737A85">Answers cite analyzed objects and code evidence. Review recommendations before acting on them.</span>
+      </div>
+    </aside>
+  </sc-if>
+  <sc-if value="{{ closed }}" hint-placeholder-val="{{ false }}">
+    <aside style="width:52px; flex:none; background:#111318; border-left:1px solid #2B3038; display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:12px">
+      <button onClick="{{ toggleOpen }}" style="width:34px; height:34px; border-radius:6px; border:1px solid #6A1F45; background:#1E1118; cursor:pointer; display:flex; align-items:center; justify-content:center" style-hover="border-color:#E30074"><i class="ph-fill ph-sparkle" style="color:#E30074; font-size:17px"></i></button>
+      <span style="writing-mode:vertical-rl; font-size:12px; color:#A7ADB7; letter-spacing:0.04em">AI Copilot</span>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080},&quot;riskPaths&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Graph&quot;},&quot;nodeFill&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Tinted&quot;,&quot;options&quot;:[&quot;Tinted&quot;,&quot;Outline&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Graph&quot;}}">
+const COLX = [12, 212, 412, 612, 826];
+const K = {
+  custom: { bg: '#141C2A', bd: '#2A4470', c: '#7EA6E8', label: 'Custom' },
+  sap:    { bg: '#191C22', bd: '#3A404A', c: '#9098A3', label: 'SAP Standard' },
+  api:    { bg: '#12211A', bd: '#275E43', c: '#4CC38A', label: 'Released API' },
+  legacy: { bg: '#231A12', bd: '#6B4526', c: '#E8944A', label: 'Legacy' },
+  risk:   { bg: '#261517', bd: '#7C3036', c: '#F0605A', label: 'Clean Core Risk' }
+};
+const NODES = [
+  ['ZVA01', 'Transaction', 'TX', 'custom', 0, 186, 1, 'Low', 'Transactions'],
+  ['ZSD_REPORT_01', 'Report', 'RP', 'legacy', 0, 496, 4, 'Low', 'Reports'],
+  ['ZSD_ORDER_MAIN', 'Report · Module pool', 'RP', 'custom', 1, 186, 9, 'Medium', 'Reports'],
+  ['ZSD_ORDER_CHECK', 'Enhancement', 'EN', 'risk', 1, 436, 6, 'High', 'Enhancements'],
+  ['ZCL_ORDER_VALIDATION', 'ABAP Class', 'CL', 'custom', 2, 146, 14, 'High', 'Classes'],
+  ['ZCL_PRICING_ENGINE', 'ABAP Class', 'CL', 'custom', 2, 336, 11, 'Medium', 'Classes'],
+  ['ZFM_CHECK_CREDIT', 'Function Module', 'FM', 'custom', 3, 46, 5, 'Low', 'Function Modules'],
+  ['ZRFC_CREDIT_SYNC', 'RFC · Legacy integration', 'RF', 'legacy', 3, 286, 3, 'Medium', 'RFCs'],
+  ['ZFM_PRICE_CALC', 'Function Module', 'FM', 'legacy', 3, 396, 6, 'Medium', 'Function Modules'],
+  ['ZSD_PRICING_COND', 'Table', 'TB', 'custom', 3, 496, 3, 'Low', 'Tables'],
+  ['I_SalesOrder', 'CDS View · Released', 'API', 'api', 4, 46, 0, 'Released', 'APIs'],
+  ['SD_ORDER_CREDIT_CHECK', 'Function Module · Not released', 'FM', 'risk', 4, 146, 0, 'Not released', 'Function Modules'],
+  ['VBAK', 'Table · SAP Standard', 'TB', 'sap', 4, 236, 0, 'Standard', 'Tables'],
+  ['BAPI_SALESORDER_CREATEFROMDAT2', 'BAPI · Released', 'API', 'api', 4, 326, 0, 'Released', 'APIs'],
+  ['BADI_SD_SALES', 'BAdI · SAP Standard', 'BA', 'sap', 4, 436, 0, 'Standard', 'BAdIs']
+].map(([name, type, abbr, kind, col, y, deps, risk, group]) => ({ id: name, name, type, abbr, kind, x: COLX[col], y, w: col === 4 ? 222 : 176, col, deps, risk, group }));
+const NB = Object.fromEntries(NODES.map(n => [n.id, n]));
+const EDGES = [
+  ['ZVA01', 'ZSD_ORDER_MAIN'], ['ZSD_ORDER_MAIN', 'ZCL_ORDER_VALIDATION'], ['ZSD_ORDER_MAIN', 'ZCL_PRICING_ENGINE'],
+  ['ZSD_ORDER_CHECK', 'ZCL_ORDER_VALIDATION'], ['ZSD_ORDER_CHECK', 'BADI_SD_SALES', 'risk'],
+  ['ZCL_ORDER_VALIDATION', 'ZFM_CHECK_CREDIT'], ['ZCL_ORDER_VALIDATION', 'SD_ORDER_CREDIT_CHECK', 'risk'],
+  ['ZCL_ORDER_VALIDATION', 'VBAK', 'risk'], ['ZCL_ORDER_VALIDATION', 'ZCL_PRICING_ENGINE'],
+  ['ZCL_PRICING_ENGINE', 'ZFM_PRICE_CALC'], ['ZCL_PRICING_ENGINE', 'BAPI_SALESORDER_CREATEFROMDAT2'],
+  ['ZFM_CHECK_CREDIT', 'I_SalesOrder'], ['ZFM_CHECK_CREDIT', 'ZRFC_CREDIT_SYNC', 'legacy'],
+  ['ZFM_PRICE_CALC', 'ZSD_PRICING_COND'], ['ZSD_REPORT_01', 'ZFM_PRICE_CALC', 'legacy']
+];
+const FINDINGS = [
+  { id: 'CC-003', sev: 'High', title: 'Direct dependency on unreleased SAP object SD_ORDER_CREDIT_CHECK', obj: 'ZCL_ORDER_VALIDATION', cat: 'API Usage', ev: 'CHECK_CREDIT · L128' },
+  { id: 'CC-005', sev: 'High', title: 'Direct read on SAP standard table VBAK', obj: 'ZCL_ORDER_VALIDATION', cat: 'Data Access', ev: 'VALIDATE_HEADER · L64–71' },
+  { id: 'CC-009', sev: 'Medium', title: 'Business rules hard-coded in class methods', obj: 'ZCL_ORDER_VALIDATION', cat: 'Extensibility', ev: 'CHECK_ELIGIBILITY · L201–240' },
+  { id: 'CC-001', sev: 'High', title: 'Business logic embedded in enhancement', obj: 'ZSD_ORDER_CHECK', cat: 'Extensibility', ev: 'USEREXIT_SAVE · L12–58' },
+  { id: 'CC-004', sev: 'High', title: 'Modification-like change to standard document flow', obj: 'ZSD_ORDER_CHECK', cat: 'Extensibility', ev: 'IF_EX_SD_SALES · L80' },
+  { id: 'CC-006', sev: 'Medium', title: 'Condition read bypasses standard pricing', obj: 'ZCL_PRICING_ENGINE', cat: 'Standardization', ev: 'GET_CONDITIONS · L33' },
+  { id: 'CC-012', sev: 'Medium', title: 'Custom implementation duplicates SAP capability', obj: 'ZFM_PRICE_CALC', cat: 'Standardization', ev: 'L1–212' },
+  { id: 'CC-008', sev: 'Medium', title: 'Legacy RFC integration without released interface', obj: 'ZRFC_CREDIT_SYNC', cat: 'Integration', ev: 'L20–96' },
+  { id: 'CC-010', sev: 'Low', title: 'Hard-coded sales organization values', obj: 'ZSD_ORDER_MAIN', cat: 'Maintainability', ev: 'PAI_0100 · L144' },
+  { id: 'CC-014', sev: 'Low', title: 'Obsolete ABAP construct', obj: 'ZSD_REPORT_01', cat: 'Maintainability', ev: 'L310' }
+];
+const RULES = [
+  { id: 'BR-001', title: 'Customer credit validation', objs: ['ZCL_ORDER_VALIDATION', 'ZFM_CHECK_CREDIT'], conf: 94, process: 'Order Management', src: 3 },
+  { id: 'BR-002', title: 'Special pricing for strategic customers', objs: ['ZCL_PRICING_ENGINE', 'ZFM_PRICE_CALC'], conf: 91, process: 'Pricing', src: 4 },
+  { id: 'BR-003', title: 'Delivery eligibility check', objs: ['ZCL_ORDER_VALIDATION'], conf: 89, process: 'Order Fulfilment', src: 2 },
+  { id: 'BR-004', title: 'Blocked customer rejection', objs: ['ZCL_ORDER_VALIDATION', 'ZSD_ORDER_CHECK'], conf: 92, process: 'Order Management', src: 3 },
+  { id: 'BR-006', title: 'Minimum order quantity per material group', objs: ['ZCL_ORDER_VALIDATION'], conf: 88, process: 'Order Management', src: 2 },
+  { id: 'BR-009', title: 'Credit exposure tolerance', objs: ['ZCL_ORDER_VALIDATION', 'ZFM_CHECK_CREDIT'], conf: 84, process: 'Credit Management', src: 3 },
+  { id: 'BR-011', title: 'Order type restriction by sales organization', objs: ['ZCL_ORDER_VALIDATION', 'ZSD_ORDER_MAIN'], conf: 81, process: 'Order Management', src: 2 },
+  { id: 'BR-013', title: 'Manual price override approval', objs: ['ZSD_ORDER_CHECK', 'ZSD_ORDER_MAIN'], conf: 78, process: 'Pricing', src: 2 },
+  { id: 'BR-014', title: 'Surcharge for express delivery', objs: ['ZFM_PRICE_CALC', 'ZSD_REPORT_01'], conf: 76, process: 'Pricing', src: 2 }
+];
+const SRC = [
+  { obj: 'ZCL_ORDER_VALIDATION', loc: 'Method CHECK_CREDIT · Lines 118–146' },
+  { obj: 'ZCL_ORDER_VALIDATION', loc: 'Method VALIDATE_HEADER · Lines 64–71' },
+  { obj: 'SD_ORDER_CREDIT_CHECK', loc: 'Release state: not released for customer use' }
+];
+const R = {
+  why: { intro: 'ZCL_ORDER_VALIDATION has three relevant Clean Core concerns. The most significant is its direct dependency on SAP objects that are not released for external consumption, which ties the class to internal SAP implementation details and raises upgrade risk.',
+    items: ['Calls SD_ORDER_CREDIT_CHECK, an unreleased SAP function module, from method CHECK_CREDIT (line 128).', 'Reads SAP table VBAK directly instead of through the released CDS view I_SalesOrder.', 'Six business rules, including customer credit validation, are hard-coded in class methods.'],
+    outro: 'Replacing the unreleased call with a released API would address both High findings without changing rule behavior. Worth validating with the credit-management owner.',
+    refs: [['ZCL_ORDER_VALIDATION', 'obj'], ['Finding CC-003', 'finding', 'CC-003'], ['Business Rule BR-004', 'rule', 'BR-004']],
+    action: { label: 'Highlight in architecture', hl: ['ZCL_ORDER_VALIDATION', 'SD_ORDER_CREDIT_CHECK', 'VBAK'] } },
+  explain: { q: 'Explain the architecture of this application.', intro: 'ZSD_ORDER_MANAGEMENT is entered through transaction ZVA01 and the enhancement ZSD_ORDER_CHECK. Control passes through two custom classes before reaching SAP standard.',
+    items: ['ZSD_ORDER_MAIN orchestrates the order flow and delegates to ZCL_ORDER_VALIDATION and ZCL_PRICING_ENGINE.', 'Validation relies on ZFM_CHECK_CREDIT, which synchronizes credit data with an external system through ZRFC_CREDIT_SYNC.', 'Pricing reads custom conditions from ZSD_PRICING_COND and creates orders through the released BAPI_SALESORDER_CREATEFROMDAT2.'],
+    refs: [['ZSD_ORDER_MAIN', 'obj'], ['ZCL_PRICING_ENGINE', 'obj']],
+    hl: ['ZVA01', 'ZSD_ORDER_MAIN', 'ZCL_ORDER_VALIDATION', 'ZCL_PRICING_ENGINE', 'ZFM_CHECK_CREDIT', 'BAPI_SALESORDER_CREATEFROMDAT2'] },
+  risks: { q: 'Summarize the Clean Core risks.', intro: 'Run 2026-0042 identified 12 Clean Core findings across 47 objects; 4 are High severity. They concentrate in three areas:',
+    items: ['Unreleased SAP dependencies: ZCL_ORDER_VALIDATION calls SD_ORDER_CREDIT_CHECK and reads VBAK directly.', 'Logic in enhancements: ZSD_ORDER_CHECK carries order-blocking rules inside a standard sales document BAdI.', 'Legacy integration: ZRFC_CREDIT_SYNC and ZSD_REPORT_01 rely on a custom RFC and obsolete constructs.'],
+    refs: [['Finding CC-003', 'finding', 'CC-003'], ['Finding CC-001', 'finding', 'CC-001'], ['ZRFC_CREDIT_SYNC', 'obj']],
+    hl: ['ZCL_ORDER_VALIDATION', 'SD_ORDER_CREDIT_CHECK', 'VBAK', 'ZSD_ORDER_CHECK', 'ZRFC_CREDIT_SYNC', 'ZSD_REPORT_01'] },
+  alt: { q: 'Find SAP standard alternatives.', intro: 'Released SAP options exist for three current dependencies. Each should be checked against your release level and credit-management setup.',
+    items: ['Direct VBAK reads → released CDS view I_SalesOrder.', 'Custom pricing in ZFM_PRICE_CALC → standard condition technique with custom condition types.', 'SD_ORDER_CREDIT_CHECK → released credit-management APIs, or a side-by-side extension where no released equivalent covers the check.'],
+    refs: [['I_SalesOrder', 'obj'], ['ZFM_PRICE_CALC', 'obj']],
+    hl: ['VBAK', 'I_SalesOrder', 'ZFM_PRICE_CALC', 'SD_ORDER_CREDIT_CHECK'] },
+  rules: { q: 'Show the business rules affected by this finding.', intro: 'Six business rules are implemented in ZCL_ORDER_VALIDATION. Two of them depend on the unreleased credit check and are directly affected by CC-003:',
+    items: ['BR-001 Customer credit validation, method CHECK_CREDIT, lines 118–146.', 'BR-004 Blocked customer rejection, method CHECK_CREDIT, lines 150–171.'],
+    refs: [['Business Rule BR-001', 'rule', 'BR-001'], ['Business Rule BR-004', 'rule', 'BR-004']],
+    action: { label: 'Open in rules panel', tab: 'rules' },
+    hl: ['ZCL_ORDER_VALIDATION', 'ZFM_CHECK_CREDIT', 'SD_ORDER_CREDIT_CHECK'] },
+  summary: { q: 'Create a modernization summary.', intro: 'Draft modernization summary for review:',
+    items: ['Replace with released API: VBAK access → I_SalesOrder. Effort Low, impact High.', 'Refactor: isolate credit rules in ZCL_ORDER_VALIDATION behind a released API boundary. Effort Medium.', 'Move to side-by-side extension: ZRFC_CREDIT_SYNC integration. Effort High.'],
+    outro: 'These options are based on Run 2026-0042. The final decision sits with the architecture board.',
+    refs: [['Finding CC-005', 'finding', 'CC-005'], ['ZRFC_CREDIT_SYNC', 'obj']],
+    hl: ['VBAK', 'I_SalesOrder', 'ZCL_ORDER_VALIDATION', 'ZRFC_CREDIT_SYNC'] }
+};
+const SEV = { High: '#F0605A', Medium: '#E5B53C', Low: '#8FA3BF' };
+const RISKC = { High: '#F0605A', Medium: '#E5B53C', Low: '#4CC38A', Released: '#4CC38A', 'Not released': '#F0605A', Standard: '#9098A3' };
+
+class Component extends DCLogic {
+  state = {
+    sel: 'ZCL_ORDER_VALIDATION', tab: 'findings', hl: null, filter: 'All', open: true, input: '', pending: false,
+    evOpen: -1, activeFinding: 'CC-003', activeRule: null,
+    messages: [{ role: 'user', text: 'Why is ZCL_ORDER_VALIDATION a Clean Core concern?' }, { role: 'ai', key: 'why' }]
+  };
+  chatRef = React.createRef();
+  componentDidUpdate(pp, ps) {
+    if (ps.messages.length !== this.state.messages.length || ps.pending !== this.state.pending || ps.evOpen !== this.state.evOpen) {
+      const el = this.chatRef.current; if (el && ps.evOpen === this.state.evOpen) el.scrollTop = el.scrollHeight;
+    }
+  }
+  componentWillUnmount() { clearTimeout(this.t); }
+  select = (id) => this.setState(s => {
+    if (s.sel === id) return null;
+    const msgs = s.messages.slice();
+    if (msgs.length && msgs[msgs.length - 1].role === 'ctx') msgs.pop();
+    msgs.push({ role: 'ctx', text: id });
+    const f = FINDINGS.find(x => x.obj === id);
+    return { sel: id, messages: msgs, activeFinding: f ? f.id : null };
+  });
+  ask = (key, text) => {
+    if (this.state.pending) return;
+    this.setState(s => ({ messages: [...s.messages, { role: 'user', text: text || R[key].q }], pending: true }));
+    clearTimeout(this.t);
+    this.t = setTimeout(() => {
+      const r = R[key];
+      this.setState(s => ({ pending: false, messages: [...s.messages, { role: 'ai', key, custom: key === 'free' ? { sel: s.sel } : null }], hl: r && r.hl ? r.hl : s.hl }));
+    }, 750);
+  };
+  onRef = (kind, target, label) => {
+    if (kind === 'obj') this.select(label);
+    else if (kind === 'finding') { const f = FINDINGS.find(x => x.id === target); this.select(f.obj); this.setState({ tab: 'findings', activeFinding: target }); }
+    else if (kind === 'rule') this.setState({ tab: 'rules', activeRule: target });
+  };
+  send = () => {
+    const t = this.state.input.trim(); if (!t) return;
+    this.setState({ input: '' });
+    this.ask('free', t);
+  };
+  buildMsg(m, i) {
+    if (m.role === 'user') return { isUser: true, text: m.text };
+    if (m.role === 'ctx') return { isCtx: true, text: m.text + ' selected' };
+    let r = R[m.key];
+    if (m.key === 'free') {
+      const n = NB[m.custom.sel];
+      const fs = FINDINGS.filter(f => f.obj === n.id).length, rs = RULES.filter(x => x.objs.includes(n.id)).length;
+      r = { intro: `Scoped to ${n.name}: it is a ${n.type.toLowerCase()} with ${n.deps} dependencies, ${rs} business rules and ${fs} Clean Core findings in Run 2026-0042. I can trace any of these back to code evidence.`, items: [], refs: [[n.name, 'obj']] };
+    }
+    const hlIds = m.key === 'why' ? null : r.hl;
+    return {
+      isAi: true, intro: r.intro, items: (r.items || []).map((t, k) => ({ n: k + 1, text: t })), hasItems: !!(r.items && r.items.length),
+      outro: r.outro, hasOutro: !!r.outro,
+      refs: r.refs.map(([label, kind, target]) => ({ label, icon: kind === 'obj' ? 'ph-cube' : kind === 'finding' ? 'ph-warning-diamond' : 'ph-scroll', font: kind === 'obj' ? "'JetBrains Mono',monospace" : 'inherit', onClick: () => this.onRef(kind, target, label) })),
+      srcCount: SRC.length, sources: SRC, showEv: this.state.evOpen === i, evIcon: this.state.evOpen === i ? 'ph-caret-up' : 'ph-caret-down',
+      onEv: () => this.setState(s => ({ evOpen: s.evOpen === i ? -1 : i })),
+      hasAction: !!r.action, actionLabel: r.action ? r.action.label : '',
+      onAction: () => { if (!r.action) return; if (r.action.hl) this.setState({ hl: r.action.hl }); if (r.action.tab) this.setState({ tab: r.action.tab }); },
+      hasNote: !!hlIds, note: hlIds ? `Highlighted ${hlIds.length} components in the architecture graph` : ''
+    };
+  }
+  renderVals() {
+    const { sel, hl, filter, tab } = this.state;
+    const riskPaths = this.props.riskPaths ?? true;
+    const outline = (this.props.nodeFill ?? 'Tinted') === 'Outline';
+    const hlSet = hl ? new Set(hl) : null;
+    const nodes = NODES.map(n => {
+      const k = K[n.kind], isSel = n.id === sel, inHl = hlSet && hlSet.has(n.id);
+      const dimF = filter !== 'All' && n.group !== filter, dimH = hlSet && !inHl;
+      const fc = FINDINGS.filter(f => f.obj === n.id).length;
+      return { ...n, bg: outline ? '#111318' : k.bg, border: isSel ? '#E30074' : inHl ? '#B0105E' : k.bd,
+        shadow: isSel ? '0 0 0 1px #E30074, 0 0 0 5px rgba(227,0,116,0.10), 0 8px 20px rgba(0,0,0,0.45)' : inHl ? '0 0 0 3px rgba(227,0,116,0.10)' : 'none',
+        opacity: dimF || dimH ? 0.32 : 1, badgeColor: k.c, badgeBorder: k.bd, findings: fc, hasFindings: fc > 0, onClick: () => this.select(n.id) };
+    });
+    const mk = (id, c) => React.createElement('marker', { key: id, id, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, React.createElement('path', { d: 'M0,0 L8,4 L0,8 z', fill: c }));
+    const paths = EDGES.map(([a, b, t], i) => {
+      const A = NB[a], B = NB[b];
+      let d;
+      if (A.col === B.col) { const x = A.x + A.w / 2; d = `M${x},${A.y + 52} L${x},${B.y - 2}`; }
+      else { const x1 = A.x + A.w, y1 = A.y + 26, x2 = B.x - 2, y2 = B.y + 26, c = Math.max(40, (x2 - x1) / 2); d = `M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2},${y2}`; }
+      const act = a === sel || b === sel, both = hlSet && hlSet.has(a) && hlSet.has(b);
+      let stroke = '#3A404B', w = 1.2, dash = null, op = 1, m = 'm-def';
+      if (riskPaths && t === 'risk') { stroke = '#F0605A'; dash = '4 3'; op = 0.75; m = 'm-risk'; }
+      else if (riskPaths && t === 'legacy') { stroke = '#E8944A'; dash = '4 3'; op = 0.6; m = 'm-leg'; }
+      if (act || both) { stroke = t === 'risk' && riskPaths ? '#F0605A' : '#E30074'; w = 1.6; op = 0.95; m = t === 'risk' && riskPaths ? 'm-risk' : 'm-sel'; }
+      if (hlSet && !both) op = 0.25;
+      return React.createElement('path', { key: i, d, fill: 'none', stroke, strokeWidth: w, strokeDasharray: dash, opacity: op, markerEnd: `url(#${m})` });
+    });
+    const edgesSvg = React.createElement('svg', { width: '100%', height: '100%', style: { position: 'absolute', inset: 0, pointerEvents: 'none' } },
+      React.createElement('defs', null, mk('m-def', '#4A505B'), mk('m-sel', '#E30074'), mk('m-risk', '#F0605A'), mk('m-leg', '#E8944A')), paths);
+    const selNode = NB[sel];
+    const fl = FINDINGS.filter(f => f.obj === sel), rl = RULES.filter(r => r.objs.includes(sel));
+    const dl = EDGES.filter(([a, b]) => a === sel || b === sel).map(([a, b]) => {
+      const o = NB[a === sel ? b : a];
+      return { dir: a === sel ? 'Calls' : 'Called by', icon: a === sel ? 'ph-arrow-up-right' : 'ph-arrow-down-left', name: o.name, type: o.type, kindColor: K[o.kind].c, kindLabel: K[o.kind].label, onClick: () => this.select(o.id) };
+    });
+    const tabDef = [['findings', 'Clean Core Findings', fl.length], ['rules', 'Business Rules', rl.length], ['deps', 'Dependencies', selNode.deps || dl.length]];
+    const FILTERS = ['All', 'Classes', 'Function Modules', 'Tables', 'Reports', 'Enhancements', 'BAdIs', 'RFCs', 'APIs'];
+    const q = k => () => this.ask(k);
+    return {
+      nodes, edgesSvg, selNode, selRiskColor: RISKC[selNode.risk], selRuleCount: rl.length,
+      filters: FILTERS.map(f => { const a = f === filter; return { label: f, bg: a ? '#1E1118' : 'transparent', border: a ? '#E30074' : '#2B3038', color: a ? '#FF8CC4' : '#A7ADB7', onClick: () => this.setState({ filter: f }) }; }),
+      hasHl: !!hl, hlLabel: hl ? `Copilot highlighted ${hl.length} components` : '', clearHl: () => this.setState({ hl: null }),
+      tabs: tabDef.map(([id, label, count]) => ({ label, count, color: tab === id ? '#F4F5F7' : '#A7ADB7', bar: tab === id ? '#E30074' : 'transparent', onClick: () => this.setState({ tab: id }) })),
+      isFindings: tab === 'findings', isRules: tab === 'rules', isDeps: tab === 'deps',
+      findingRows: fl.map(f => { const a = f.id === this.state.activeFinding; return { ...f, sevColor: SEV[f.sev], bg: a ? '#1D2128' : 'transparent', border: a ? '#8A1452' : 'transparent', onClick: () => this.setState({ activeFinding: f.id }) }; }),
+      noFindings: fl.length === 0,
+      ruleRows: rl.map(r => { const a = r.id === this.state.activeRule; return { ...r, bg: a ? '#1D2128' : 'transparent', border: a ? '#8A1452' : 'transparent', onClick: () => this.setState({ activeRule: r.id }) }; }),
+      noRules: rl.length === 0,
+      depRows: dl, depsMore: selNode.deps > dl.length ? `+${selNode.deps - dl.length} dependencies outside the current view` : `${dl.length} dependencies in view`,
+      open: this.state.open, closed: !this.state.open, toggleOpen: () => this.setState(s => ({ open: !s.open })),
+      chatRef: this.chatRef, msgs: this.state.messages.map((m, i) => this.buildMsg(m, i)), pending: this.state.pending,
+      askExplain: q('explain'), askRisks: q('risks'), askAlt: q('alt'), askRules: q('rules'), askSummary: q('summary'),
+      askSelected: () => this.ask('free', `What should I know about ${sel}?`),
+      input: this.state.input, onInput: e => this.setState({ input: e.target.value }),
+      onKey: e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } }, send: this.send
+    };
+  }
+}
+</script>
+</body>
+</html>
