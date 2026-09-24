@@ -1,62 +1,66 @@
 import { useState } from 'react'
+import { AssessmentsHome } from '@/components/home/AssessmentsHome'
 import { CopilotPanel } from '@/components/shell/CopilotPanel'
 import { NAV_ITEMS, Sidebar } from '@/components/shell/Sidebar'
 import { Workspace } from '@/components/shell/Workspace'
-import type { AssessmentRecord, ClientRecord, SAPSystemRecord } from '@/lib/api'
-import type { ClientContext } from '@/lib/useClientContext'
+import type { AssessmentListItem, ClientRecord } from '@/lib/api'
+import type { AssessmentContext } from '@/lib/useClientContext'
 import { useHealth } from '@/lib/useHealth'
 
-/** Permanent three-region shell: Sidebar | Main Workspace | AI Copilot. */
+/** Permanent two/three-region shell: [Sidebar?] | Main | Copilot. */
 export function App() {
   const [activeView, setActiveView] = useState(NAV_ITEMS[0].id)
   const [copilotCollapsed, setCopilotCollapsed] = useState(false)
   const health = useHealth()
-  const viewLabel = NAV_ITEMS.find((item) => item.id === activeView)?.label ?? activeView
 
-  // Client / SAP System / Assessment selection state (SPRINT-01)
   const [client, setClientState] = useState<ClientRecord | null>(null)
-  const [system, setSystemState] = useState<SAPSystemRecord | null>(null)
-  const [assessment, setAssessmentState] = useState<AssessmentRecord | null>(null)
+  const [assessment, setAssessmentState] = useState<AssessmentListItem | null>(null)
 
-  const ctx: ClientContext = {
+  const ctx: AssessmentContext = {
     client,
-    system,
     assessment,
     setClient: (c) => {
       setClientState(c)
-      if (!c) {
-        setSystemState(null)
-        setAssessmentState(null)
-      }
+      if (!c) setAssessmentState(null)
     },
-    setSystem: (s) => {
-      setSystemState(s)
-      if (!s) setAssessmentState(null)
+    setAssessment: (a) => {
+      setAssessmentState(a)
+      if (a) setActiveView(NAV_ITEMS[0].id)
     },
-    setAssessment: setAssessmentState,
   }
+
+  const copilotContext = assessment
+    ? `assessment: ${assessment.name}`
+    : `home`
 
   return (
     <div className="flex h-full overflow-hidden">
-      <Sidebar
-        activeId={activeView}
-        onSelect={setActiveView}
-        connectivity={health.connectivity}
-        ctx={ctx}
-      />
-      <Workspace viewLabel={viewLabel} activeView={activeView} health={health} ctx={ctx} />
+      {/* Sidebar only when an assessment is open */}
+      {assessment && (
+        <Sidebar
+          activeId={activeView}
+          onSelect={setActiveView}
+          connectivity={health.connectivity}
+          ctx={ctx}
+        />
+      )}
+
+      {/* Center region */}
+      {assessment ? (
+        <Workspace activeView={activeView} health={health} ctx={ctx} />
+      ) : (
+        <main
+          data-region="workspace"
+          className="flex min-w-0 flex-1 flex-col bg-surface-background"
+        >
+          <AssessmentsHome ctx={ctx} />
+        </main>
+      )}
+
       <CopilotPanel
         collapsed={copilotCollapsed}
-        onToggle={() => setCopilotCollapsed((value) => !value)}
-        contextLabel={
-          assessment
-            ? `assessment: ${assessment.name}`
-            : system
-              ? `system: ${system.name}`
-              : client
-                ? `client: ${client.name}`
-                : `view: ${activeView}`
-        }
+        onToggle={() => setCopilotCollapsed((v) => !v)}
+        contextLabel={copilotContext}
       />
     </div>
   )

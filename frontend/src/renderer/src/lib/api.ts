@@ -21,7 +21,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse>
 }
 
 // ---------------------------------------------------------------------------
-// SPRINT-01: Client / SAP System / Assessment types + fetchers
+// SPRINT-04: Client and Assessment types + fetchers (Assessment-centric)
 // ---------------------------------------------------------------------------
 
 export interface ClientRecord {
@@ -31,22 +31,18 @@ export interface ClientRecord {
   created_at: string
 }
 
-export interface SAPSystemRecord {
+export interface AssessmentRecord {
   id: number
   client_id: number
   name: string
-  sid: string | null
-  description: string | null
-  created_at: string
-}
-
-export interface AssessmentRecord {
-  id: number
-  sap_system_id: number
-  name: string
+  sap_source_system: string | null
   description: string | null
   status: string
   created_at: string
+}
+
+export interface AssessmentListItem extends AssessmentRecord {
+  client_name: string
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -57,11 +53,38 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const fetchClients = (): Promise<ClientRecord[]> => api('/clients')
 
-export const fetchSystems = (clientId: number): Promise<SAPSystemRecord[]> =>
-  api(`/clients/${clientId}/systems`)
+export const createClient = (name: string, description?: string): Promise<ClientRecord> =>
+  api('/clients', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: description ?? null }),
+  })
 
-export const fetchAssessments = (clientId: number, systemId: number): Promise<AssessmentRecord[]> =>
-  api(`/clients/${clientId}/systems/${systemId}/assessments`)
+export const fetchAssessments = (params?: {
+  client_id?: number
+  name?: string
+}): Promise<AssessmentListItem[]> => {
+  const qs = new URLSearchParams()
+  if (params?.client_id != null) qs.set('client_id', String(params.client_id))
+  if (params?.name) qs.set('name', params.name)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return api(`/assessments${query}`)
+}
+
+export const createAssessment = (body: {
+  client_id: number
+  name: string
+  sap_source_system?: string
+  description?: string
+}): Promise<AssessmentRecord> =>
+  api('/assessments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+export const fetchAssessment = (id: number): Promise<AssessmentRecord> =>
+  api(`/assessments/${id}`)
 
 // ---------------------------------------------------------------------------
 // SPRINT-02: Source Ingestion types + fetchers

@@ -18,7 +18,6 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import {
-  fetchScanConfig,
   fetchScans,
   fetchScan,
   fetchSourceFiles,
@@ -126,18 +125,10 @@ export function SourceIngestion({ assessmentId }: Props) {
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState<string | null>(null)
 
-  const config = useQuery({ queryKey: ['scanConfig'], queryFn: fetchScanConfig })
   const scans = useQuery({
     queryKey: ['scans', assessmentId],
     queryFn: () => fetchScans(assessmentId),
   })
-
-  // Pre-fill path with demo path once config loads
-  useEffect(() => {
-    if (config.data && !selectedPath) {
-      setSelectedPath(config.data.demo_path)
-    }
-  }, [config.data, selectedPath])
 
   // Set activeScanId to the latest running or most recent scan
   useEffect(() => {
@@ -272,12 +263,6 @@ export function SourceIngestion({ assessmentId }: Props) {
           </div>
         )}
 
-        {config.data && (
-          <p className="mt-2 text-[11px] text-text-tertiary">
-            Backend scan root: <span className="font-mono">{config.data.scan_root}</span>
-            {' · '}Demo: <span className="font-mono">{config.data.demo_path}</span>
-          </p>
-        )}
       </section>
 
       {/* Active scan status */}

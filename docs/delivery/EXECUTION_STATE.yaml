@@ -6,13 +6,13 @@ active_sprint: null
 active_sprint_status: null
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-03
-next_sprint: SPRINT-04
-next_sprint_slug: assessment-centric-product-alignment
+last_completed_sprint: SPRINT-04
+next_sprint: SPRINT-05
+next_sprint_slug: dependencies-atc-and-technical-findings
 notes:
-  - SPRINT-03 completed. SAP Object Parsing delivered with parsers, SAPObject model, API routes, ObjectBrowser frontend and seed v5.
-  - Baseline R3.1 accepts ADR-015 and supersedes the old Client -> SAP System -> Assessment target hierarchy.
-  - SPRINT-04 is a mandatory corrective alignment sprint before further analysis capabilities.
-  - Future unstarted sprints were shifted by one number; Dependencies & ATC is now SPRINT-05 and Demo Readiness is SPRINT-15.
-  - Historical Sprint 01/02/03 result records remain evidence of what was implemented, not the current target architecture.
-  - Do not infer implementation completion from planning documentation.
+  - SPRINT-04 completed (Assessment-centric product alignment per ADR-015).
+  - SAPSystem entity removed; Assessment has client_id + sap_source_system directly.
+  - Assessments Home is first screen; sidebar only inside assessment.
+  - Migration 0005_assessment_alignment at head; seed v6 demo data.
+  - 35/35 pytest; typecheck clean.
+  - SPRINT-05 is Dependencies + ATC + Technical Findings.

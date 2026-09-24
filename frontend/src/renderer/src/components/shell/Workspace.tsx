@@ -1,56 +1,57 @@
-import { ClientHub } from '@/components/hub/ClientHub'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
 import { ObjectBrowser } from '@/components/parsing/ObjectBrowser'
-import type { ClientContext } from '@/lib/useClientContext'
+import type { AssessmentContext } from '@/lib/useClientContext'
 import type { useHealth } from '@/lib/useHealth'
 import { ConnectionIndicator } from './ConnectionIndicator'
+import { NAV_ITEMS } from './Sidebar'
 
 interface WorkspaceProps {
-  viewLabel: string
   activeView: string
   health: ReturnType<typeof useHealth>
-  ctx: ClientContext
+  ctx: AssessmentContext
 }
 
-/** Center workspace. Shows Client Hub until an assessment is selected; then shows the active view. */
-export function Workspace({ viewLabel, activeView, health, ctx }: WorkspaceProps) {
-  const { connectivity } = health
+function PlaceholderView({ title }: { title: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 text-text-tertiary">
+      <p className="text-[15px] font-medium text-text-secondary">{title}</p>
+      <p className="text-[12px]">Disponível em sprint futuro</p>
+    </div>
+  )
+}
 
-  const contextLine = ctx.assessment
-    ? `${ctx.client?.name} / ${ctx.system?.name} / ${ctx.assessment.name}`
-    : ctx.system
-      ? `${ctx.client?.name} / ${ctx.system.name}`
-      : ctx.client
-        ? ctx.client.name
-        : null
+/** Center workspace — rendered only when an assessment is open. */
+export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
+  const { connectivity } = health
+  const assessment = ctx.assessment!
+
+  const viewLabel = NAV_ITEMS.find((i) => i.id === activeView)?.label ?? activeView
+  const contextLine = `${ctx.client?.name ?? ''} / ${assessment.name}`
 
   return (
     <main data-region="workspace" className="flex min-w-0 flex-1 flex-col bg-surface-background">
-      <div className="flex h-14 items-center justify-between border-b border-border-soft px-6">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border-soft px-6">
         <div className="flex items-center gap-2 text-[12px] text-text-tertiary">
           <span>Workspace</span>
           <span>/</span>
           <span className="text-text-secondary">{viewLabel}</span>
-          {contextLine && (
-            <>
-              <span>/</span>
-              <span data-testid="context-breadcrumb" className="text-text-primary font-medium">
-                {contextLine}
-              </span>
-            </>
-          )}
+          <span>/</span>
+          <span data-testid="context-breadcrumb" className="font-medium text-text-primary">
+            {contextLine}
+          </span>
         </div>
         <ConnectionIndicator connectivity={connectivity} />
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {!ctx.assessment ? (
-          <ClientHub ctx={ctx} />
-        ) : activeView === 'engineering' ? (
-          <ObjectBrowser assessmentId={ctx.assessment.id} />
-        ) : (
-          <SourceIngestion assessmentId={ctx.assessment.id} />
-        )}
+        {activeView === 'ingestion' && <SourceIngestion assessmentId={assessment.id} />}
+        {activeView === 'technical' && <ObjectBrowser assessmentId={assessment.id} />}
+        {activeView === 'atc' && <PlaceholderView title="Análise ATC" />}
+        {activeView === 'ai-processing' && <PlaceholderView title="Processamento por IA" />}
+        {activeView === 'dashboard' && <PlaceholderView title="Dashboard Geral" />}
+        {activeView === 'executive' && <PlaceholderView title="Executive View" />}
+        {activeView === 'functional' && <PlaceholderView title="Functional View" />}
+        {activeView === 'architecture' && <PlaceholderView title="Architecture View" />}
       </div>
     </main>
   )

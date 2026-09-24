@@ -1,0 +1,43 @@
+sprint: SPRINT-04
+branch: sprint/04-assessment-centric-product-alignment
+status: completed
+progress_percent: 100
+started_at: "2026-09-24"
+completed_at: "2026-09-24"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Domain/persistence correction - remove SAPSystem, add Assessment.sap_source_system/client_id, Alembic migration 0005
+    status: completed
+    validation: "migration 0005_assessment_alignment applied; sap_system table dropped; assessment has client_id/sap_source_system; seed v6 applied"
+  - id: CAP-002
+    description: API correction - Client CRUD-light, Assessment list/create/detail without nested SAPSystem routes
+    status: completed
+    validation: "GET/POST /assessments, GET /assessments/{id}, GET/POST /clients all working"
+  - id: CAP-003
+    description: Assessments Home - first screen, grid/list, filters, Novo Assessment/Novo Cliente, no sidebar
+    status: completed
+    validation: "AssessmentsHome component implemented; filters, modals, grid; typecheck OK"
+  - id: CAP-004
+    description: Assessment workspace shell - sidebar only when assessment open, corrected navigation
+    status: completed
+    validation: "Sidebar with Clean Core / Resultado groups; only renders inside assessment; App.tsx orchestrates home vs workspace"
+  - id: CAP-005
+    description: Source Ingestion correction - blank path, Start Scan disabled until valid dir selected
+    status: completed
+    validation: "selectedPath starts blank; no pre-fill from config; Start Scan disabled when path empty"
+  - id: CAP-006
+    description: Existing parsing integration - ObjectBrowser accessible, no regression
+    status: completed
+    validation: "ObjectBrowser accessible from Technical View; 6 SAP objects from demo scan; 35/35 tests pass"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - Sprint started 2026-09-24; corrective alignment for Assessment-centric hierarchy per ADR-015
+  - All 6 CAPs completed; 35/35 pytest; typecheck clean
+  - Migration 0005_assessment_alignment applied against live DB (sap_system dropped, assessment.client_id/sap_source_system added)
+  - Seed v6 demo dataset: Acme Industries + Rodobens as direct Client -> Assessment (no SAPSystem intermediary)
+  - ClientHub.tsx removed; replaced by AssessmentsHome.tsx

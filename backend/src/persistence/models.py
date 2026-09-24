@@ -27,12 +27,12 @@ class SeedRun(Base):
 
 
 # ---------------------------------------------------------------------------
-# SPRINT-01 domain models
+# SPRINT-01 / SPRINT-04 domain models
 # ---------------------------------------------------------------------------
 
 
 class Client(Base):
-    """An organisation that owns one or more SAP systems being assessed."""
+    """An organisation that owns one or more Assessments."""
 
     __tablename__ = "client"
 
@@ -43,30 +43,8 @@ class Client(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    systems: Mapped[list["SAPSystem"]] = relationship(
-        "SAPSystem", back_populates="client", cascade="all, delete-orphan"
-    )
-
-
-class SAPSystem(Base):
-    """A specific SAP installation belonging to a Client."""
-
-    __tablename__ = "sap_system"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    sid: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    client: Mapped["Client"] = relationship("Client", back_populates="systems")
     assessments: Mapped[list["Assessment"]] = relationship(
-        "Assessment", back_populates="sap_system", cascade="all, delete-orphan"
+        "Assessment", back_populates="client", cascade="all, delete-orphan"
     )
 
 
@@ -78,15 +56,16 @@ class AssessmentStatus(str, Enum):
 
 
 class Assessment(Base):
-    """A scoped analysis run for a specific SAP system."""
+    """A scoped Clean Core analysis for a specific SAP source system owned by a Client."""
 
     __tablename__ = "assessment"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sap_system_id: Mapped[int] = mapped_column(
-        ForeignKey("sap_system.id", ondelete="CASCADE"), nullable=False, index=True
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sap_source_system: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(30), nullable=False, default=AssessmentStatus.CREATED.value
@@ -95,7 +74,7 @@ class Assessment(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    sap_system: Mapped["SAPSystem"] = relationship("SAPSystem", back_populates="assessments")
+    client: Mapped["Client"] = relationship("Client", back_populates="assessments")
     scans: Mapped[list["SourceScan"]] = relationship(
         "SourceScan", back_populates="assessment", cascade="all, delete-orphan"
     )

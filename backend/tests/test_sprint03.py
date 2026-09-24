@@ -151,7 +151,6 @@ def _setup_assessment_with_files(session, scan_root: str) -> tuple[int, int]:
         Assessment,
         AssessmentStatus,
         Client,
-        SAPSystem,
         SourceFile,
         SourceScan,
         ScanStatus,
@@ -160,10 +159,7 @@ def _setup_assessment_with_files(session, scan_root: str) -> tuple[int, int]:
     c = Client(name="Parse Test Client")
     session.add(c)
     session.flush()
-    sys = SAPSystem(client_id=c.id, name="TST")
-    session.add(sys)
-    session.flush()
-    asmnt = Assessment(sap_system_id=sys.id, name="Parse Test", status=AssessmentStatus.CREATED.value)
+    asmnt = Assessment(client_id=c.id, name="Parse Test", status=AssessmentStatus.CREATED.value)
     session.add(asmnt)
     session.flush()
 
@@ -200,7 +196,7 @@ def _setup_assessment_with_files(session, scan_root: str) -> tuple[int, int]:
 
 def _cleanup(session) -> None:
     from sqlalchemy import text
-    for tbl in ("sap_object", "source_file", "source_scan", "assessment", "sap_system", "client"):
+    for tbl in ("sap_object", "source_file", "source_scan", "assessment", "client"):
         session.execute(text(f"DELETE FROM {tbl}"))
     session.commit()
 

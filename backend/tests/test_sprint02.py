@@ -8,7 +8,7 @@ import pytest
 
 from ingestion.classifier import classify
 from persistence.database import get_session_factory
-from persistence.models import ArtifactCategory, Assessment, AssessmentStatus, Client, SAPSystem
+from persistence.models import ArtifactCategory, Assessment, AssessmentStatus, Client
 
 
 def _clean_ingestion(session) -> None:
@@ -16,7 +16,6 @@ def _clean_ingestion(session) -> None:
     session.execute(text("DELETE FROM source_file"))
     session.execute(text("DELETE FROM source_scan"))
     session.execute(text("DELETE FROM assessment"))
-    session.execute(text("DELETE FROM sap_system"))
     session.execute(text("DELETE FROM client"))
     session.commit()
 
@@ -78,11 +77,8 @@ def test_scan_lifecycle(client) -> None:
         c = Client(name="Scan Test Client")
         session.add(c)
         session.flush()
-        sys = SAPSystem(client_id=c.id, name="T01")
-        session.add(sys)
-        session.flush()
         asmnt = Assessment(
-            sap_system_id=sys.id, name="Scan Test", status=AssessmentStatus.CREATED.value
+            client_id=c.id, name="Scan Test", status=AssessmentStatus.CREATED.value
         )
         session.add(asmnt)
         session.commit()

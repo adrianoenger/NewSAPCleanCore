@@ -1,4 +1,4 @@
-"""Registry of seed datasets and idempotent application logic."""
+"""Registry of seed datasets and idempotent application logic (SPRINT-04: Assessment-centric)."""
 
 import hashlib
 import os
@@ -15,7 +15,6 @@ from persistence.models import (
     Assessment,
     AssessmentStatus,
     Client,
-    SAPSystem,
     SAPObject,
     ScanStatus,
     SeedRun,
@@ -39,9 +38,8 @@ class SeedDataset:
 # ---------------------------------------------------------------------------
 
 
-def _seed_demo_client_system_assessment(session: Session) -> None:
-    """Seed one Client, one SAP System and one Assessment for demo navigation."""
-    # Client
+def _seed_acme_assessment(session: Session) -> None:
+    """Seed Acme Industries client and demo assessment (with scan + parsed objects)."""
     client = session.scalars(select(Client).where(Client.name == "Acme Industries")).first()
     if client is None:
         client = Client(
@@ -49,48 +47,32 @@ def _seed_demo_client_system_assessment(session: Session) -> None:
             description="Synthetic demo client for PoC demonstrations.",
         )
         session.add(client)
-        session.flush()  # populate client.id before referencing it
-
-    # SAP System
-    system = session.scalars(
-        select(SAPSystem).where(
-            SAPSystem.client_id == client.id, SAPSystem.sid == "S4D"
-        )
-    ).first()
-    if system is None:
-        system = SAPSystem(
-            client_id=client.id,
-            name="S/4HANA Development",
-            sid="S4D",
-            description="Demo S/4HANA 2023 system with sample custom code.",
-        )
-        session.add(system)
         session.flush()
 
-    # Assessment
     assessment = session.scalars(
         select(Assessment).where(
-            Assessment.sap_system_id == system.id,
+            Assessment.client_id == client.id,
             Assessment.name == "Clean Core PoC Assessment",
         )
     ).first()
     if assessment is None:
         session.add(
             Assessment(
-                sap_system_id=system.id,
+                client_id=client.id,
                 name="Clean Core PoC Assessment",
+                sap_source_system="S/4HANA Development (S4D)",
                 description="Initial assessment to demonstrate the Clean Core Analyzer PoC.",
                 status=AssessmentStatus.CREATED.value,
             )
         )
+        session.flush()
 
 
 def _seed_demo_source_scan(session: Session) -> None:
-    """Seed a completed source scan for the demo assessment using demo-source files."""
+    """Seed a completed source scan for the Acme demo assessment using demo-source files."""
     assessment = session.scalars(
         select(Assessment)
-        .join(Assessment.sap_system)
-        .join(SAPSystem.client)
+        .join(Assessment.client)
         .where(
             Client.name == "Acme Industries",
             Assessment.name == "Clean Core PoC Assessment",
@@ -99,7 +81,6 @@ def _seed_demo_source_scan(session: Session) -> None:
     if assessment is None:
         return
 
-    # Skip if a completed scan already exists
     existing = session.scalars(
         select(SourceScan).where(
             SourceScan.assessment_id == assessment.id,
@@ -148,8 +129,7 @@ def _seed_demo_sap_objects(session: Session) -> None:
     """Parse demo-source ABAP/DDIC files and persist SAPObject entities."""
     assessment = session.scalars(
         select(Assessment)
-        .join(Assessment.sap_system)
-        .join(SAPSystem.client)
+        .join(Assessment.client)
         .where(
             Client.name == "Acme Industries",
             Assessment.name == "Clean Core PoC Assessment",
@@ -167,7 +147,6 @@ def _seed_demo_sap_objects(session: Session) -> None:
     if scan is None:
         return
 
-    # Skip if objects already exist for this assessment
     existing_count = session.query(SAPObject).filter(
         SAPObject.assessment_id == assessment.id
     ).count()
@@ -206,8 +185,8 @@ def _seed_demo_sap_objects(session: Session) -> None:
             )
 
 
-def _seed_rodobens_client_system_assessment(session: Session) -> None:
-    """Seed Rodobens/ECC/Assessment01 — no pre-loaded scan, for full ingestion flow testing."""
+def _seed_rodobens_assessment(session: Session) -> None:
+    """Seed Rodobens client and ECC assessment — no pre-loaded scan, for full ingestion flow testing."""
     client = session.scalars(select(Client).where(Client.name == "Rodobens")).first()
     if client is None:
         client = Client(
@@ -217,30 +196,18 @@ def _seed_rodobens_client_system_assessment(session: Session) -> None:
         session.add(client)
         session.flush()
 
-    system = session.scalars(
-        select(SAPSystem).where(SAPSystem.client_id == client.id, SAPSystem.sid == "ECC")
-    ).first()
-    if system is None:
-        system = SAPSystem(
-            client_id=client.id,
-            name="ECC 6.0",
-            sid="ECC",
-            description="Sistema SAP ECC 6.0 demo.",
-        )
-        session.add(system)
-        session.flush()
-
     assessment = session.scalars(
         select(Assessment).where(
-            Assessment.sap_system_id == system.id,
+            Assessment.client_id == client.id,
             Assessment.name == "Assessment01",
         )
     ).first()
     if assessment is None:
         session.add(
             Assessment(
-                sap_system_id=system.id,
+                client_id=client.id,
                 name="Assessment01",
+                sap_source_system="ECC 6.0",
                 description="Assessment inicial para testes de ingestão de fontes.",
                 status=AssessmentStatus.CREATED.value,
             )
@@ -254,13 +221,13 @@ def _seed_rodobens_client_system_assessment(session: Session) -> None:
 DATASETS: dict[str, SeedDataset] = {
     "demo": SeedDataset(
         name="demo",
-        version=5,  # bumped: adds SAP object parsing step for demo-source files
-        description="Synthetic demo dataset: Acme (with scan + parsed objects) + Rodobens (no scan).",
+        version=6,
+        description="Synthetic demo dataset (Assessment-centric): Acme (scan + parsed objects) + Rodobens (no scan).",
         steps=[
-            _seed_demo_client_system_assessment,
+            _seed_acme_assessment,
             _seed_demo_source_scan,
             _seed_demo_sap_objects,
-            _seed_rodobens_client_system_assessment,
+            _seed_rodobens_assessment,
         ],
     ),
 }

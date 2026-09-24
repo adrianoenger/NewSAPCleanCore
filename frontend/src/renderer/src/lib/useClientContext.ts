@@ -1,15 +1,16 @@
 /**
- * useClientContext — global selection state for Client / SAP System / Assessment.
- * Lives in App and is passed down as props; no external state library needed at PoC scale.
+ * useAssessmentContext — global selection state for Client / Assessment.
+ * Lives in App and is passed down as props.
  */
 
-import type { AssessmentRecord, ClientRecord, SAPSystemRecord } from '@/lib/api'
+import type { AssessmentListItem, ClientRecord } from '@/lib/api'
 
-export interface ClientContext {
+export interface AssessmentContext {
   client: ClientRecord | null
-  system: SAPSystemRecord | null
-  assessment: AssessmentRecord | null
+  assessment: AssessmentListItem | null
   setClient: (client: ClientRecord | null) => void
-  setSystem: (system: SAPSystemRecord | null) => void
-  setAssessment: (assessment: AssessmentRecord | null) => void
+  setAssessment: (assessment: AssessmentListItem | null) => void
 }
+
+/** @deprecated use AssessmentContext */
+export type ClientContext = AssessmentContext
