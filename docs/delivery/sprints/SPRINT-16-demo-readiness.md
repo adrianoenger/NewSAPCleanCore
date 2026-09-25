@@ -1,7 +1,7 @@
-# SPRINT-15 — Demo Readiness
+# SPRINT-16 — Demo Readiness
 
 ## Position in the sequence
-- Prerequisite: SPRINT-14 completed.
+- Prerequisite: SPRINT-15 completed.
 - Coherence rule: Demo hardening must preserve the accepted architecture and lean-test strategy; avoid introducing enterprise-scale scope solely for polish.
 
 ## Goal

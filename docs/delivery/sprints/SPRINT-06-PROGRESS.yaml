@@ -36,7 +36,7 @@ architectural_conflicts: []
 failed_checks: []
 backlog_items_created:
   - "BL-002: wrap ATC import as an optional pipeline stage (future)"
-  - "BL-003: wrap future AI-processing stages (SPRINT-07+) in the same engine"
+  - "BL-003: wrap future AI-processing stages (SPRINT-08+) in the same engine"
 notes:
   - "Sprint started 2026-09-24, closed out 2026-09-25. Branch sprint/06-durable-pipeline-execution from main."
   - "Design: pipeline wraps existing scanner.py/dispatcher.py/dependency_detector.py handlers as work-item-driven stages (scan -> parse -> detect_dependencies); ATC import stays a standalone upload-triggered action per ADR-016 (unchanged contract). See BL-002."

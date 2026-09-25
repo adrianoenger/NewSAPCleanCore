@@ -1,7 +1,7 @@
-# SPRINT-11 — Clean Core Intelligence
+# SPRINT-12 — Clean Core Intelligence
 
 ## Position in the sequence
-- Prerequisite: SPRINT-10 completed.
+- Prerequisite: SPRINT-11 completed.
 - Coherence rule: Clean Core conclusions must keep Technical Risk, Business Importance and Recommendation separate and evidence-backed.
 
 ## Goal

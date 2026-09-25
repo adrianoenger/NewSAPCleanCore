@@ -13,18 +13,19 @@ The 2026-09-24 product correction inserted a new Sprint 04 before further analys
 | 04 | `SPRINT-04-assessment-centric-product-alignment.md` | Assessment-Centric Product Alignment | Migrate to Client → Assessment, new Assessments Home, conditional sidebar, blank Source Ingestion selection and staged navigation |
 | 05 | `SPRINT-05-dependencies-atc-and-technical-findings.md` | Dependencies & ATC | Import schema-tolerant ATC `.xlsx`, browse dependencies and deterministic findings |
 | 06 | `SPRINT-06-durable-pipeline-execution.md` | Durable Pipeline | Pause/resume/recover/retry stage processing |
-| 07 | `SPRINT-07-ai-object-understanding.md` | Object Understanding | Provider-agnostic AI produces validated functional/technical object understanding |
-| 08 | `SPRINT-08-business-rule-discovery.md` | Business Rule Discovery | Browse evidence-bound rules with confidence and validation hooks |
-| 09 | `SPRINT-09-application-discovery.md` | Application Discovery | Browse functional applications composed of related objects/rules |
-| 10 | `SPRINT-10-sap-knowledge-mcp.md` | SAP Knowledge MCP | Findings/applications show contextual SAP/ABAP guidance |
-| 11 | `SPRINT-11-clean-core-intelligence.md` | Clean Core Intelligence | Risk, business importance and recommendation with evidence |
-| 12 | `SPRINT-12-embeddings-and-semantic-retrieval.md` | Embeddings & Semantic Retrieval | Semantic search works within Assessment boundaries |
-| 13 | `SPRINT-13-navigation-perspectives.md` | Navigation Perspectives | Dashboard Geral + Executive/Technical/Functional/Architecture views over the same Assessment |
-| 14 | `SPRINT-14-ai-copilot.md` | AI Copilot | Permanent contextual chat routes across facts, semantic data, source and MCP |
-| 15 | `SPRINT-15-demo-readiness.md` | Demo Readiness | Refined UX, graphs, code explorer, reference Assessment and end-to-end journey |
+| 07 | `SPRINT-07-consolidate-processing-flow.md` | Consolidate Processing Flow | Ingestion, ATC import and durable processing form one coherent 3-step Assessment flow with no duplicate scanning |
+| 08 | `SPRINT-08-ai-object-understanding.md` | Object Understanding | Provider-agnostic AI produces validated functional/technical object understanding |
+| 09 | `SPRINT-09-business-rule-discovery.md` | Business Rule Discovery | Browse evidence-bound rules with confidence and validation hooks |
+| 10 | `SPRINT-10-application-discovery.md` | Application Discovery | Browse functional applications composed of related objects/rules |
+| 11 | `SPRINT-11-sap-knowledge-mcp.md` | SAP Knowledge MCP | Findings/applications show contextual SAP/ABAP guidance |
+| 12 | `SPRINT-12-clean-core-intelligence.md` | Clean Core Intelligence | Risk, business importance and recommendation with evidence |
+| 13 | `SPRINT-13-embeddings-and-semantic-retrieval.md` | Embeddings & Semantic Retrieval | Semantic search works within Assessment boundaries |
+| 14 | `SPRINT-14-navigation-perspectives.md` | Navigation Perspectives | Dashboard Geral + Executive/Technical/Functional/Architecture views over the same Assessment |
+| 15 | `SPRINT-15-ai-copilot.md` | AI Copilot | Permanent contextual chat routes across facts, semantic data, source and MCP |
+| 16 | `SPRINT-16-demo-readiness.md` | Demo Readiness | Refined UX, graphs, code explorer, reference Assessment and end-to-end journey |
 
 ## Sequence invariant
-- Exactly one canonical sprint definition exists for each sprint number 00–15.
+- Exactly one canonical sprint definition exists for each sprint number 00–16.
 - A future sprint may be renumbered only by updating the roadmap, filename, document title and all cross-references in the same documentation change.
 - Obsolete pre-renumbering sprint files must be deleted rather than retained alongside the new sequence.
 - Progress files live in `docs/delivery/sprints/` and use `SPRINT-XX-PROGRESS.yaml`.

@@ -1,12 +1,13 @@
 /**
- * ObjectBrowser — browse SAP objects parsed from source files.
- * Shows object type filter, table of objects, and a side detail panel.
+ * ObjectBrowser — browse SAP objects parsed from the current ingestion (read-only).
+ * Shows object type filter, table of objects, and a side detail panel. Parsing itself
+ * only happens via "3 - Processamento por IA" (SPRINT-07 consolidation).
  */
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw } from 'lucide-react'
-import { fetchObjectDependencies, fetchSAPObject, fetchSAPObjects, fetchScans, triggerParse, type SAPObjectRecord } from '@/lib/api'
+import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw } from 'lucide-react'
+import { fetchObjectDependencies, fetchProcessingStatus, fetchSAPObject, fetchSAPObjects, type SAPObjectRecord } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -141,36 +142,18 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
 export function ObjectBrowser({ assessmentId }: Props) {
   const [typeFilter, setTypeFilter] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [parsing, setParsing] = useState(false)
-  const [parseError, setParseError] = useState<string | null>(null)
 
   const { data: objects = [], isLoading, refetch } = useQuery({
     queryKey: ['sap-objects', assessmentId, typeFilter],
     queryFn: () => fetchSAPObjects(assessmentId, typeFilter || undefined),
   })
 
-  const { data: scans = [] } = useQuery({
-    queryKey: ['scans', assessmentId],
-    queryFn: () => fetchScans(assessmentId),
+  const { data: processingStatus } = useQuery({
+    queryKey: ['processingStatus', assessmentId],
+    queryFn: () => fetchProcessingStatus(assessmentId),
   })
 
-  const latestCompletedScan = scans.find((s) => s.status === 'completed')
-
-  async function handleParse() {
-    if (!latestCompletedScan) return
-    setParsing(true)
-    setParseError(null)
-    try {
-      await triggerParse(assessmentId, latestCompletedScan.id)
-      // Poll briefly then refetch
-      await new Promise((r) => setTimeout(r, 2000))
-      await refetch()
-    } catch (e) {
-      setParseError(e instanceof Error ? e.message : 'Parse failed')
-    } finally {
-      setParsing(false)
-    }
-  }
+  const hasIngestion = processingStatus?.current_scan_id != null
 
   const grouped = TYPE_FILTER_OPTIONS.slice(1).reduce<Record<string, SAPObjectRecord[]>>((acc, { value }) => {
     acc[value] = objects.filter((o) => o.object_type === value)
@@ -203,22 +186,12 @@ export function ObjectBrowser({ assessmentId }: Props) {
           >
             <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
-
-          {latestCompletedScan && (
-            <button
-              type="button"
-              disabled={parsing}
-              onClick={handleParse}
-              className="rounded-control bg-brand px-3 py-1 text-[11px] font-medium text-white disabled:opacity-50 hover:bg-brand/90"
-            >
-              {parsing ? 'Parsing…' : 'Parse'}
-            </button>
-          )}
         </div>
 
-        {parseError && (
-          <div className="border-b border-border-soft bg-red-500/10 px-4 py-2 text-[11px] text-red-400">
-            {parseError}
+        {processingStatus?.is_stale && (
+          <div className="flex items-start gap-2 border-b border-border-soft bg-attention/5 px-4 py-2 text-[11px] text-attention">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+            Dados desatualizados — reprocesse em &quot;3 - Processamento por IA&quot;.
           </div>
         )}
 
@@ -256,9 +229,9 @@ export function ObjectBrowser({ assessmentId }: Props) {
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <Boxes className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />
               <div className="text-[12px] text-text-tertiary">
-                {latestCompletedScan
-                  ? 'No objects parsed yet. Click Parse to extract SAP objects.'
-                  : 'Run a source scan first, then parse to extract SAP objects.'}
+                {hasIngestion
+                  ? 'Nenhum objeto processado ainda. Execute "3 - Processamento por IA".'
+                  : 'Execute a ingestão (Passo 1) e o processamento (Passo 3) primeiro.'}
               </div>
             </div>
           ) : (

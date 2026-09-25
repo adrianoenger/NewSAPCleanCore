@@ -22,6 +22,7 @@ function PlaceholderView({ title }: { title: string }) {
   )
 }
 
+
 /** Center workspace — rendered only when an assessment is open. */
 export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
   const { connectivity } = health
@@ -47,10 +48,9 @@ export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
 
       <div className="flex-1 overflow-hidden">
         {activeView === 'ingestion' && <SourceIngestion assessmentId={assessment.id} />}
-        {activeView === 'pipeline' && <PipelineRunner assessmentId={assessment.id} />}
         {activeView === 'technical' && <ObjectBrowser assessmentId={assessment.id} />}
         {activeView === 'atc' && <ATCImport assessmentId={assessment.id} />}
-        {activeView === 'ai-processing' && <PlaceholderView title="Processamento por IA" />}
+        {activeView === 'ai-processing' && <PipelineRunner assessmentId={assessment.id} />}
         {activeView === 'dashboard' && <PlaceholderView title="Dashboard Geral" />}
         {activeView === 'executive' && <PlaceholderView title="Executive View" />}
         {activeView === 'functional' && <PlaceholderView title="Functional View" />}

@@ -1,14 +1,17 @@
 /**
- * PipelineRunner — durable multi-stage processing (ADR-005): scan → parse → detect dependencies.
+ * PipelineRunner — "3 - Processamento por IA": durable multi-stage processing
+ * (ADR-005: scan → parse → detect dependencies), consolidated onto Step 1's
+ * ingestion (SPRINT-07) — no directory picker here, it always processes the
+ * current (latest completed) ingestion for this Assessment.
  *
- * Demonstrates: start, pause, resume (including after a backend restart, via orphan
- * recovery on startup) and retry of a deliberately failed work item.
+ * Demonstrates: auto-detect current ingestion, start, pause, resume (including
+ * after a backend restart, via orphan recovery on startup), retry of a
+ * deliberately failed work item, and staleness after a newer ingestion.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  FolderOpen,
   Loader2,
   Pause,
   Play,
@@ -16,10 +19,12 @@ import {
   XCircle,
   AlertTriangle,
   RotateCcw,
+  Inbox,
 } from 'lucide-react'
 import {
   fetchPipelineRuns,
   fetchPipelineWorkItems,
+  fetchProcessingStatus,
   pausePipelineRun,
   resumePipelineRun,
   retryWorkItem,
@@ -45,15 +50,6 @@ const RUN_LABELS: Record<PipelineRunRecord['status'], string> = {
   paused: 'Pausado',
   completed: 'Concluído',
   failed: 'Falhou',
-}
-
-/** Translate a host-OS absolute path to its /workspace equivalent (mirrors SourceIngestion). */
-function toContainerPath(hostPath: string, projectRoot: string): string | null {
-  const fwd = (s: string) => s.replace(/\\/g, '/')
-  const normalized = fwd(hostPath)
-  const root = fwd(projectRoot)
-  if (!normalized.startsWith(root)) return null
-  return '/workspace' + normalized.slice(root.length)
 }
 
 function RunStatusIcon({ status }: { status: PipelineRunRecord['status'] }) {
@@ -100,27 +96,47 @@ function StageProgress({ stage }: { stage: StageRunRecord }) {
 
 export function PipelineRunner({ assessmentId }: Props) {
   const queryClient = useQueryClient()
-  const [selectedPath, setSelectedPath] = useState<string>('')
-  const [pickedHostPath, setPickedHostPath] = useState<string>('')
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const prevScanIdRef = useRef<number | null | undefined>(undefined)
+
+  const isRunActive = (runs: PipelineRunRecord[]) =>
+    runs.some((r) => r.status === 'running' || r.status === 'pending')
 
   const runsQuery = useQuery({
     queryKey: ['pipelineRuns', assessmentId],
     queryFn: () => fetchPipelineRuns(assessmentId),
-    refetchInterval: (query) => {
-      const runs = query.state.data?.runs ?? []
-      return runs.some((r) => r.status === 'running' || r.status === 'pending') ? 1500 : false
-    },
+    refetchInterval: (query) => (isRunActive(query.state.data?.runs ?? []) ? 1500 : false),
   })
+
+  // Keep processing-status in sync while a run is active, so the "desatualizado"
+  // banner clears as soon as the run it was waiting on finishes.
+  const statusQuery = useQuery({
+    queryKey: ['processingStatus', assessmentId],
+    queryFn: () => fetchProcessingStatus(assessmentId),
+    refetchInterval: isRunActive(runsQuery.data?.runs ?? []) ? 1500 : false,
+  })
+  const processingStatus = statusQuery.data
+
+  // Whenever the current ingestion changes (a new scan supersedes the previous
+  // one), drop the selection so the effect below re-picks the run for it.
+  useEffect(() => {
+    const currentScanId = processingStatus?.current_scan_id ?? null
+    if (prevScanIdRef.current !== undefined && prevScanIdRef.current !== currentScanId) {
+      setActiveRunId(null)
+    }
+    prevScanIdRef.current = currentScanId
+  }, [processingStatus?.current_scan_id])
 
   useEffect(() => {
     if (activeRunId != null) return
-    const runs = runsQuery.data?.runs
-    if (!runs || runs.length === 0) return
-    setActiveRunId(runs[0].id)
-  }, [runsQuery.data, activeRunId])
+    const runs = runsQuery.data?.runs ?? []
+    if (runs.length === 0) return
+    const currentScanId = processingStatus?.current_scan_id ?? null
+    const preferred = currentScanId != null ? runs.find((r) => r.source_scan_id === currentScanId) : undefined
+    setActiveRunId(preferred?.id ?? runs[0].id)
+  }, [runsQuery.data, activeRunId, processingStatus?.current_scan_id])
 
   const activeRun = runsQuery.data?.runs.find((r) => r.id === activeRunId) ?? null
 
@@ -131,34 +147,18 @@ export function PipelineRunner({ assessmentId }: Props) {
   })
 
   async function refresh() {
+    await queryClient.invalidateQueries({ queryKey: ['processingStatus', assessmentId] })
     await queryClient.invalidateQueries({ queryKey: ['pipelineRuns', assessmentId] })
     await queryClient.invalidateQueries({ queryKey: ['pipelineFailedItems', assessmentId, activeRunId] })
   }
 
-  async function handleSelectDirectory() {
-    const hostPath = await window.desktop?.selectDirectory()
-    if (!hostPath) return
-    setPickedHostPath(hostPath)
-    if (window.desktop?.getProjectRoot) {
-      const projectRoot = await window.desktop.getProjectRoot()
-      const containerPath = toContainerPath(hostPath, projectRoot)
-      setSelectedPath(containerPath ?? hostPath)
-      setActionError(
-        containerPath
-          ? null
-          : `O diretório selecionado está fora do projeto (${projectRoot}). Informe um caminho acessível pelo backend (ex: /workspace/...).`,
-      )
-    } else {
-      setSelectedPath(hostPath)
-    }
-  }
-
   async function handleStart() {
-    if (!selectedPath.trim()) return
+    const sourcePath = processingStatus?.current_scan_source_path
+    if (!sourcePath) return
     setBusy(true)
     setActionError(null)
     try {
-      const run = await startPipelineRun(assessmentId, selectedPath.trim())
+      const run = await startPipelineRun(assessmentId, sourcePath)
       setActiveRunId(run.id)
       await refresh()
     } catch (err) {
@@ -210,53 +210,55 @@ export function PipelineRunner({ assessmentId }: Props) {
     }
   }
 
-  const canStart = !busy && selectedPath.trim().length > 0 && activeRun?.status !== 'running'
+  const hasIngestion = processingStatus?.current_scan_id != null
+  const canStart = !busy && hasIngestion && activeRun?.status !== 'running'
   const canPause = !busy && activeRun?.status === 'running'
   const canResume = !busy && (activeRun?.status === 'paused' || activeRun?.status === 'failed')
+  const startLabel = processingStatus?.is_processed ? 'Reprocessar' : 'Iniciar Processamento'
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col gap-6 p-6">
         <div>
-          <h1 className="text-[22px] font-medium">Pipeline de Processamento</h1>
+          <h1 className="text-[22px] font-medium">3 - Processamento por IA</h1>
           <p className="mt-0.5 text-[13px] text-text-tertiary">
-            Execução durável (scan → parsing → dependências) com pausa, retomada e recuperação após reinício.
+            Execução durável (scan → parsing → dependências) sobre a ingestão atual, com pausa, retomada e
+            recuperação após reinício.
           </p>
         </div>
 
-        {/* Directory picker + controls */}
-        <section className="rounded-card border border-border-default bg-surface-card p-4">
-          <h2 className="mb-3 text-[14px] font-medium">Diretório de Origem</h2>
-          <div className="flex gap-2">
-            <div className="flex-1 flex flex-col gap-1">
-              <input
-                type="text"
-                value={selectedPath}
-                onChange={(e) => {
-                  setSelectedPath(e.target.value)
-                  setActionError(null)
-                }}
-                placeholder="/workspace/demo-source"
-                className="w-full rounded-md border border-border-default bg-surface-background px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-              />
-              {pickedHostPath && selectedPath !== pickedHostPath && (
-                <p className="text-[11px] text-text-tertiary">
-                  Selecionado: <span className="font-mono">{pickedHostPath}</span>
-                  {' → '}
-                  <span className="font-mono text-success">{selectedPath}</span>
+        {statusQuery.isLoading && (
+          <p className="text-[13px] text-text-tertiary">Carregando status…</p>
+        )}
+
+        {!statusQuery.isLoading && !hasIngestion && (
+          <section className="flex flex-col items-center gap-2 rounded-card border border-border-default bg-surface-card p-8 text-center">
+            <Inbox className="h-6 w-6 text-text-tertiary" />
+            <p className="text-[14px] font-medium text-text-secondary">Nenhuma ingestão concluída ainda</p>
+            <p className="text-[12px] text-text-tertiary">
+              Volte ao passo <span className="font-medium">1 - Ingestão dos dados</span> e escaneie um diretório
+              antes de processar.
+            </p>
+          </section>
+        )}
+
+        {processingStatus && hasIngestion && (
+          <section className="rounded-card border border-border-default bg-surface-card p-4">
+            <h2 className="mb-3 text-[14px] font-medium">Ingestão Atual</h2>
+            <p className="mb-3 font-mono text-[11px] text-text-tertiary">
+              {processingStatus.current_scan_source_path}
+            </p>
+
+            {processingStatus.is_stale && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-attention/30 bg-attention/5 px-3 py-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-attention" />
+                <p className="text-[12px] text-attention">
+                  Desatualizado — esta ingestão ainda não foi processada. Inicie o processamento para atualizar os
+                  resultados.
                 </p>
-              )}
-            </div>
-            {window.desktop?.selectDirectory && (
-              <button
-                type="button"
-                onClick={handleSelectDirectory}
-                className="flex items-center gap-1.5 rounded-md border border-border-default bg-surface-elevated px-3 py-2 text-[13px] text-text-secondary hover:border-brand/50 hover:text-text-primary"
-              >
-                <FolderOpen className="h-4 w-4" />
-                Browse
-              </button>
+              </div>
             )}
+
             <button
               type="button"
               onClick={handleStart}
@@ -264,17 +266,17 @@ export function PipelineRunner({ assessmentId }: Props) {
               className="flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-[13px] font-medium text-white hover:bg-brand/90 disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Iniciar Pipeline
+              {startLabel}
             </button>
-          </div>
 
-          {actionError && (
-            <div className="mt-2 flex items-start gap-2 rounded-md border border-risk/30 bg-risk/5 px-3 py-2">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-risk" />
-              <p className="text-[12px] text-risk">{actionError}</p>
-            </div>
-          )}
-        </section>
+            {actionError && (
+              <div className="mt-2 flex items-start gap-2 rounded-md border border-risk/30 bg-risk/5 px-3 py-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-risk" />
+                <p className="text-[12px] text-risk">{actionError}</p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Active run */}
         {activeRun && (

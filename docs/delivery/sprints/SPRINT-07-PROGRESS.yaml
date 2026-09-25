@@ -1,0 +1,45 @@
+sprint: SPRINT-07
+branch: sprint/07-consolidate-processing-flow
+status: completed
+progress_percent: 100
+started_at: "2026-09-25"
+completed_at: "2026-09-25"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Sprint bootstrap — renumber SPRINT-07..15 to SPRINT-08..16; update roadmap/backlog/execution-state/session-handoff
+    status: done
+    validation: "Manual doc review; grep for stale SPRINT-0[7-9]/SPRINT-1[0-5] cross-references (none found)"
+  - id: CAP-002
+    description: pipeline/status.py + idempotent scan stage (reuse completed SourceScan instead of re-walking disk)
+    status: done
+    validation: "test_sprint07.py::test_second_pipeline_run_reuses_completed_scan_without_rescanning; full pytest suite green (77/77)"
+  - id: CAP-003
+    description: GET /assessments/{id}/pipeline-runs/processing-status (current scan + is_stale)
+    status: done
+    validation: "test_sprint07.py compute_processing_status unit tests + endpoint contract tests; verified live via browser"
+  - id: CAP-004
+    description: Scope /objects by current scan; remove manual /scans/{id}/parse route + ParseJobRead schema
+    status: done
+    validation: "test_sprint07.py::test_list_objects_scoped_to_current_scan, test_manual_parse_route_removed (404); verified live via browser (DDIC-only objects after reprocessing)"
+  - id: CAP-005
+    description: Frontend — remove orphan "Pipeline de Processamento" nav item; PipelineRunner becomes real Step 3, auto-detects current ingestion, shows staleness banner
+    status: done
+    validation: "tsc --noEmit clean; npm run build clean; verified live via Playwright (auto-detect, start, staleness banner, reprocess, banner clears)"
+  - id: CAP-006
+    description: ObjectBrowser read-only cleanup; full validation pass (pytest, typecheck/build, manual e2e); record BL-004
+    status: done
+    validation: "Manual Parse button removed; live browser pass confirms read-only Technical View with staleness indicator; BL-004 recorded in BACKLOG.md"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-004: re-correlate ATC findings after Step 3 reprocessing (recorded in BACKLOG.md)"
+notes:
+  - "Plan approved 2026-09-25 in plan-mode session; see approved plan file for full rationale."
+  - "CP0 done: SPRINT-07(ai-object-understanding)->SPRINT-08, 08->09 ... 15->16 renamed and content-updated; roadmap table, BACKLOG BL-003, EXECUTION_STATE.yaml, SESSION_HANDOFF.md, and historical progress cross-refs (SPRINT-06/00) updated."
+  - "CP1-CP4 (backend): pipeline/status.py added; stages.py _scan_prepare reuses Step 1's completed SourceScan when the resolved source_path matches AND the candidate directory still exists on disk (guards against a deleted/moved older scan — caught by test_sprint06.py::test_second_pipeline_run_dependencies_stage_ignores_other_scans regressing during implementation, fixed via _same_directory() existence check); /objects scoped to current scan; manual parse route + ParseJobRead removed; test_sprint03.py::test_parse_endpoint_returns_accepted removed (route no longer exists)."
+  - "CP4-CP5 (frontend): Sidebar/Workspace consolidated to the canonical 3 steps; PipelineRunner rewritten (no manual directory picker, fetchProcessingStatus-driven, staleness banner, Reprocessar/Iniciar Processamento label); added continued polling of processing-status while a run is active — first live pass showed the staleness banner not clearing after a run completed (processingStatus was only invalidated once, at start, not re-polled), fixed by tying its refetchInterval to runsQuery's active-run state, re-verified live; ObjectBrowser is now read-only with a staleness indicator instead of a Parse button."
+  - "CP6: full pytest suite 77/77 green; tsc --noEmit and npm run build clean; live Playwright pass on http://localhost:5173 exercising the full demonstrable outcome — ingestão (ABAP dir, 5 files) -> Step 3 auto-detects and processes (no re-scan) -> Technical View shows 4 parsed objects -> new ingestion (DDIC dir, 2 files) -> Step 3 shows 'Desatualizado' -> reprocess -> banner clears -> Technical View shows only the 2 DDIC objects (old ABAP objects correctly excluded, confirming invalidation)."
+  - "BL-004 opened: reprocessing Step 3 recreates SAPObject rows per source_file_id, which can break ATCFinding.correlated_object_id — out of scope for this sprint (ATC untouched per ADR-016/BL-002), recorded for human decision."

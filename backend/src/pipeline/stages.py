@@ -31,6 +31,7 @@ from persistence.models import (
     StageRun,
     WorkItem,
 )
+from pipeline.status import get_current_scan
 
 
 def _sha256(path: Path) -> str:
@@ -55,9 +56,36 @@ class StageDefinition:
 # ---------------------------------------------------------------------------
 
 
+def _same_directory(candidate_path: str, root: Path) -> bool:
+    """True if `candidate_path` still exists on disk and resolves to `root`.
+
+    A candidate scan whose directory has since been deleted or moved (e.g. an
+    older, unrelated ingestion) can never be the one currently being scanned.
+    """
+    candidate = Path(candidate_path)
+    try:
+        return candidate.exists() and candidate.resolve(strict=True) == root
+    except OSError:
+        return False
+
+
 def _scan_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
     scan = session.get(SourceScan, run.source_scan_id) if run.source_scan_id else None
+    root = Path(run.source_path).resolve(strict=True)
+
     if scan is None:
+        # Reuse Step 1's already-completed ingestion for this directory instead of
+        # re-walking the filesystem — SOURCE_SCAN stays the first canonical stage
+        # (docs/architecture/pipeline-architecture.md), but its work is skipped when
+        # already satisfied (ADR-005 "idempotency and incremental invalidation").
+        reusable = get_current_scan(session, run.assessment_id)
+        if reusable is not None and _same_directory(reusable.source_path, root):
+            run.source_scan_id = reusable.id
+            stage.total_items = reusable.scanned_files
+            stage.completed_items = reusable.scanned_files
+            session.commit()
+            return
+
         scan = SourceScan(
             assessment_id=run.assessment_id,
             source_path=run.source_path,
@@ -67,7 +95,6 @@ def _scan_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
         session.flush()
         run.source_scan_id = scan.id
 
-    root = Path(run.source_path).resolve(strict=True)
     existing_keys = set(
         session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
     )
@@ -125,7 +152,8 @@ def _scan_finalize(stage: StageRun, run: PipelineRun, session: Session) -> None:
         return
     if stage.status == "completed":
         scan.status = ScanStatus.COMPLETED.value
-        scan.completed_at = datetime.now(timezone.utc)
+        if scan.completed_at is None:
+            scan.completed_at = datetime.now(timezone.utc)
     elif stage.status == "failed":
         scan.status = ScanStatus.FAILED.value
         scan.error = stage.error

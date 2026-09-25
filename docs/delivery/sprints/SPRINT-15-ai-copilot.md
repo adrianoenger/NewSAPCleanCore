@@ -1,7 +1,7 @@
-# SPRINT-14 — AI Copilot
+# SPRINT-15 — AI Copilot
 
 ## Position in the sequence
-- Prerequisite: SPRINT-13 completed.
+- Prerequisite: SPRINT-14 completed.
 - Coherence rule: The Copilot is permanently mounted on the right, context-aware, and may propose/navigate controlled UI actions but never mutate Assessment state without explicit user action.
 
 ## Goal

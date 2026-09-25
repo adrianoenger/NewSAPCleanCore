@@ -63,3 +63,13 @@ class WorkItemRecord(BaseModel):
 class WorkItemsResponse(BaseModel):
     items: list[WorkItemRecord]
     total: int
+
+
+class ProcessingStatusRecord(BaseModel):
+    current_scan_id: int | None
+    current_scan_source_path: str | None
+    current_scan_completed_at: datetime | None
+    is_processed: bool
+    is_stale: bool
+    latest_run_id: int | None
+    latest_run_status: str | None

@@ -1,7 +1,7 @@
-# SPRINT-13 — Result Navigation Perspectives
+# SPRINT-14 — Result Navigation Perspectives
 
 ## Position in the sequence
-- Prerequisite: SPRINT-12 completed.
+- Prerequisite: SPRINT-13 completed.
 - Coherence rule: All perspectives operate over the same Assessment and preserve the permanent right-side Copilot context.
 
 ## Goal

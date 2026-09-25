@@ -10,6 +10,7 @@ from api.schemas.pipeline import (
     PipelineRunCreate,
     PipelineRunListResponse,
     PipelineRunRecord,
+    ProcessingStatusRecord,
     StageRunRecord,
     WorkItemRecord,
     WorkItemsResponse,
@@ -17,6 +18,7 @@ from api.schemas.pipeline import (
 from persistence.database import get_session
 from persistence.models import Assessment, PipelineRun, StageRun, WorkItem
 from pipeline.engine import create_pipeline_run, run_pipeline
+from pipeline.status import compute_processing_status
 from settings import get_settings
 
 router = APIRouter(prefix="/assessments/{assessment_id}/pipeline-runs", tags=["pipeline"])
@@ -105,6 +107,17 @@ def list_pipeline_runs(
         runs=[_to_record(r, session) for r in runs],
         total=len(runs),
     )
+
+
+@router.get("/processing-status", response_model=ProcessingStatusRecord)
+def get_processing_status(
+    assessment_id: int,
+    session: Session = Depends(get_session),
+) -> ProcessingStatusRecord:
+    """Current ingestion for this Assessment and whether Step 3 already processed it."""
+    _require_assessment(assessment_id, session)
+    status = compute_processing_status(session, assessment_id)
+    return ProcessingStatusRecord(**status.__dict__)
 
 
 @router.get("/{run_id}", response_model=PipelineRunRecord)

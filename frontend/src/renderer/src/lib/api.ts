@@ -171,14 +171,6 @@ export interface SAPObjectDetail extends SAPObjectRecord {
   attributes: Record<string, unknown>
 }
 
-export interface ParseJobResult {
-  scan_id: number
-  status: string
-}
-
-export const triggerParse = (assessmentId: number, scanId: number): Promise<ParseJobResult> =>
-  api(`/assessments/${assessmentId}/scans/${scanId}/parse`, { method: 'POST' })
-
 export const fetchSAPObjects = (
   assessmentId: number,
   objectType?: string,
@@ -368,6 +360,16 @@ export interface WorkItemsResponse {
   total: number
 }
 
+export interface ProcessingStatusRecord {
+  current_scan_id: number | null
+  current_scan_source_path: string | null
+  current_scan_completed_at: string | null
+  is_processed: boolean
+  is_stale: boolean
+  latest_run_id: number | null
+  latest_run_status: string | null
+}
+
 async function apiOrDetail<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BACKEND_URL}${path}`, init)
   if (!response.ok) {
@@ -389,6 +391,9 @@ export const startPipelineRun = (
 
 export const fetchPipelineRuns = (assessmentId: number): Promise<PipelineRunListResponse> =>
   api(`/assessments/${assessmentId}/pipeline-runs`)
+
+export const fetchProcessingStatus = (assessmentId: number): Promise<ProcessingStatusRecord> =>
+  api(`/assessments/${assessmentId}/pipeline-runs/processing-status`)
 
 export const fetchPipelineRun = (
   assessmentId: number,

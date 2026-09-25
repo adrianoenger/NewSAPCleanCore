@@ -5,11 +5,6 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class ParseJobRead(BaseModel):
-    scan_id: int
-    status: str
-
-
 class SAPObjectRead(BaseModel):
     id: int
     assessment_id: int

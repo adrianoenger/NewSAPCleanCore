@@ -1,7 +1,7 @@
-# SPRINT-08 — Business Rule Discovery
+# SPRINT-09 — Business Rule Discovery
 
 ## Position in the sequence
-- Prerequisite: SPRINT-07 completed.
+- Prerequisite: SPRINT-08 completed.
 - Coherence rule: Business rules are derived from persisted structured object understanding and remain evidence-bound and reviewable.
 
 ## Goal

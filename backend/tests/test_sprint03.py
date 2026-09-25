@@ -201,23 +201,6 @@ def _cleanup(session) -> None:
     session.commit()
 
 
-def test_parse_endpoint_returns_accepted(client) -> None:
-    from persistence.database import get_session_factory
-    from settings import get_settings
-
-    scan_root = Path(get_settings().scan_root)
-    with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
-        with get_session_factory()() as session:
-            asmnt_id, scan_id = _setup_assessment_with_files(session, tmp)
-        try:
-            resp = client.post(f"/assessments/{asmnt_id}/scans/{scan_id}/parse")
-            assert resp.status_code == 202
-            assert resp.json()["status"] == "accepted"
-        finally:
-            with get_session_factory()() as session:
-                _cleanup(session)
-
-
 def test_list_objects_empty_for_new_assessment(client) -> None:
     from persistence.database import get_session_factory
     from settings import get_settings

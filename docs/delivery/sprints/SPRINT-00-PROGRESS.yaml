@@ -46,4 +46,4 @@ notes:
   - 'npm 11 blocks install scripts by default; electron and esbuild are approved in frontend/package.json allowScripts.'
   - 'The generic `lib/` rule in .gitignore hid frontend/src/renderer/src/lib; an explicit exception was added (prerequisite defect).'
   - 'Dev Container definition validated as JSON and via the same compose service; "Reopen in Container" in VS Code was not exercised interactively.'
-  - 'MCP compose services are deferred to SPRINT-10 per the corrected roadmap.'
+  - 'MCP compose services are deferred to SPRINT-11 per the corrected roadmap.'

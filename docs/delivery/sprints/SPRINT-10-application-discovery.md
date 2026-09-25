@@ -1,7 +1,7 @@
-# SPRINT-09 — Application Discovery
+# SPRINT-10 — Application Discovery
 
 ## Position in the sequence
-- Prerequisite: SPRINT-08 completed.
+- Prerequisite: SPRINT-09 completed.
 - Coherence rule: Application discovery may combine deterministic graph signals and AI interpretation, but membership/rationale must remain traceable to Assessment evidence.
 
 ## Goal

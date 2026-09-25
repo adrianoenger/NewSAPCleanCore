@@ -6,13 +6,14 @@ active_sprint: null
 active_sprint_status: null
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-06
-next_sprint: SPRINT-07
+last_completed_sprint: SPRINT-07
+next_sprint: SPRINT-08
 next_sprint_slug: ai-object-understanding
 notes:
   - SPRINT-06 completed (Durable Pipeline Execution).
   - Alembic 0007 at head: pipeline_run, stage_run, work_item.
-  - Pipeline wraps scan/parse/detect_dependencies as work-item-driven stages; ATC import stays standalone (BL-002).
-  - Cooperative pause/resume, bounded+manual retry, and startup orphan recovery all verified live (API and browser).
-  - New frontend nav item "Pipeline de Processamento" (PipelineRunner.tsx).
-  - SPRINT-07 next: AI Object Understanding.
+  - "2026-09-25 product correction inserted SPRINT-07 (Consolidate Processing Flow) before AI Object Understanding, which shifted to SPRINT-08; sprints 08-15 were renumbered to 09-16 accordingly (see development-roadmap.md)."
+  - "SPRINT-07 completed: orphan \"Pipeline de Processamento\" nav item removed; durable pipeline (scan/parse/detect_dependencies) is now the real \"3 - Processamento por IA\" step, auto-detecting the current ingestion; scan stage reuses Step 1's completed SourceScan instead of re-walking disk; /objects scoped to the current scan so a new ingestion invalidates stale results until Step 3 reprocesses; manual parse route and ObjectBrowser's Parse button removed. ATC import untouched (ADR-016/BL-002)."
+  - "77/77 pytest, tsc/build clean, full live Playwright e2e pass confirmed the demonstrable outcome (see docs/delivery/results/SPRINT-07-RESULT.md)."
+  - "No AI/LLM processing happens yet in Step 3 — only deterministic parsing/dependency detection carried over from SPRINT-03/05. Bedrock/Azure Foundry credentials are not configured anywhere in this repo; SPRINT-08 introduces the AIProvider abstraction and will need them."
+  - "BL-004 opened: ATC↔object correlation can break after a Step 3 reprocess (SAPObject rows recreated) — deferred, needs human decision."
