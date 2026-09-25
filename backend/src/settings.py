@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     scan_root: str = "/workspace"
     demo_source_path: str = "/workspace/demo-source"
 
+    # Supplemental evidence packages (ADR-017): uploaded files are stored here by
+    # reference, never duplicated into PostgreSQL. Matches the .gitignore'd uploads/ pattern.
+    evidence_storage_path: str = "/workspace/uploads/evidence-datasets"
+
 
 @lru_cache
 def get_settings() -> Settings:

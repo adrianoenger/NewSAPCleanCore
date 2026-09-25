@@ -1,0 +1,231 @@
+sprint: SPRINT-08
+branch: sprint/08-supplemental-evidence-foundation
+status: completed
+progress_percent: 100
+started_at: "2026-09-25"
+completed_at: "2026-09-25"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      Stable Assessment-scoped SAPObject identity (canonical_key + last_seen_scan_id),
+      upsert/reconciliation replacing delete/recreate in the parse stage, migration 0008
+      with dedup/re-correlation repoint of existing ATC/technical findings.
+    status: done
+    validation: "migration 0008 applied; 80/80 pytest incl. new test_sprint08.py (upsert preserves id+ATC correlation, stale-object reconciliation)"
+  - id: CAP-002
+    description: >-
+      Canonical evidence persistence: EvidenceDataset, EvidenceArtifact, EvidenceRecord,
+      EvidenceCorrelation ORM models + forward migration 0009.
+    status: done
+    validation: "migration 0009_evidence_foundation applied (revision id shortened to fit alembic_version(32)); 80/80 pytest"
+  - id: CAP-003
+    description: >-
+      EvidenceDatasetAdapter contract (inspect/validate/import-stream/normalize/summarize)
+      and deterministic object-correlation service (MATCHED_EXACT/HEURISTIC/UNMATCHED/AMBIGUOUS/NOT_APPLICABLE).
+    status: done
+    validation: "evidence/adapters/base.py contract + evidence/correlation.py; test_evidence_correlation.py covers exact/heuristic/unmatched/ambiguous/not_applicable + idempotent re-run"
+  - id: CAP-004
+    description: >-
+      Panaya ETL adapter: bounded-memory streaming XML (defusedxml ElementTree.iterparse),
+      checkpointable batches, technical object metadata / source references / dependency /
+      usage / S4 conversion signal capabilities.
+    status: done
+    validation: "test_evidence_panaya.py: detect, inspect (capabilities+unknown-tag stats), multi-batch streaming import, idempotent re-import"
+  - id: CAP-005
+    description: >-
+      SAP Signavio Process Insights adapter: ZIP + chunked JSON, keyFigureId/system/timestamp
+      provenance, PROCESS_KPI capability.
+    status: done
+    validation: "test_evidence_signavio.py: detect, inspect (system metadata + key-figure discovery), per-chunk batch import, idempotent re-import"
+  - id: CAP-006
+    description: >-
+      FUE User Validation adapter: ZIP + metadata manifest registration, capability-gated
+      binary decoding, explicit partial-import behavior (never guesses binary schema).
+    status: done
+    validation: "test_evidence_fue.py: zero fabricated capabilities, all artifacts (metadata+.bin) fingerprinted/registered, idempotent re-import"
+    notes: "defusedxml added as a dependency (XXE hardening) for Panaya/Signavio XML parsing, flagged by the security-guidance hook."
+  - id: CAP-007
+    description: >-
+      Generalize durable pipeline engine to run evidence-import work (PipelineRun.kind),
+      register import + correlation as durable stages — no parallel job system.
+    status: done
+    validation: "migration 0010_pipeline_run_kind; STAGES_BY_KIND registry (source_processing/evidence_import); test_evidence_pipeline.py end-to-end run -> IMPORTED_FULL + MATCHED_EXACT correlation; 93/93 pytest"
+  - id: CAP-008
+    description: >-
+      API routes/schemas: dataset inspect/import/list/detail, capability/target queries,
+      object-evidence-correlation lookup.
+    status: done
+    validation: "api/routes/evidence.py + api/schemas/evidence.py registered in main.py; test_evidence_api.py: inspect-unrecognized, create->import->correlate->list->object-correlation drill-down; 95/95 pytest"
+  - id: CAP-009
+    description: >-
+      Frontend: "Fontes complementares / Evidências adicionais" section inside Step 1 —
+      Ingestão dos dados; ObjectBrowser shows linked evidence provenance.
+    status: done
+    validation: >-
+      typecheck+build clean; live Playwright E2E against electron-vite renderer (localhost:5173):
+      created client/assessment, ingested demo-source/ABAP, processed (Step 3), uploaded synthetic
+      Panaya ZIP in Step 1's "Fontes Complementares" (status -> Importado, 5 registros,
+      capabilities TECHNICAL_OBJECT_METADATA/USAGE_SIGNAL, correlation 3 UNMATCHED + 2
+      MATCHED_HEURISTIC — heuristic because Panaya's "CLAS" != internal "class", a realistic
+      type-alias mismatch, not a bug), then opened ZCL_UTILITY_HELPER in Technical View and saw
+      "Evidência Suplementar (2)" listing both correlated Panaya records with provenance.
+  - id: CAP-010
+    description: Full validation pass (pytest, typecheck/build) and documentation/handoff update.
+    status: done
+    validation: "97/97 backend pytest; frontend typecheck+build clean; live Playwright E2E (CAP-009); BACKLOG.md updated (BL-004 resolved, BL-005/BL-006 opened); SESSION_HANDOFF.md and EXECUTION_STATE.yaml updated."
+    notes: >-
+      Background security review flagged a HIGH path-traversal/arbitrary-file-write in
+      api/routes/evidence.py (unsanitized upload filename used directly in path construction).
+      Fixed: added _safe_basename() (strips directory components via PurePosixPath, rejects
+      literal backslashes/degenerate names) and _resolve_under() (defense-in-depth containment
+      check) to both the inspect and create handlers; added test_safe_basename_strips_traversal_and_rejects_degenerate_names
+      and test_path_traversal_filename_never_escapes_storage_root to test_evidence_api.py.
+
+      User-reported bug (manual UI test): "Unrecognized evidence package format" for every
+      upload. Root cause: adapter.detect() only checked whether the *filename* literally
+      contained "panaya"/"signavio"/"fue" — a real export's filename essentially never does.
+      Fixed: detect(filename, file_path) now sniffs actual ZIP/XML/JSON structure (primary XML
+      root tag PanayaExport / SignavioSystem+chunked JSON / .txt+.bin pair for FUE) as the
+      deciding signal, filename hint stays only as a fast-path. Verified live via curl: a ZIP
+      named "generic_export.zip" (no provider name) with Panaya-shaped content now detects and
+      imports to IMPORTED_FULL. 97/97 pytest still green.
+  - id: CAP-011
+    description: >-
+      HANA Sizing Report and SAP Readiness Check adapters (user-requested extension,
+      ADR-017 amendment) — two more real, stable SAP export formats validated against
+      actual customer files (not synthetic profiles, unlike Panaya/Signavio/FUE).
+    status: done
+    validation: >-
+      test_evidence_hana_sizing.py (4 tests) + test_evidence_readiness_check.py (3 tests) with
+      synthetic fixtures; both adapters additionally run end-to-end through the real durable
+      pipeline against the user's actual files (151KB HANA sizing TXT -> 325 records, 241KB
+      Readiness Check DOCX -> 337 records, both IMPORTED_FULL) — manual validation script, not
+      committed (real customer files, gitignored under SAP_Files/). New dependency: python-docx.
+      New dataset types added to EvidenceDatasetType (String column, no migration needed).
+      106/106 backend pytest; frontend typecheck+build clean.
+  - id: CAP-012
+    description: >-
+      Panaya ETL adapter rewritten against a real ~2.8GB customer export (user-provided
+      raw .xml, not zipped). The original ADR-017 profile (`<PanayaExport>`) was invented —
+      no sample ever existed before this. Real structure verified: one <ROOT_ELEMENT> with
+      ~90 sibling sections, several in the single-digit millions of rows; not strictly
+      well-formed XML (real, load-bearing illegal control bytes and char-refs in extracted
+      source text).
+    status: done
+    validation: >-
+      12 tests (test_evidence_panaya.py rewritten + SanitizingXMLStream boundary test) +
+      full end-to-end runs against the real 2.8GB file: inspect() 98s (all 90 sections
+      counted), full pipeline import via direct script 226.5s and via the real HTTP upload
+      endpoint ~340s total (42.75s upload+hash + background processing) -> IMPORTED_PARTIAL,
+      84189 records (4 of 5 curated sections hit the 20k/section cap, explicit truncation
+      warnings), correct MATCHED_EXACT correlation confirmed via synthetic test. 109/109
+      backend pytest.
+    notes: >-
+      Found and fixed 3 more real bugs during this validation, all real-scale issues no
+      synthetic fixture would have caught: (1) SanitizingXMLStream.read() could return b""
+      before true EOF (violates the file-like read() contract — expat would have treated it
+      as premature end-of-stream); (2) the char-ref regex ran on the emitted slice instead of
+      the full carry+raw buffer, so a reference could be split exactly at the read-boundary
+      and leak through unstripped — caught by a test using a deliberately tiny read size;
+      (3) evidence.correlation.correlate_dataset_records deleted prior correlations via an
+      `IN (...)` list of Python ids — crashed on the real ~180k-record import
+      (psycopg.OperationalError: number of parameters must be between 0 and 65535); fixed
+      with a subquery. Also closed a second "stuck forever" gap: `_run_stage` has no
+      try/except around `finalize`, so the correlation crash left dataset.status uncommitted
+      — `_evidence_import_finalize` now catches a correlation failure the same way `prepare`
+      already did. BL-006 resolved (superseded); BL-009/BL-010 opened for the remaining,
+      lower-priority scale considerations (curated-section coverage, correlation batching).
+  - id: CAP-013
+    description: >-
+      Signavio adapter rewritten against a real ~28MB customer export (user reported
+      "importou com sucesso, mas 0 registros"). Same root cause class as Panaya's CAP-012:
+      the original ADR-017 profile (`<SignavioSystem>`-rooted metadata,
+      `keyFigureId`/`header`/`rows` as top-level JSON keys) was invented and did not match
+      reality at all — real metadata is ABAP-serialized XML (`<asx:abap>`/`<item><KEY>/<VALUE>`),
+      real chunks nest everything under a `"dataSet"` key with the row array called `data`.
+    status: done
+    validation: >-
+      6 tests (test_evidence_signavio.py rewritten + a 10k-row bind-parameter-limit
+      regression) + full end-to-end run against the real file: 494 chunks, ~4.4M rows ->
+      IMPORTED_FULL, capabilities=['PROCESS_KPI'], run_pipeline 913.6s total, backend
+      container memory stayed under ~350MB throughout (was ~20GB before the correlation
+      fix below). 112/112 backend pytest.
+    notes: >-
+      Found and fixed 3 more real, scale-only bugs: (1) GENERAL safety net —
+      `_evidence_import_finalize` used to mark IMPORTED_FULL whenever `inspect()`-predicted
+      capabilities were non-empty, regardless of whether any batch actually produced a
+      record — exactly how the Signavio mismatch above went unnoticed as "successful"; now
+      forces IMPORTED_PARTIAL + an explicit warning whenever capabilities are detected but
+      zero records were extracted, for any adapter, not just Signavio. (2) A single bulk
+      `INSERT ... ON CONFLICT DO NOTHING` for a whole chunk crashed once a real chunk's row
+      count (~9600) x columns exceeded PostgreSQL's 65535-bind-parameter limit — the same
+      failure class CAP-012 fixed for correlation; fixed generically with
+      evidence/adapters/base.py::bulk_insert_evidence_records (chunked, RETURNING-counted
+      since cursor.rowcount is unreliable for multi-row inserts). (3) CRITICAL — the fix for
+      (2) initially still loaded every EvidenceRecord as an ORM object before/after insert
+      via correlate_dataset_records, live-tested at 4.4M records and confirmed pushing the
+      backend container to ~20GB RSS / 100% CPU (killed before OOM); fixed with id-ordered
+      pagination (5000/page) — and while fixing it, avoided a second real footgun: an
+      earlier draft used `session.expunge_all()` per page, which would have silently
+      detached the caller's own `dataset` object mid-`_evidence_import_finalize`, losing its
+      pending status/warning updates; fixed to expunge only that page's own records.
+      BL-010 resolved (confirmed, not just theoretical); BL-011 opened for the other three
+      adapters' still-unoptimized per-row pattern (not yet proven necessary at their scale).
+  - id: CAP-014
+    description: >-
+      FUE User Validation adapter removed (user decision, validated against a real sample:
+      the `.bin` payloads are a proprietary ~7.9-bits/byte-entropy compressed/encrypted format
+      with no available decoder, no safe partial-import path per ADR-017's own anti-guessing
+      rule). Added dataset deletion (DELETE /evidence-datasets/{id}, cascades to
+      artifacts/records/correlations + removes on-disk storage). SourceIngestion.tsx UI:
+      file inventory and scan history are now collapsible sections (default collapsed), scan
+      history moved to render right after the active-scan-status block and unconditionally
+      (previously gated on scans.length > 1, which hid it for a single scan).
+    status: done
+    validation: >-
+      110/110 backend pytest (removed 3 FUE tests, added test_delete_dataset_removes_record_and_storage_file
+      to test_evidence_api.py); frontend typecheck clean. Removed backend/src/evidence/adapters/fue.py,
+      backend/tests/test_evidence_fue.py; EvidenceDatasetType.FUE_USER_VALIDATION removed (plain
+      String(50) column, no migration needed); removed the one real lingering FUE dataset (id=200)
+      from the dev database and its on-disk storage directory.
+    notes: >-
+      Answered user's duplicate-import question (no automatic dedup exists — BL-012 opened;
+      the new delete endpoint is the manual mitigation for accidental duplicates today).
+  - id: CAP-015
+    description: >-
+      Re-processing source (Step 1 rescan + Step 3 reparse) now automatically re-correlates
+      every existing supplemental evidence dataset of the assessment against the reconciled
+      SAPObject set (user-requested, fix-now decision — this is a gap in the delivered
+      correlation model, not a new feature). `EvidenceCorrelation.target_id` is a polymorphic
+      column with no DB-level FK, so a SAPObject removed/renamed by the stable-identity
+      reconciliation (CAP-001) would otherwise leave a dangling or stale correlation with no
+      automatic fix and no way for the user to notice.
+    status: done
+    validation: >-
+      112/112 backend pytest (2 new in test_evidence_pipeline.py:
+      test_reprocessing_source_recorrelates_existing_evidence_datasets confirms a removed
+      object's correlation flips MATCHED_EXACT -> UNMATCHED and a newly-added object's
+      previously-UNMATCHED record becomes MATCHED_EXACT, both automatically on reparse with no
+      manual re-import; test_parse_finalize_recorrelation_failure_does_not_lose_reconciliation
+      is the safety-net regression, mirroring the existing evidence_import finalize pattern).
+    notes: >-
+      `pipeline/stages.py::_parse_finalize` now loops every EvidenceDataset of the assessment
+      and calls `correlate_dataset_records` per dataset after the stale-object reconciliation,
+      catching per-dataset failures (marks that dataset FAILED with an error, mirrors
+      `_evidence_import_finalize`'s established safety net) and always committing at the end —
+      `_run_stage` has no try/except around its call to `finalize`, so an uncaught exception
+      would silently lose even the object reconciliation that already ran. ADR-017's
+      Correlation section amended to document why this is required (no DB-level FK on
+      `target_id`) rather than optional.
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: [BL-005, BL-006, BL-007, BL-008, BL-009, BL-010, BL-011, BL-012]
+notes:
+  - "Pre-sprint housekeeping (ADR-017 acceptance, baseline R3.3 bump, sprint renumbering 08->17) was committed directly to main (commit 4711ab0) before creating this branch, per user decision — it is documentation/architecture bookkeeping, not sprint implementation."
+  - "No real Panaya/Signavio/FUE sample files exist in the repo (unlike ATC's reviewed XLSX sample). Synthetic minimal fixtures were generated in-test (same convention as test_sprint05.py's in-memory XLSX builder) and, for the live browser pass, a throwaway on-disk ZIP (deleted afterward)."
+  - "One new Python dependency: defusedxml (XXE hardening for Panaya/Signavio XML parsing — flagged by the security-guidance hook, not originally planned). Everything else (streaming XML iterparse, ZIP) is stdlib."
+  - "Alembic version_num column is VARCHAR(32); migration 0009's revision id had to be shortened from 'supplemental_evidence_foundation' to 'evidence_foundation' to fit — keep future revision ids <= 32 chars."
+  - "POST-COMPLETION (real user testing found 2 real bugs + 1 critical test-suite defect, all fixed on this branch): (1) adapter.detect() was filename-substring-only, rejecting every real-world upload — now content-sniffs ZIP/XML/JSON structure via detect(filename, file_path); (2) a prepare-time adapter exception (e.g. unsupported ZIP compression) left dataset.status stuck at INSPECTED forever since _run_stage skips finalize on prepare failure — fixed with a safety-net commit inside _evidence_import_prepare plus graceful NotImplementedError/RuntimeError handling in all three adapters' inspect(); (3) CRITICAL: discovered while debugging (2) that every backend/tests/*.py _cleanup() ran unscoped DELETE FROM {table} against the shared dev database (no separate test DB) — running pytest to validate the fix destroyed the user's real client/assessment/evidence-datasets twice. Fixed all 13 test files to scope cleanup to the client_id/assessment_id each test itself created (cascades via existing FKs); verified with a marker-client survival test. See BL-007/BL-008 and the project-test-isolation memory."

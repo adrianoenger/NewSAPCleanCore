@@ -13,25 +13,35 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from persistence.models import PipelineRun, StageRun, WorkItem
-from pipeline.stages import STAGE_DEFINITIONS, StageDefinition
+from pipeline.stages import STAGES_BY_KIND, StageDefinition
 
-_STAGES_BY_KEY: dict[str, StageDefinition] = {s.key: s for s in STAGE_DEFINITIONS}
+_STAGES_BY_KEY: dict[str, StageDefinition] = {
+    s.key: s for stages in STAGES_BY_KIND.values() for s in stages
+}
 
 _TERMINAL_STAGE_STATUSES = ("completed", "skipped")
 
 _TERMINAL_PIPELINE_STATUSES = ("completed",)
 
 
-def create_pipeline_run(session: Session, assessment_id: int, source_path: str) -> PipelineRun:
-    """Create a PipelineRun with one StageRun per registered stage, in dependency order."""
+def create_pipeline_run(
+    session: Session,
+    assessment_id: int,
+    source_path: str,
+    kind: str = "source_processing",
+    evidence_dataset_id: int | None = None,
+) -> PipelineRun:
+    """Create a PipelineRun with one StageRun per stage registered for `kind`, in dependency order."""
     run = PipelineRun(
         assessment_id=assessment_id,
         source_path=source_path,
         status="pending",
+        kind=kind,
+        evidence_dataset_id=evidence_dataset_id,
     )
     session.add(run)
     session.flush()
-    for seq, stage_def in enumerate(STAGE_DEFINITIONS):
+    for seq, stage_def in enumerate(STAGES_BY_KIND[kind]):
         session.add(
             StageRun(
                 pipeline_run_id=run.id,

@@ -432,3 +432,120 @@ export const retryWorkItem = (
   apiOrDetail(`/assessments/${assessmentId}/pipeline-runs/${runId}/work-items/${itemId}/retry`, {
     method: 'POST',
   })
+
+// ---------------------------------------------------------------------------
+// SPRINT-08: Supplemental Evidence Datasets (ADR-017)
+// ---------------------------------------------------------------------------
+
+export type EvidenceDatasetStatus =
+  | 'INSPECTED'
+  | 'IMPORTING'
+  | 'IMPORTED_FULL'
+  | 'IMPORTED_PARTIAL'
+  | 'FAILED'
+
+export interface EvidenceDatasetRecord {
+  id: number
+  assessment_id: number
+  dataset_type: string
+  display_name: string
+  source_filename: string
+  source_sha256: string
+  source_size_bytes: number
+  importer_name: string
+  importer_version: string
+  status: EvidenceDatasetStatus
+  source_system_hint: string | null
+  source_client_hint: string | null
+  extracted_at: string | null
+  capabilities: string[]
+  manifest: Record<string, unknown>
+  warning_summary: string[]
+  error: string | null
+  created_at: string
+  updated_at: string
+  records_count: number
+  correlation_summary: Record<string, number>
+  pipeline_run_id: number | null
+  pipeline_run_status: string | null
+}
+
+export interface EvidenceDatasetListResponse {
+  assessment_id: number
+  datasets: EvidenceDatasetRecord[]
+  total: number
+}
+
+export interface EvidenceRecordSummary {
+  id: number
+  dataset_id: number
+  record_type: string
+  capability: string
+  object_name: string | null
+  object_type: string | null
+  package_name: string | null
+  normalized_payload: Record<string, unknown>
+  source_locator: Record<string, unknown>
+}
+
+export interface EvidenceCorrelationRecord {
+  id: number
+  target_type: string
+  target_id: number | null
+  status: string
+  method: string
+  score: number | null
+  rationale: Record<string, unknown> | null
+  created_at: string
+  evidence_record: EvidenceRecordSummary
+  dataset_display_name: string
+  dataset_type: string
+}
+
+export interface ObjectEvidenceCorrelationsResponse {
+  assessment_id: number
+  object_id: number
+  correlations: EvidenceCorrelationRecord[]
+  total: number
+}
+
+export const fetchEvidenceDatasets = (assessmentId: number): Promise<EvidenceDatasetListResponse> =>
+  api(`/assessments/${assessmentId}/evidence-datasets`)
+
+export const fetchEvidenceDataset = (
+  assessmentId: number,
+  datasetId: number,
+): Promise<EvidenceDatasetRecord> => api(`/assessments/${assessmentId}/evidence-datasets/${datasetId}`)
+
+export const createEvidenceDataset = async (
+  assessmentId: number,
+  file: File,
+): Promise<EvidenceDatasetRecord> => {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch(`${BACKEND_URL}/assessments/${assessmentId}/evidence-datasets`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `createEvidenceDataset → ${resp.status}`)
+  }
+  return resp.json()
+}
+
+export const deleteEvidenceDataset = async (assessmentId: number, datasetId: number): Promise<void> => {
+  const resp = await fetch(`${BACKEND_URL}/assessments/${assessmentId}/evidence-datasets/${datasetId}`, {
+    method: 'DELETE',
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `deleteEvidenceDataset → ${resp.status}`)
+  }
+}
+
+export const fetchObjectEvidenceCorrelations = (
+  assessmentId: number,
+  objectId: number,
+): Promise<ObjectEvidenceCorrelationsResponse> =>
+  api(`/assessments/${assessmentId}/objects/${objectId}/evidence-correlations`)

@@ -1,14 +1,14 @@
 project: sap-clean-core-analysis-poc
 baseline: 2026-09-25-R3.3
-status: not_started
+status: in_progress
 implementation_started: true
 active_sprint: null
-active_sprint_status: null
+active_sprint_status: not_started
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-07
-next_sprint: SPRINT-08
-next_sprint_slug: supplemental-evidence-foundation
+last_completed_sprint: SPRINT-08
+next_sprint: SPRINT-09
+next_sprint_slug: ai-object-understanding
 notes:
   - SPRINT-06 completed (Durable Pipeline Execution).
   - Alembic 0007 at head: pipeline_run, stage_run, work_item.
@@ -17,3 +17,4 @@ notes:
   - "77/77 pytest, tsc/build clean, full live Playwright e2e pass confirmed the demonstrable outcome (see docs/delivery/results/SPRINT-07-RESULT.md)."
   - "No AI/LLM processing happens yet in Step 3. SPRINT-08 now establishes supplemental evidence ingestion/correlation; SPRINT-09 introduces the AIProvider abstraction and will require Bedrock/Azure Foundry credentials for end-to-end validation."
   - "BL-004 is promoted into SPRINT-08 architecture: SAPObject identity/correlation stability must be addressed before multiplying external evidence correlations."
+  - "SPRINT-08 completed (2026-09-25). Final scope: 15 capabilities (CAP-001..CAP-015) — stable SAPObject identity (migrations 0008/0009/0010), EvidenceDataset/Artifact/Record/Correlation model, adapter contract + Panaya/Signavio/HANA Sizing/Readiness Check adapters (rewritten against real customer exports post-completion; FUE dropped after a real sample proved its .bin payloads an undecodable proprietary format), generalized durable pipeline engine (PipelineRunKind), full evidence API incl. dataset delete, Step-1 'Fontes Complementares' UI (collapsible file inventory/scan history, inline delete confirmation), and automatic evidence re-correlation on source reprocessing. 112/112 backend pytest, frontend typecheck/build clean, live Playwright E2E against the real Assessment01/Rodobens data plus a disposable throwaway assessment for the delete flow. See docs/delivery/results/SPRINT-08-RESULT.md."

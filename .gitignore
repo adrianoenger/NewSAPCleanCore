@@ -227,6 +227,7 @@ test-results/
 playwright-report/
 blob-report/
 coverage/
+.playwright-mcp/
 
 # ------------------------------------------------------------
 # Miscellaneous

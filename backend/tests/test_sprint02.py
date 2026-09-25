@@ -11,12 +11,11 @@ from persistence.database import get_session_factory
 from persistence.models import ArtifactCategory, Assessment, AssessmentStatus, Client
 
 
-def _clean_ingestion(session) -> None:
+def _clean_ingestion(session, client_id: int) -> None:
+    """Remove only the client (and cascaded assessment/scan/files) this test created —
+    never a blanket table wipe against the shared dev database."""
     from sqlalchemy import text
-    session.execute(text("DELETE FROM source_file"))
-    session.execute(text("DELETE FROM source_scan"))
-    session.execute(text("DELETE FROM assessment"))
-    session.execute(text("DELETE FROM client"))
+    session.execute(text("DELETE FROM client WHERE id = :id"), {"id": client_id})
     session.commit()
 
 
@@ -73,7 +72,6 @@ def test_scan_lifecycle(client) -> None:
     from settings import get_settings
 
     with get_session_factory()() as session:
-        _clean_ingestion(session)
         c = Client(name="Scan Test Client")
         session.add(c)
         session.flush()
@@ -83,38 +81,40 @@ def test_scan_lifecycle(client) -> None:
         session.add(asmnt)
         session.commit()
         asmnt_id = asmnt.id
+        client_id = c.id
 
-    scan_root = Path(get_settings().scan_root)
-    with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
-        p = Path(tmp)
-        (p / "prog.abap").write_text("REPORT ztest.")
-        (p / "table.tabl").write_text("DDIC table")
-        (p / "readme.md").write_text("# Test")
+    try:
+        scan_root = Path(get_settings().scan_root)
+        with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
+            p = Path(tmp)
+            (p / "prog.abap").write_text("REPORT ztest.")
+            (p / "table.tabl").write_text("DDIC table")
+            (p / "readme.md").write_text("# Test")
 
-        resp = client.post(
-            f"/assessments/{asmnt_id}/scans",
-            json={"source_path": tmp},
-        )
-        assert resp.status_code == 201
-        scan_id = resp.json()["id"]
+            resp = client.post(
+                f"/assessments/{asmnt_id}/scans",
+                json={"source_path": tmp},
+            )
+            assert resp.status_code == 201
+            scan_id = resp.json()["id"]
 
-        detail_resp = client.get(f"/assessments/{asmnt_id}/scans/{scan_id}")
-        assert detail_resp.status_code == 200
-        detail = detail_resp.json()
-        assert detail["status"] == "completed"
-        assert detail["total_files"] == 3
-        counts = {c["category"]: c["count"] for c in detail["category_counts"]}
-        assert counts.get(ArtifactCategory.ABAP_SOURCE.value) == 1
-        assert counts.get(ArtifactCategory.DDIC.value) == 1
-        assert counts.get(ArtifactCategory.DOCUMENTATION.value) == 1
+            detail_resp = client.get(f"/assessments/{asmnt_id}/scans/{scan_id}")
+            assert detail_resp.status_code == 200
+            detail = detail_resp.json()
+            assert detail["status"] == "completed"
+            assert detail["total_files"] == 3
+            counts = {c["category"]: c["count"] for c in detail["category_counts"]}
+            assert counts.get(ArtifactCategory.ABAP_SOURCE.value) == 1
+            assert counts.get(ArtifactCategory.DDIC.value) == 1
+            assert counts.get(ArtifactCategory.DOCUMENTATION.value) == 1
 
-        files_resp = client.get(f"/assessments/{asmnt_id}/source-files")
-        assert files_resp.status_code == 200
-        files = files_resp.json()
-        assert len(files) == 3
-        sha_found = {f["sha256"] for f in files}
-        expected_sha = hashlib.sha256(b"REPORT ztest.").hexdigest()
-        assert expected_sha in sha_found
-
-    with get_session_factory()() as session:
-        _clean_ingestion(session)
+            files_resp = client.get(f"/assessments/{asmnt_id}/source-files")
+            assert files_resp.status_code == 200
+            files = files_resp.json()
+            assert len(files) == 3
+            sha_found = {f["sha256"] for f in files}
+            expected_sha = hashlib.sha256(b"REPORT ztest.").hexdigest()
+            assert expected_sha in sha_found
+    finally:
+        with get_session_factory()() as session:
+            _clean_ingestion(session, client_id)

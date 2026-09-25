@@ -194,10 +194,14 @@ def _setup_assessment_with_files(session, scan_root: str) -> tuple[int, int]:
     return asmnt.id, scan.id
 
 
-def _cleanup(session) -> None:
+def _cleanup(session, assessment_id: int) -> None:
+    """Remove only the client owning this assessment — cascades to the assessment and
+    everything under it. Never a blanket table wipe against the shared dev database."""
     from sqlalchemy import text
-    for tbl in ("sap_object", "source_file", "source_scan", "assessment", "client"):
-        session.execute(text(f"DELETE FROM {tbl}"))
+    session.execute(
+        text("DELETE FROM client WHERE id = (SELECT client_id FROM assessment WHERE id = :aid)"),
+        {"aid": assessment_id},
+    )
     session.commit()
 
 
@@ -215,7 +219,7 @@ def test_list_objects_empty_for_new_assessment(client) -> None:
             assert resp.json() == []
         finally:
             with get_session_factory()() as session:
-                _cleanup(session)
+                _cleanup(session, asmnt_id)
 
 
 def test_list_objects_unknown_assessment_returns_404(client) -> None:
@@ -236,4 +240,4 @@ def test_get_object_not_found(client) -> None:
             assert resp.status_code == 404
         finally:
             with get_session_factory()() as session:
-                _cleanup(session)
+                _cleanup(session, asmnt_id)

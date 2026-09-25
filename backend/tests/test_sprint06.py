@@ -32,13 +32,13 @@ def _make_assessment(session) -> int:
     return a.id
 
 
-def _cleanup(session) -> None:
-    for tbl in (
-        "work_item", "stage_run", "pipeline_run",
-        "sap_object_dependency", "sap_object", "source_file", "source_scan",
-        "assessment", "client",
-    ):
-        session.execute(text(f"DELETE FROM {tbl}"))
+def _cleanup(session, assessment_id: int) -> None:
+    """Remove only the client owning this assessment — cascades to everything under
+    it. Never a blanket table wipe against the shared dev database."""
+    session.execute(
+        text("DELETE FROM client WHERE id = (SELECT client_id FROM assessment WHERE id = :aid)"),
+        {"aid": assessment_id},
+    )
     session.commit()
 
 
@@ -71,7 +71,7 @@ def test_recover_orphans_requeues_running_work() -> None:
         assert stage.status == "pending"
         assert item.status == "pending"
 
-        _cleanup(session)
+        _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ def test_pipeline_full_run_wraps_scan_parse_dependencies() -> None:
                 assert any(d.target_name == "RFC_READ_TABLE" for d in deps)
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_second_pipeline_run_dependencies_stage_ignores_other_scans() -> None:
@@ -167,7 +167,7 @@ def test_second_pipeline_run_dependencies_stage_ignores_other_scans() -> None:
                 assert deps_stage.completed_items == 1
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_pause_after_first_stage_then_resume() -> None:
@@ -223,7 +223,7 @@ def test_pause_after_first_stage_then_resume() -> None:
                 assert run.status == "completed"
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_bounded_retry_marks_item_failed_then_manual_retry_succeeds() -> None:
@@ -288,7 +288,7 @@ def test_bounded_retry_marks_item_failed_then_manual_retry_succeeds() -> None:
                 assert run.status == "completed"
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -325,7 +325,7 @@ def test_start_pipeline_run_endpoint(client) -> None:
             assert list_resp.json()["total"] == 1
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_pause_endpoint_rejects_non_running_run(client) -> None:
@@ -345,7 +345,7 @@ def test_pause_endpoint_rejects_non_running_run(client) -> None:
             assert pause_resp.status_code == 409
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_retry_endpoint_success_path_then_resume_completes(client) -> None:
@@ -408,7 +408,7 @@ def test_retry_endpoint_success_path_then_resume_completes(client) -> None:
             assert all(s["status"] == "completed" for s in final["stages"])
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_retry_endpoint_rejects_non_failed_item(client) -> None:
@@ -433,4 +433,4 @@ def test_retry_endpoint_rejects_non_failed_item(client) -> None:
             assert retry_resp.status_code == 409
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)

@@ -274,14 +274,16 @@ def _make_assessment(session) -> int:
     return a.id
 
 
-def _cleanup_sprint05(session) -> None:
+def _cleanup_sprint05(session, *assessment_ids: int) -> None:
+    """Remove only the client(s) owning these assessments — cascades to everything under
+    them. Never a blanket table wipe (and never touches the shared `atc_check` catalog,
+    which legitimately outlives any single test's assessment)."""
     from sqlalchemy import text
-    for tbl in (
-        "technical_finding", "atc_finding", "atc_run", "atc_check",
-        "sap_object_dependency", "sap_object", "source_file", "source_scan",
-        "assessment", "client",
-    ):
-        session.execute(text(f"DELETE FROM {tbl}"))
+    for aid in assessment_ids:
+        session.execute(
+            text("DELETE FROM client WHERE id = (SELECT client_id FROM assessment WHERE id = :aid)"),
+            {"aid": aid},
+        )
     session.commit()
 
 
@@ -301,7 +303,7 @@ def test_inspect_endpoint_returns_diagnostics(client) -> None:
         assert data["total_rows"] == 1
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id)
 
 
 def test_import_endpoint_creates_run_and_findings(client) -> None:
@@ -321,7 +323,7 @@ def test_import_endpoint_creates_run_and_findings(client) -> None:
         assert data["validation_status"] in ("ACCEPTED_FULL", "ACCEPTED_PARTIAL")
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id)
 
 
 def test_import_rejects_invalid_file(client) -> None:
@@ -336,7 +338,7 @@ def test_import_rejects_invalid_file(client) -> None:
         assert resp.status_code == 422
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id)
 
 
 def test_list_runs_empty_for_new_assessment(client) -> None:
@@ -349,7 +351,7 @@ def test_list_runs_empty_for_new_assessment(client) -> None:
         assert resp.json()["runs"] == []
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id)
 
 
 def test_multiple_atc_runs_coexist(client) -> None:
@@ -369,7 +371,7 @@ def test_multiple_atc_runs_coexist(client) -> None:
         assert resp.json()["total"] == 2
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id)
 
 
 def test_correlation_is_assessment_scoped(client) -> None:
@@ -405,9 +407,11 @@ def test_correlation_is_assessment_scoped(client) -> None:
         session.add(SAPObject(
             assessment_id=other_asmnt.id, source_file_id=sf.id,
             object_type="class", object_name="ZCL_ORDER",
+            canonical_key="CLASS::ZCL_ORDER",
             description="", line_start=1, attributes={},
         ))
         session.commit()
+        other_asmnt_id = other_asmnt.id
 
     try:
         # Import ATC for the FIRST assessment — ZCL_ORDER should be UNMATCHED
@@ -424,4 +428,4 @@ def test_correlation_is_assessment_scoped(client) -> None:
         assert summary.get("UNMATCHED", 0) == 1
     finally:
         with get_session_factory()() as session:
-            _cleanup_sprint05(session)
+            _cleanup_sprint05(session, asmnt_id, other_asmnt_id)

@@ -7,7 +7,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw } from 'lucide-react'
-import { fetchObjectDependencies, fetchProcessingStatus, fetchSAPObject, fetchSAPObjects, type SAPObjectRecord } from '@/lib/api'
+import {
+  fetchObjectDependencies,
+  fetchObjectEvidenceCorrelations,
+  fetchProcessingStatus,
+  fetchSAPObject,
+  fetchSAPObjects,
+  type SAPObjectRecord,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -106,6 +113,55 @@ function DependenciesPanel({ assessmentId, objectId }: { assessmentId: number; o
   )
 }
 
+const CORRELATION_LABELS: Record<string, string> = {
+  MATCHED_EXACT: 'Exato',
+  MATCHED_HEURISTIC: 'Heurístico',
+  UNMATCHED: 'Sem correspondência',
+  AMBIGUOUS: 'Ambíguo',
+  NOT_APPLICABLE: 'Não aplicável',
+}
+
+const DATASET_TYPE_LABELS: Record<string, string> = {
+  PANAYA_ETL: 'Panaya ETL',
+  SIGNAVIO_PROCESS_INSIGHTS: 'SAP Signavio Process Insights',
+  HANA_SIZING_REPORT: 'HANA Sizing Report',
+  SAP_READINESS_CHECK: 'SAP Readiness Check',
+  OTHER: 'Evidência complementar',
+}
+
+function EvidencePanel({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['object-evidence-correlations', assessmentId, objectId],
+    queryFn: () => fetchObjectEvidenceCorrelations(assessmentId, objectId),
+  })
+
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Loading evidence…</div>
+  if (!data || data.total === 0) return null
+
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-medium text-text-secondary">Evidência Suplementar ({data.total})</div>
+      <div className="space-y-1">
+        {data.correlations.map((corr) => (
+          <div key={corr.id} className="rounded bg-surface-elevated px-2 py-1.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-text-primary">
+                {DATASET_TYPE_LABELS[corr.dataset_type] ?? corr.dataset_type}
+              </span>
+              <span className="shrink-0 text-[10px] text-text-tertiary">
+                {CORRELATION_LABELS[corr.status] ?? corr.status}
+              </span>
+            </div>
+            <div className="mt-0.5 font-mono text-[10px] text-text-tertiary">
+              {corr.evidence_record.record_type} · {corr.evidence_record.capability}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
   const { data, isLoading } = useQuery({
     queryKey: ['sap-object-detail', assessmentId, objectId],
@@ -135,6 +191,7 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
         </div>
       )}
       <DependenciesPanel assessmentId={assessmentId} objectId={objectId} />
+      <EvidencePanel assessmentId={assessmentId} objectId={objectId} />
     </div>
   )
 }

@@ -16,6 +16,7 @@ import {
   XCircle,
   Loader2,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react'
 import {
   fetchScans,
@@ -25,6 +26,7 @@ import {
   type CategoryCount,
   type ScanRecord,
 } from '@/lib/api'
+import { EvidenceDatasets } from '@/components/evidence/EvidenceDatasets'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -122,6 +124,36 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = Math.round(seconds % 60)
   return `${m}m ${s}s`
+}
+
+function CollapsibleSection({
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <section className="rounded-card border border-border-default bg-surface-card p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform', open && 'rotate-90')} />
+        <h2 className="text-[14px] font-medium">
+          {title}
+          {subtitle && <span className="ml-2 font-normal text-text-tertiary">{subtitle}</span>}
+        </h2>
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </section>
+  )
 }
 
 export function SourceIngestion({ assessmentId }: Props) {
@@ -349,15 +381,37 @@ export function SourceIngestion({ assessmentId }: Props) {
         </section>
       )}
 
+      {/* Scan history */}
+      {scans.data && scans.data.length > 0 && (
+        <CollapsibleSection title="Histórico de Scans" subtitle={`(${scans.data.length})`}>
+          <div className="flex flex-col gap-1.5">
+            {scans.data.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveScanId(s.id)}
+                className={cn(
+                  'flex items-center gap-2 rounded-md px-3 py-2 text-left text-[12px] transition-colors',
+                  s.id === activeScanId
+                    ? 'bg-brand/10 text-brand-text'
+                    : 'hover:bg-surface-elevated text-text-secondary',
+                )}
+              >
+                <ScanStatusIcon status={s.status} />
+                <span className="font-mono flex-1 truncate">{s.source_path}</span>
+                <span className="text-text-tertiary">{s.scanned_files} arqs</span>
+                {s.duration_seconds != null && (
+                  <span className="font-mono text-text-tertiary">{formatDuration(s.duration_seconds)}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* File inventory table */}
       {filesQuery.data && filesQuery.data.length > 0 && (
-        <section className="rounded-card border border-border-default bg-surface-card p-4">
-          <h2 className="mb-3 text-[14px] font-medium">
-            Inventário de Arquivos
-            <span className="ml-2 font-normal text-text-tertiary">
-              ({filesQuery.data.length} arquivos)
-            </span>
-          </h2>
+        <CollapsibleSection title="Inventário de Arquivos" subtitle={`(${filesQuery.data.length} arquivos)`}>
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
               <thead>
@@ -396,37 +450,10 @@ export function SourceIngestion({ assessmentId }: Props) {
               </tbody>
             </table>
           </div>
-        </section>
+        </CollapsibleSection>
       )}
 
-      {/* Scan history */}
-      {scans.data && scans.data.length > 1 && (
-        <section className="rounded-card border border-border-default bg-surface-card p-4">
-          <h2 className="mb-3 text-[14px] font-medium">Histórico de Scans</h2>
-          <div className="flex flex-col gap-1.5">
-            {scans.data.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setActiveScanId(s.id)}
-                className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-left text-[12px] transition-colors',
-                  s.id === activeScanId
-                    ? 'bg-brand/10 text-brand-text'
-                    : 'hover:bg-surface-elevated text-text-secondary',
-                )}
-              >
-                <ScanStatusIcon status={s.status} />
-                <span className="font-mono flex-1 truncate">{s.source_path}</span>
-                <span className="text-text-tertiary">{s.scanned_files} arqs</span>
-                {s.duration_seconds != null && (
-                  <span className="font-mono text-text-tertiary">{formatDuration(s.duration_seconds)}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      <EvidenceDatasets assessmentId={assessmentId} />
     </div>
     </div>
   )

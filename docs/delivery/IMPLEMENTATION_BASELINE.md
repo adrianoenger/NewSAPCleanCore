@@ -12,7 +12,7 @@ This document is the implementation contract for the SAP Clean Core Analysis PoC
 - PostgreSQL + pgvector.
 - SQLAlchemy with Alembic for schema evolution.
 - local filesystem assessment source mounted/accessible to backend.
-- optional supplemental evidence packages (Panaya ETL, SAP Signavio Process Insights, FUE User Validation) imported through adapter-based ingestion.
+- optional supplemental evidence packages (Panaya ETL, SAP Signavio Process Insights, FUE User Validation, HANA Sizing Report, SAP Readiness Check) imported through adapter-based ingestion.
 - optional local Docker MCPs: `mcp-sap-docs`, `mcp-abap`.
 - LLM providers: AWS Bedrock and Azure AI Foundry through adapters.
 
@@ -128,7 +128,7 @@ Direct SAP/RFC/PyRFC remains the target canonical collection path for SAP source
 The canonical import behavior is defined in `docs/data/atc-import-contract.md` and ADR-016.
 
 ## Supplemental Evidence
-Inside **1 - Ingestão dos dados**, the user may optionally import complementary evidence packages. The initial supported profiles are Panaya ETL, SAP Signavio Process Insights and FUE User Validation.
+Inside **1 - Ingestão dos dados**, the user may optionally import complementary evidence packages. The supported profiles are Panaya ETL, SAP Signavio Process Insights, FUE User Validation, HANA Sizing Report and SAP Readiness Check.
 
 Canonical rules:
 - model each package/version as an Assessment-scoped `EvidenceDataset`;

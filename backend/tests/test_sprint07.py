@@ -37,13 +37,13 @@ def _make_assessment(session) -> int:
     return a.id
 
 
-def _cleanup(session) -> None:
-    for tbl in (
-        "work_item", "stage_run", "pipeline_run",
-        "sap_object_dependency", "sap_object", "source_file", "source_scan",
-        "assessment", "client",
-    ):
-        session.execute(text(f"DELETE FROM {tbl}"))
+def _cleanup(session, assessment_id: int) -> None:
+    """Remove only the client owning this assessment — cascades to everything under
+    it. Never a blanket table wipe against the shared dev database."""
+    session.execute(
+        text("DELETE FROM client WHERE id = (SELECT client_id FROM assessment WHERE id = :aid)"),
+        {"aid": assessment_id},
+    )
     session.commit()
 
 
@@ -107,7 +107,7 @@ def test_second_pipeline_run_reuses_completed_scan_without_rescanning() -> None:
                 assert file_count_after == file_count_before
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +122,7 @@ def test_processing_status_no_scan_yet() -> None:
         assert status.current_scan_id is None
         assert status.is_processed is False
         assert status.is_stale is False
-        _cleanup(session)
+        _cleanup(session, asmnt_id)
 
 
 def test_processing_status_scan_completed_but_not_yet_processed() -> None:
@@ -149,7 +149,7 @@ def test_processing_status_scan_completed_but_not_yet_processed() -> None:
                 assert status.is_stale is True
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_processing_status_fully_processed() -> None:
@@ -173,7 +173,7 @@ def test_processing_status_fully_processed() -> None:
                 assert status.latest_run_id == run_id
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_processing_status_stale_when_newer_ingestion_not_yet_processed() -> None:
@@ -217,7 +217,7 @@ def test_processing_status_stale_when_newer_ingestion_not_yet_processed() -> Non
                 assert status.is_stale is True
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ def test_processing_status_endpoint_no_ingestion(client) -> None:
         assert body["is_stale"] is False
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_processing_status_endpoint_after_pipeline_run_via_api(client) -> None:
@@ -258,7 +258,7 @@ def test_processing_status_endpoint_after_pipeline_run_via_api(client) -> None:
             assert body["is_stale"] is False
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +293,7 @@ def test_list_objects_scoped_to_current_scan(client) -> None:
             assert names == {"ZSECOND"}
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 def test_list_objects_empty_when_no_ingestion(client) -> None:
@@ -305,7 +305,7 @@ def test_list_objects_empty_when_no_ingestion(client) -> None:
         assert resp.json() == []
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)
 
 
 # ---------------------------------------------------------------------------
@@ -321,4 +321,4 @@ def test_manual_parse_route_removed(client) -> None:
         assert resp.status_code == 404
     finally:
         with get_session_factory()() as session:
-            _cleanup(session)
+            _cleanup(session, asmnt_id)

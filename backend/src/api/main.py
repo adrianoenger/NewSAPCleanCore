@@ -10,6 +10,7 @@ from api.routes import health
 from api.routes.atc import router as atc_router
 from api.routes.clients import router as clients_router
 from api.routes.dependencies import router as dependencies_router
+from api.routes.evidence import router as evidence_router
 from api.routes.ingestion import assessments_router as ingestion_router
 from api.routes.ingestion import config_router as ingestion_config_router
 from api.routes.parsing import router as parsing_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(dependencies_router)
     app.include_router(atc_router)
     app.include_router(pipeline_router)
+    app.include_router(evidence_router)
     return app
 
 

@@ -111,6 +111,9 @@ class Assessment(Base):
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
         "PipelineRun", back_populates="assessment", cascade="all, delete-orphan"
     )
+    evidence_datasets: Mapped[list["EvidenceDataset"]] = relationship(
+        "EvidenceDataset", back_populates="assessment", cascade="all, delete-orphan"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -205,13 +208,23 @@ class SAPObject(Base):
     )
     object_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     object_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    # Deterministic identity — f"{object_type.upper()}::{object_name.upper()}", unique per
+    # assessment — so reprocessing upserts instead of deleting/recreating the row (ADR-017).
+    canonical_key: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     line_start: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     attributes: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # Most recent parse StageRun that reproduced this object — lets the parse stage's
+    # finalize step tell "still present in this scan" apart from objects no longer produced.
+    last_seen_stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     parsed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    __table_args__ = (UniqueConstraint("assessment_id", "canonical_key", name="ux_sap_object_assessment_canonical_key"),)
 
     assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="sap_objects")
     source_file: Mapped["SourceFile"] = relationship("SourceFile", back_populates="sap_objects")
@@ -446,8 +459,14 @@ class WorkItemStatus(str, Enum):
     FAILED = "failed"
 
 
+class PipelineRunKind(str, Enum):
+    SOURCE_PROCESSING = "source_processing"
+    EVIDENCE_IMPORT = "evidence_import"
+
+
 class PipelineRun(Base):
-    """A durable, resumable run of the deterministic processing pipeline for one Assessment."""
+    """A durable, resumable run of a registered stage set (`kind`) for one Assessment —
+    either source scan/parse/dependency processing, or a supplemental evidence import."""
 
     __tablename__ = "pipeline_run"
 
@@ -455,9 +474,15 @@ class PipelineRun(Base):
     assessment_id: Mapped[int] = mapped_column(
         ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    kind: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=PipelineRunKind.SOURCE_PROCESSING.value, index=True
+    )
     source_path: Mapped[str] = mapped_column(String(2000), nullable=False)
     source_scan_id: Mapped[int | None] = mapped_column(
         ForeignKey("source_scan.id", ondelete="SET NULL"), nullable=True
+    )
+    evidence_dataset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("evidence_dataset.id", ondelete="CASCADE"), nullable=True, index=True
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=PipelineRunStatus.PENDING.value
@@ -534,3 +559,166 @@ class WorkItem(Base):
     )
 
     stage_run: Mapped["StageRun"] = relationship("StageRun", back_populates="work_items")
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-08 domain models — supplemental evidence datasets (ADR-017)
+# ---------------------------------------------------------------------------
+
+
+class EvidenceDatasetType(str, Enum):
+    """FUE_USER_VALIDATION was dropped (see ADR-017) — its `.bin` payloads are a proprietary,
+    high-entropy compressed format with no available decoder; decoding would mean guessing
+    the binary schema, which ADR-017 explicitly prohibits."""
+
+    PANAYA_ETL = "PANAYA_ETL"
+    SIGNAVIO_PROCESS_INSIGHTS = "SIGNAVIO_PROCESS_INSIGHTS"
+    HANA_SIZING_REPORT = "HANA_SIZING_REPORT"
+    SAP_READINESS_CHECK = "SAP_READINESS_CHECK"
+    OTHER = "OTHER"
+
+
+class EvidenceDatasetStatus(str, Enum):
+    INSPECTED = "INSPECTED"
+    IMPORTING = "IMPORTING"
+    IMPORTED_FULL = "IMPORTED_FULL"
+    IMPORTED_PARTIAL = "IMPORTED_PARTIAL"
+    FAILED = "FAILED"
+
+
+class EvidenceArtifactRole(str, Enum):
+    PRIMARY = "PRIMARY"
+    METADATA = "METADATA"
+    DATA_CHUNK = "DATA_CHUNK"
+    BINARY_PAYLOAD = "BINARY_PAYLOAD"
+    OTHER = "OTHER"
+
+
+class EvidenceCorrelationStatus(str, Enum):
+    MATCHED_EXACT = "MATCHED_EXACT"
+    MATCHED_HEURISTIC = "MATCHED_HEURISTIC"
+    UNMATCHED = "UNMATCHED"
+    AMBIGUOUS = "AMBIGUOUS"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class EvidenceDataset(Base):
+    """One imported supplemental evidence package/version for an Assessment (ADR-017)."""
+
+    __tablename__ = "evidence_dataset"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    dataset_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    importer_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    importer_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0")
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=EvidenceDatasetStatus.INSPECTED.value, index=True
+    )
+    source_system_hint: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_client_hint: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    capabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    manifest: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    warning_summary: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="evidence_datasets")
+    artifacts: Mapped[list["EvidenceArtifact"]] = relationship(
+        "EvidenceArtifact", back_populates="dataset", cascade="all, delete-orphan"
+    )
+    records: Mapped[list["EvidenceRecord"]] = relationship(
+        "EvidenceRecord", back_populates="dataset", cascade="all, delete-orphan"
+    )
+
+
+class EvidenceArtifact(Base):
+    """A physical member/artifact belonging to an EvidenceDataset (e.g. ZIP member, primary XML)."""
+
+    __tablename__ = "evidence_artifact"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("evidence_dataset.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    member_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    artifact_role: Mapped[str] = mapped_column(String(20), nullable=False, default=EvidenceArtifactRole.OTHER.value)
+    media_hint: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    dataset: Mapped["EvidenceDataset"] = relationship("EvidenceDataset", back_populates="artifacts")
+    records: Mapped[list["EvidenceRecord"]] = relationship("EvidenceRecord", back_populates="artifact")
+
+
+class EvidenceRecord(Base):
+    """A normalized evidence unit extracted by an adapter, with provenance (ADR-017)."""
+
+    __tablename__ = "evidence_record"
+    __table_args__ = (UniqueConstraint("dataset_id", "record_fingerprint", name="ux_evidence_record_dataset_fingerprint"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("evidence_dataset.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    artifact_id: Mapped[int | None] = mapped_column(
+        ForeignKey("evidence_artifact.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    record_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    capability: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    record_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    object_name: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    object_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    package_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    normalized_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    source_locator: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    dataset: Mapped["EvidenceDataset"] = relationship("EvidenceDataset", back_populates="records")
+    artifact: Mapped["EvidenceArtifact | None"] = relationship("EvidenceArtifact", back_populates="records")
+    correlations: Mapped[list["EvidenceCorrelation"]] = relationship(
+        "EvidenceCorrelation", back_populates="evidence_record", cascade="all, delete-orphan"
+    )
+
+
+class EvidenceCorrelation(Base):
+    """Explicit, statused relationship from an EvidenceRecord to a canonical target (ADR-017)."""
+
+    __tablename__ = "evidence_correlation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evidence_record_id: Mapped[int] = mapped_column(
+        ForeignKey("evidence_record.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    target_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    method: Mapped[str] = mapped_column(String(50), nullable=False)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rationale: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    evidence_record: Mapped["EvidenceRecord"] = relationship("EvidenceRecord", back_populates="correlations")

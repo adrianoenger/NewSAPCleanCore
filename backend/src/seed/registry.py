@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from ingestion.classifier import classify
 from parsing.dispatcher import parse_file
+from pipeline.stages import canonical_object_key
 from persistence.models import (
     Assessment,
     AssessmentStatus,
@@ -177,6 +178,7 @@ def _seed_demo_sap_objects(session: Session) -> None:
                     source_file_id=sf.id,
                     object_type=p.object_type,
                     object_name=p.object_name,
+                    canonical_key=canonical_object_key(p.object_type, p.object_name),
                     description=p.description,
                     line_start=p.line_start,
                     line_end=p.line_end,
