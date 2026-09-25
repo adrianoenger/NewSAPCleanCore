@@ -1,16 +1,16 @@
-# SPRINT-10 — Application Discovery
+# SPRINT-11 — Application Discovery
 
 ## Position in the sequence
-- Prerequisite: SPRINT-09 completed.
+- Prerequisite: SPRINT-10 completed.
 - Coherence rule: Application discovery may combine deterministic graph signals and AI interpretation, but membership/rationale must remain traceable to Assessment evidence.
 
 ## Goal
 Group technical objects into functional custom applications.
 
 ## Planned capabilities
-- Build candidate clusters using dependencies/packages/transactions/semantic signals available.
+- Build candidate clusters using dependencies/packages/transactions/semantic signals plus reliable process/usage correlations when available.
 - Use AI to name/describe clusters and assign domain/confidence/rationale.
-- Persist application membership and related business rules.
+- Persist application membership, related business rules and relevant process/usage evidence links.
 - Allow simple manual rename, move-object and merge actions.
 
 ## Demonstrable outcome

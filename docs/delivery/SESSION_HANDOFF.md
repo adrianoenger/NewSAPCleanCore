@@ -3,7 +3,7 @@
 ## Current state
 SPRINT-07 (Consolidate Processing Flow) is **completed** on branch `main`, closed via `/clean-core-finish-sprint`. See `docs/delivery/results/SPRINT-07-RESULT.md` for the full closure record.
 
-This sprint was inserted before the sprint previously numbered SPRINT-07 (AI Object Understanding, now **SPRINT-08**); sprints previously numbered 08-15 shifted to 09-16 — see `development-roadmap.md` and `EXECUTION_STATE.yaml`.
+After SPRINT-07 was completed, ADR-017 introduced a new future SPRINT-08 for Supplemental Evidence Foundation. Completed Sprints 00–07 remain unchanged; the former future Sprints 08–16 are now 09–17 — see `development-roadmap.md` and `EXECUTION_STATE.yaml`.
 
 ## Why this sprint existed
 SPRINT-06's durable pipeline ("Pipeline de Processamento") duplicated Step 1's ingestion scan and lived as an orphan, unnumbered nav item between "1 - Ingestão" and "2 - Análise ATC", while the canonical Baseline R3.2 / ADR-015 third step ("3 - Processamento por IA") was still an empty placeholder. This sprint finished what SPRINT-06 started: the durable engine is now the real Step 3.
@@ -34,11 +34,13 @@ SPRINT-06's durable pipeline ("Pipeline de Processamento") duplicated Step 1's i
 
 ## Known deferrals / backlog
 - ATC import remains standalone, not wrapped as a pipeline stage — see `BACKLOG.md` BL-002. Untouched by this sprint (ADR-016).
-- Future AI-processing stages (SPRINT-08+) should register with the same `StageDefinition`/`PipelineRun` engine rather than build a parallel mechanism — see BL-003.
-- **BL-004 (new)**: reprocessing Step 3 recreates `SAPObject` rows per `source_file_id`, which can break `ATCFinding.correlated_object_id`. Out of scope for this sprint (ATC untouched); needs a human decision on stable object identity or a re-correlation pass.
+- Supplemental evidence work in SPRINT-08 and future AI-processing stages (SPRINT-09+) must register with the same `StageDefinition`/`PipelineRun` engine rather than build a parallel mechanism — see BL-003.
+- **BL-004 (promoted into SPRINT-08 architecture)**: reprocessing Step 3 recreates `SAPObject` rows per `source_file_id`, which can break ATC and future supplemental-evidence correlations. SPRINT-08 must implement stable identity/upsert semantics or deterministic re-correlation before downstream evidence use.
 
 ## Next sprint
-SPRINT-08: **AI Object Understanding** — slug `ai-object-understanding`. Not started. Its first planned capability (`AIProvider` abstraction with Bedrock/Azure Foundry adapters) will need real provider credentials — none are configured anywhere in this repo today (no `.env`, no AWS/Bedrock fields in `settings.py` or `compose.yml`); this must be sourced from the user before that work can be validated end to end.
+SPRINT-08: **Supplemental Evidence Foundation** — slug `supplemental-evidence-foundation`. Not started. It introduces adapter-based imports for Panaya ETL, SAP Signavio Process Insights and FUE User Validation, plus canonical evidence dataset persistence/correlation and SAPObject identity stability required by those correlations. It does not require LLM provider credentials.
+
+SPRINT-09 remains **AI Object Understanding**. Bedrock/Azure Foundry credentials will be required when SPRINT-09 starts.
 
 ## Restart instructions
 Run `/clean-core-run-sprint` to start SPRINT-08.

@@ -1,7 +1,7 @@
-# SPRINT-14 — Result Navigation Perspectives
+# SPRINT-15 — Result Navigation Perspectives
 
 ## Position in the sequence
-- Prerequisite: SPRINT-13 completed.
+- Prerequisite: SPRINT-14 completed.
 - Coherence rule: All perspectives operate over the same Assessment and preserve the permanent right-side Copilot context.
 
 ## Goal
@@ -14,7 +14,8 @@ Deliver the complete results information architecture over the same Assessment.
 - Implement Functional View, including user validation/correction of AI interpretation.
 - Implement Architecture View.
 - Preserve Assessment and Copilot context across view changes.
-- Provide drill-down continuity from high-level KPIs/recommendations to findings, rules, objects, code and evidence.
+- Provide drill-down continuity from high-level KPIs/recommendations to findings, rules, objects, code and source/ATC/supplemental evidence.
+- Surface dataset/capability provenance where process or usage evidence contributes to a result.
 
 ## Demonstrable outcome
 Open one completed Assessment, move among Dashboard Geral and all four views without losing Assessment/Copilot context, and drill from a high-level insight to its supporting evidence.

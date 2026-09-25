@@ -8,6 +8,7 @@
     - `SourceFile`
     - `SAPObject`
     - `ATCRun` / `ATCFinding`
+    - `EvidenceDataset` / `EvidenceArtifact` / `EvidenceRecord` / `EvidenceCorrelation`
     - `Evidence`
     - `Finding`
     - `BusinessRule`
@@ -50,6 +51,19 @@ The XLSX layout is variable. `ATCRun` therefore also owns import provenance such
 `ATCFinding` uses nullable canonical fields plus raw evidence. Recommended import-provenance fields include `source_row_number`, `raw_payload` (`JSONB`), optional `normalized_payload`, `row_fingerprint` and structured mapping warnings. Unknown source columns are preserved rather than discarded. Missing optional ATC columns do not invalidate the whole run.
 
 Object correlation must remain explicit (`MATCHED_EXACT`, `MATCHED_HEURISTIC`, `UNMATCHED`, `AMBIGUOUS`) and Assessment-scoped.
+
+### Supplemental evidence datasets
+Optional landscape exports are modeled separately from `SourceFile` and `SAPObject`:
+- `EvidenceDataset` identifies one imported package/version and its adapter, source hash, status, source-system hints, capabilities, manifest and warnings.
+- `EvidenceArtifact` identifies physical members/files belonging to the dataset.
+- `EvidenceRecord` stores normalized technical/process/usage/user-role signals plus mandatory source provenance.
+- `EvidenceCorrelation` explicitly links a record to canonical entities with a correlation status/method; ambiguity is preserved.
+
+Initial dataset types are `PANAYA_ETL`, `SIGNAVIO_PROCESS_INSIGHTS`, `FUE_USER_VALIDATION`, and `OTHER`. Provider-specific structure is confined to adapters and normalized payloads. No new Panaya/Signavio/FUE-specific aggregate is introduced.
+
+`EvidenceRecord` is imported material; `Evidence` remains the explainability object referenced by findings, rules and recommendations. A selected `EvidenceRecord` can be referenced/promoted through `Evidence` while retaining dataset/artifact/locator provenance.
+
+Process and usage evidence may inform `business_importance`, application discovery and retirement/modernization rationale, but it must not be treated as proof of causality between a custom object and a business KPI without a valid correlation chain.
 
 ### BusinessRule
 Suggested fields:

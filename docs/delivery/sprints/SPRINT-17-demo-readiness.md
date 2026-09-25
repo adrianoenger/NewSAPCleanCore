@@ -1,7 +1,7 @@
-# SPRINT-16 — Demo Readiness
+# SPRINT-17 — Demo Readiness
 
 ## Position in the sequence
-- Prerequisite: SPRINT-15 completed.
+- Prerequisite: SPRINT-16 completed.
 - Coherence rule: Demo hardening must preserve the accepted architecture and lean-test strategy; avoid introducing enterprise-scale scope solely for polish.
 
 ## Goal
@@ -11,11 +11,11 @@ Polish the complete PoC journey.
 - Refine responsive/resizable three-panel UX.
 - Integrate Monaco for source and React Flow for dependencies where not already complete.
 - Add useful empty/loading/error states.
-- Provide a reproducible reference/demo assessment.
+- Provide a reproducible reference/demo assessment including compact representative supplemental-evidence fixtures or pre-imported evidence results.
 - Run end-to-end demo path and fix blocking defects only.
 
 ## Demonstrable outcome
-Run the full demo from assessment selection through dashboards, code evidence and contextual Copilot exploration.
+Run the full demo from assessment selection through source + supplemental evidence, dashboards, code evidence and contextual Copilot exploration.
 
 ## Minimal validation
 - Primary user flow for this sprint works.

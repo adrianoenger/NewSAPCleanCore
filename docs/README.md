@@ -1,6 +1,6 @@
 # SAP Clean Core Analyzer — Documentation Index
 
-> Status: baseline de documentação da PoC atualizada em 24/09/2026 — R3.2.
+> Status: baseline de documentação da PoC atualizada em 25/09/2026 — R3.3.
 
 Este diretório consolida a documentação funcional, de dados, arquitetura e experiência de usuário da PoC **SAP Clean Core Analyzer**.
 
@@ -15,6 +15,7 @@ Este diretório consolida a documentação funcional, de dados, arquitetura e ex
 7. A PoC utiliza uma estratégia de testes enxuta, priorizando fluxos críticos, contratos principais, persistência, retomada do pipeline e integrações centrais.
 8. O design padrão é **Dark Enterprise**, com **#E30074** como cor oficial T-Systems para ações primárias, seleção, foco, IA e identidade.
 9. Relatórios ATC em `.xlsx` são tratados como fontes semi-estruturadas: colunas opcionais/novas não devem quebrar a ingestão; dado bruto e mapeamento devem ser preservados.
+10. Exportações complementares de landscape/processo/uso entram por uma camada genérica de **Evidence Datasets**, com adapters por formato, proveniência obrigatória e correlação explícita; não viram novos tipos de `SAPObject`.
 
 ## Documentos de design e experiência
 
@@ -45,9 +46,13 @@ Esses documentos preservam o histórico e o detalhamento da modelagem/analítica
 
 ## Current product correction — 2026-09-24
 
-Baseline R3.2 also completes the Sprint 04 insertion cleanup: the future roadmap now has exactly one canonical sprint definition per number (05–15), obsolete pre-renumbering files were removed, and Sprint 04 progress was normalized under `delivery/sprints/`.
+Baseline R3.3 preserves completed Sprints 00–07 and inserts a new Sprint 08 for Supplemental Evidence Foundation. Former future Sprints 08–16 were shifted to 09–17, with exactly one canonical definition per sprint number.
 
 ATC import is governed by `data/atc-import-contract.md` and `adr/016-variable-atc-xlsx-import.md`: the reviewed 21-column sample is a reference, not a fixed schema.
 
 
 The canonical UX/domain model is Assessment-centric: `Client → Assessment`, with `sap_source_system` as Assessment metadata. The application starts on Assessments Home without a left sidebar; the Assessment sidebar appears only after an Assessment is opened; the AI Copilot stays on the right. See `adr/015-assessment-centric-workspace.md` and `delivery/IMPLEMENTATION_BASELINE.md`.
+
+
+## Supplemental evidence architecture — 2026-09-25
+ADR-017 and `data/supplemental-evidence-import-contract.md` define the optional evidence path for Panaya ETL, SAP Signavio Process Insights and FUE User Validation. These packages are handled inside Step 1 as complementary evidence sources and feed the shared Assessment evidence graph before downstream AI/Clean Core intelligence.

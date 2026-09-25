@@ -1,13 +1,14 @@
-# SPRINT-08 — AI Object Understanding
+# SPRINT-09 — AI Object Understanding
 
 ## Position in the sequence
-- Prerequisite: SPRINT-07 completed.
+- Prerequisite: SPRINT-08 completed.
 - Coherence rule: AI work runs through the provider abstraction and must support AWS Bedrock and Azure AI Foundry without domain coupling to either SDK.
 
 ## Goal
 Introduce provider-agnostic structured LLM processing.
 
 ## Planned capabilities
+- Build the object evidence package from canonical source facts, ATC and correlated supplemental evidence capabilities; provider-specific schemas must not leak into prompts/domain logic.
 - Implement AIProvider abstraction with Bedrock and Azure Foundry adapters.
 - Implement versioned prompt/schema registry.
 - Build Object Understanding structured contract and validators.
@@ -15,7 +16,7 @@ Introduce provider-agnostic structured LLM processing.
 - Persist model/provider/prompt/schema provenance.
 
 ## Demonstrable outcome
-Open an object and see validated functional/technical purpose, concepts and confidence produced by selected provider.
+Open an object and see validated functional/technical purpose, concepts and confidence produced by the selected provider, with links to source/ATC/supplemental evidence actually used.
 
 ## Minimal validation
 - Primary user flow for this sprint works.

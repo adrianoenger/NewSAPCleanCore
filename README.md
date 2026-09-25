@@ -1,6 +1,6 @@
-# SAP Clean Core Analysis PoC — Documentation Baseline R3.1
+# SAP Clean Core Analysis PoC — Documentation Baseline R3.3
 
-**Baseline date:** 2026-09-24  
+**Baseline date:** 2026-09-25  
 **Purpose:** canonical documentation for the initial PoC generation of the SAP Clean Core analysis application.
 
 This repository is documentation-first. The existing notebook-based solution is a source of proven parsing and analysis ideas, not the target runtime architecture.
@@ -34,6 +34,7 @@ Transform a large set of SAP/ABAP artifacts into structured technical knowledge,
 - The left sidebar is hidden on Assessments Home and appears only inside an Assessment.
 - Prefer deterministic extraction for facts; use AI for interpretation; use SAP knowledge providers for authoritative guidance.
 - Treat ATC XLSX as semi-structured external evidence: preserve raw rows/header mapping and tolerate optional/additional columns.
+- Treat Panaya ETL, SAP Signavio Process Insights and FUE User Validation as optional supplemental evidence datasets behind adapter contracts; preserve provenance/correlation and never make provider schemas part of `SAPObject`.
 - Persist long-running processing state so work can pause, resume, retry and recover.
 - The application opens on Assessments Home; inside an Assessment, results are explored through Dashboard Geral plus Executive, Technical, Functional and Architecture views.
 - The right side of the application is permanently dedicated to the AI Copilot.

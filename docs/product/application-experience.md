@@ -53,7 +53,7 @@ Portfolio/list of analyzed SAP applications with concise indicators: objects, de
 
 ### New SAP Analysis
 
-Connect/select SAP source and start discovery. The target architecture uses direct SAP collection through RFC/PyRFC integrated into the Python pipeline.
+Connect/select SAP source and start discovery. The target architecture uses direct SAP collection through RFC/PyRFC integrated into the Python pipeline. The same ingestion area may also attach optional supplemental evidence datasets (Panaya ETL, SAP Signavio Process Insights, FUE User Validation) through provider adapters; these enrich rather than replace canonical SAP source acquisition.
 
 ### Analysis Run
 

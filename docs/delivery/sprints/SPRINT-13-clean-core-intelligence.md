@@ -1,21 +1,21 @@
-# SPRINT-12 — Clean Core Intelligence
+# SPRINT-13 — Clean Core Intelligence
 
 ## Position in the sequence
-- Prerequisite: SPRINT-11 completed.
+- Prerequisite: SPRINT-12 completed.
 - Coherence rule: Clean Core conclusions must keep Technical Risk, Business Importance and Recommendation separate and evidence-backed.
 
 ## Goal
 Produce evidence-based Clean Core conclusions.
 
 ## Planned capabilities
-- Implement Technical Risk and Business Importance separately.
+- Implement Technical Risk and Business Importance separately; Business Importance may use process/usage/user-role evidence only when provenance and correlation quality are sufficient.
 - Implement recommendation enum and Review fallback.
-- Assemble evidence packages for object/application analysis.
-- Validate supporting evidence and SAP guidance references.
+- Assemble evidence packages for object/application analysis across source, ATC, supplemental datasets and SAP guidance.
+- Validate supporting evidence/correlation quality and SAP guidance references.
 - Build recommendation/risk dashboards and drill-down.
 
 ## Demonstrable outcome
-Open an application, see risk/importance/recommendation, and navigate through the supporting evidence.
+Open an application, see risk/importance/recommendation, understand whether process/usage signals affected the rationale, and navigate through the supporting evidence.
 
 ## Minimal validation
 - Primary user flow for this sprint works.

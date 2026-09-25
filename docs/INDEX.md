@@ -22,6 +22,7 @@
 - `data/domain-model.md`
 - `data/persistence-model.md`
 - `data/atc-import-contract.md`
+- `data/supplemental-evidence-import-contract.md`
 
 ## AI
 - `ai/ai-architecture.md`
@@ -61,4 +62,5 @@
 ## Current baseline correction
 - `adr/015-assessment-centric-workspace.md` — Client → Assessment, Assessments Home, conditional sidebar and permanent Copilot.
 - `adr/016-variable-atc-xlsx-import.md` — schema-tolerant ATC XLSX ingestion with raw evidence preservation.
+- `adr/017-supplemental-evidence-datasets.md` — adapter-based supplemental evidence datasets, provenance, correlation and large-file handling.
 - `delivery/CLAUDE_CODE_ALIGNMENT_PROMPT.md` — historical/completed alignment prompt that produced Sprint 04; not the next execution instruction.

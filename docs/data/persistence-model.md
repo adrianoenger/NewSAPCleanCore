@@ -7,7 +7,7 @@ PostgreSQL + pgvector through SQLAlchemy. Schema evolution uses Alembic migratio
 
 ```text
 client 1 ───── N assessment
-assessment 1 ───── N source_scan / source_file / sap_object / atc_run / ...
+assessment 1 ───── N source_scan / source_file / sap_object / atc_run / evidence_dataset / ...
 ```
 
 ### `client`
@@ -56,6 +56,19 @@ Use `assessment_id` as the ownership boundary for relevant entities such as:
 - Clean Core assessments/recommendations;
 - embeddings and aggregations.
 
+## Stable SAP object identity
+SPRINT-08 must resolve the existing reprocessing/correlation weakness before adding more external evidence links. `SAPObject.id` must not change merely because the same logical object is parsed again.
+
+Recommended approach for the PoC:
+- add a stable `canonical_key` (or equivalent unique semantic identity) scoped to `assessment_id`;
+- derive it deterministically from normalized object type/name plus parent/subobject identity where required;
+- parse/reprocess by upsert/reconciliation rather than unconditional delete/recreate;
+- update the current source occurrence/location while retaining the stable object identity;
+- mark/remove objects no longer present only after the current scan reconciliation is known complete;
+- re-run exact/heuristic ATC and supplemental evidence correlation when identity-relevant attributes change.
+
+This stable key is an internal correlation mechanism, not a globally portable SAP identifier.
+
 ## Variable ATC persistence contract
 `atc_run` and `atc_finding` must not encode the reviewed Excel layout as a rigid database contract.
 
@@ -93,3 +106,21 @@ See `data/atc-import-contract.md` and ADR-016.
 
 ## Existing ingestion records
 Existing source scan/file data remain conceptually valid. Their ownership follows the Assessment and must survive the hierarchy correction whenever reasonably possible.
+
+
+## Supplemental evidence persistence
+Add forward-only Alembic migrations when SPRINT-08 implements ADR-017. Recommended tables are:
+
+### `evidence_dataset`
+Assessment-scoped import run/package metadata: dataset type, filename/hash/size, importer/version, status, source-system/client hints, extraction timestamp, capability list, manifest and warnings.
+
+### `evidence_artifact`
+Dataset member metadata: logical/member name, artifact role, size/hash/media hint and optional storage/path reference. Large source bytes are not copied into PostgreSQL.
+
+### `evidence_record`
+Normalized evidence unit: record type/capability, source key/fingerprint, normalized payload, optional bounded raw payload and mandatory source locator. Add indexes only for fields needed by correlation/search in the PoC; avoid EAV-style over-modeling.
+
+### `evidence_correlation`
+Explicit relationship between an evidence record and a canonical target. Persist status, method, optional score and matched-key rationale. Heuristic matches must remain distinguishable from exact matches.
+
+Provider-specific tables (`panaya_*`, `signavio_*`, `fue_*`) are not the default architecture. Introduce one only if a demonstrated query/performance requirement cannot be served by the canonical dataset/record model.

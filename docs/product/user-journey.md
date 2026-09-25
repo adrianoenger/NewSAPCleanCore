@@ -34,6 +34,11 @@ Resultado
 4. Select a directory through Electron.
 5. Start scan explicitly.
 6. Observe discovery/classification/parsing progress and persisted inventory.
+7. Optionally open **Fontes complementares / Evidências adicionais** and import one or more supported evidence packages.
+8. Inspect detected dataset type, source fingerprint, available capabilities and warnings before/after import.
+9. Observe import/correlation summary; partial capability is allowed when a package is readable but a specific payload profile is not yet supported.
+
+Initial supplemental profiles: Panaya ETL, SAP Signavio Process Insights and FUE User Validation. These imports enrich the same Assessment; they do not replace direct SAP/PyRFC source acquisition or the dedicated ATC step.
 
 ### 2 - Análise ATC
 1. Select an ATC `.xlsx` report.
@@ -49,7 +54,7 @@ Resultado
 1. Start/resume Assessment processing.
 2. Observe stage-by-stage durable progress.
 3. Pause/resume/retry as supported.
-4. Produce object understanding, business rules, applications, Clean Core interpretation, recommendations and embeddings.
+4. Consume persisted source/object facts, ATC and any available supplemental evidence/correlations to produce object understanding, business rules, applications, Clean Core interpretation, recommendations and embeddings.
 5. On completion, show preliminary KPIs: analyzed objects, identified customizations, critical findings, high-impact objects and identified business rules.
 
 ## Results mode

@@ -1,20 +1,20 @@
-# SPRINT-13 — Embeddings and Semantic Retrieval
+# SPRINT-14 — Embeddings and Semantic Retrieval
 
 ## Position in the sequence
-- Prerequisite: SPRINT-12 completed.
+- Prerequisite: SPRINT-13 completed.
 - Coherence rule: Semantic retrieval is Assessment-scoped and complements structured facts; it must not become the authoritative persistence model.
 
 ## Goal
 Enable semantic exploration without replacing structured facts.
 
 ## Planned capabilities
-- Create embeddings for semantic entities with metadata filters.
+- Create embeddings for semantic entities with metadata filters, including selected normalized process/evidence summaries where semantically useful; do not embed opaque/raw bulk payloads.
 - Store vectors in pgvector.
 - Implement assessment-scoped semantic search service.
 - Add a simple semantic search UI/debug endpoint.
 
 ## Demonstrable outcome
-Search for a business concept and retrieve relevant rules/applications/objects only from the active assessment.
+Search for a business concept and retrieve relevant rules/applications/objects/process evidence only from the active assessment.
 
 ## Minimal validation
 - Primary user flow for this sprint works.

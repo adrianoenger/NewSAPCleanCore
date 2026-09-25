@@ -11,6 +11,8 @@ Electron + React (host)
 FastAPI / Python (Dev Container)
         │
         ├── ingestion & parsing
+        ├── supplemental evidence adapters
+        ├── evidence correlation / graph
         ├── dependency / ATC analysis
         ├── durable pipeline manager
         ├── AI services
@@ -58,6 +60,9 @@ backend/src/
   domain/
   ingestion/
   parsers/
+  evidence_import/
+    adapters/
+    correlation/
   dependencies/
   atc/
   findings/
@@ -74,6 +79,8 @@ backend/src/
 
 
 ## Assessment-centric ownership
-The runtime domain boundary is `Client → Assessment`. The source SAP system is Assessment metadata (`sap_source_system`), not an independently managed aggregate. Source scans, parsed objects, ATC findings, pipeline state, AI outputs and results are Assessment-scoped.
+The runtime domain boundary is `Client → Assessment`. The source SAP system is Assessment metadata (`sap_source_system`), not an independently managed aggregate. Source scans, parsed objects, ATC findings, supplemental evidence datasets, evidence correlations, pipeline state, AI outputs and results are Assessment-scoped.
+
+Supplemental packages such as Panaya ETL, SAP Signavio Process Insights and FUE User Validation are imported through adapters into an Assessment evidence layer. They do **not** become `SAPObject` subtypes and downstream domain services do not depend on provider-specific schemas.
 
 The React shell has two states: Assessments Home without a left sidebar, and Assessment Workspace with the left process/results sidebar. The right-side Copilot remains present in both.

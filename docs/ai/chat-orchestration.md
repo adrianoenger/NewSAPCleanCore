@@ -19,6 +19,7 @@ The chat orchestrator chooses one or more sources:
 - SQL/structured query for counts and facts;
 - semantic retrieval for conceptual matches;
 - source retrieval for code/evidence;
+- supplemental evidence retrieval for process/usage/conversion/user-role context;
 - SAP MCP for authoritative external guidance.
 
 A question may use multiple sources.
@@ -27,7 +28,7 @@ A question may use multiple sources.
 Return:
 - answer text;
 - citations/references to internal entities/evidence;
-- optional navigation actions (`open_object`, `open_source`, `open_finding`, `open_rule`, `open_application`, `open_sap_guidance`).
+- optional navigation actions (`open_object`, `open_source`, `open_finding`, `open_rule`, `open_application`, `open_evidence_dataset`, `open_evidence_record`, `open_sap_guidance`).
 
 ## Behavior
 - Preserve conversation across Assessments Home / Assessment transitions as appropriate and across view changes within an Assessment.

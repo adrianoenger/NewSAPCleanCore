@@ -14,7 +14,7 @@ Use documents in this order:
 
 If documents conflict, the higher item wins. Do not infer enterprise requirements that the PoC explicitly excludes.
 
-Current structural invariant: `Client → Assessment`; `sap_source_system` is Assessment metadata. Historical Sprint 01/02 result files describe previous implementation and never override Baseline R3.2 / ADR-015. ATC implementation must follow ADR-016 and `docs/data/atc-import-contract.md`; never hard-code the reviewed sample as the only valid XLSX schema.
+Current structural invariant: `Client → Assessment`; `sap_source_system` is Assessment metadata. Historical Sprint 01/02 result files describe previous implementation and never override Baseline R3.3 / ADR-015. ATC implementation must follow ADR-016 and `docs/data/atc-import-contract.md`; never hard-code the reviewed sample as the only valid XLSX schema. Supplemental evidence implementation must follow ADR-017 and `docs/data/supplemental-evidence-import-contract.md`; provider-specific schemas stay behind adapters and large inputs use bounded-memory processing.
 
 ## Sprint execution rules
 - One sprint = one sprint branch = one official commit on `main`.
@@ -43,6 +43,7 @@ Current structural invariant: `Client → Assessment`; `sap_source_system` is As
 - Do not put Clean Core domain logic inside Electron/React. Domain processing belongs in Python backend modules.
 - Do not couple domain services directly to Bedrock, Azure Foundry or MCP SDK details. Use adapters/interfaces.
 - AI persisted outputs must be structured, schema validated, domain validated, and evidence-bound.
+- Imported supplemental evidence must retain dataset/artifact/record provenance and explicit correlation status; never fabricate correlations or decode unknown binary layouts by guesswork.
 - AI outputs are interpretation, not factual evidence by themselves.
 - Database schema evolution must use Alembic migrations once persistence is introduced.
 - Prefer a small reproducible seed/demo dataset for fast validation of each new capability.

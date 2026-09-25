@@ -1,6 +1,6 @@
 # ATC XLSX Import Contract
 
-**Status:** Canonical for Baseline 2026-09-24-R3.2  
+**Status:** Canonical and retained by Baseline 2026-09-25-R3.3  
 **Reference sample reviewed:** `ATC_20260427_ZandY_141515.xlsx`  
 **Scope:** Assessment stage `2 - Análise ATC`
 
