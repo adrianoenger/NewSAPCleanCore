@@ -5,7 +5,7 @@
 **Official commit:** resolve from Git history using `feat(sprint-04): complete assessment-centric product alignment`
 
 ## Delivered increment
-Corrective alignment of the entire application to the canonical `Client → Assessment` hierarchy defined by ADR-015 and Baseline R3.1. The independent `SAPSystem` entity was removed; `sap_source_system` is now an Assessment attribute. The Assessments Home screen replaced ClientHub as the application entry point, and all API, ORM, seed, and frontend components were updated consistently.
+Corrective alignment of the entire application to the canonical `Client → Assessment` hierarchy defined by ADR-015 and Baseline R3.2. The independent `SAPSystem` entity was removed; `sap_source_system` is now an Assessment attribute. The Assessments Home screen replaced ClientHub as the application entry point, and all API, ORM, seed, and frontend components were updated consistently.
 
 ## Demonstration path
 1. Start the application (`npm run dev` in `frontend/`; containers up).

@@ -1,25 +1,36 @@
 # Session Handoff
 
 ## Current state
-SPRINT-04 (Assessment-Centric Product Alignment) is **completed** — commit on `main`, branch deleted.
+SPRINT-05 (Dependencies, ATC and Technical Findings) is **completed** on branch `main`.
 
-Repository is on `main`, working tree clean, ready for SPRINT-05.
+## What was delivered
 
-## SPRINT-05 context
-SPRINT-05 slug: `dependencies-atc-and-technical-findings`
+### Backend
+- **Alembic 0006**: new tables `sap_object_dependency`, `atc_check`, `atc_run`, `atc_finding`, `technical_finding`.
+- **`parsing/dependency_detector.py`**: detects CALL_FUNCTION, INCLUDE, INHERITS_FROM, USES_TABLE from ABAP source.
+- **`atc/importer.py`**: schema-tolerant ATC XLSX importer (ADR-016 compliant):
+  - workbook/sheet discovery (prefers "Data", falls back to first non-empty sheet)
+  - header mapping by normalized alias (case-insensitive, whitespace-tolerant)
+  - raw payload + canonical normalization + row-level warnings
+  - ACCEPTED_FULL / ACCEPTED_PARTIAL / REJECTED status
+  - Excel serial date normalization for `First Found On`
+  - Sentinel values preserved in raw_payload
+- **`api/routes/dependencies.py`**: GET object dependencies, POST detect-dependencies (per object or all).
+- **`api/routes/atc.py`**: POST inspect (preview), POST import (persist), GET runs, GET run findings.
+- **`api/schemas/sprint05.py`**: Pydantic schemas.
+- **`api/schemas/ingestion.py`**: `ScanRead` now exposes `duration_seconds` (computed from `completed_at − started_at`).
+- **`pyproject.toml`**: added `openpyxl>=3.1`, `python-multipart>=0.0.9`.
 
-It introduces:
-- Dependency analysis between SAP objects (DB model, persistence, API, ObjectBrowser dependency graph)
-- ATC report import (`.xlsx`) per ADR-016 and `docs/data/atc-import-contract.md`
-- Technical findings persistence (derived from parsing + ATC correlation)
+### Frontend
+- **`components/atc/ATCImport.tsx`**: full ATC import panel (inspect → confirm → history with findings table).
+- **`components/parsing/ObjectBrowser.tsx`**: added `DependenciesPanel` in object detail view.
+- **`lib/api.ts`**: ATC and dependency fetchers/types. `ScanRecord` includes `duration_seconds`.
+- **`components/ingestion/SourceIngestion.tsx`**: exibe duração do scan (ex.: `3.2s`, `1m 14s`) ao lado do horário de conclusão e no histórico de scans.
+- **`components/shell/Sidebar.tsx`**: logo e botão "← Todos os assessments" retornam para a lista de assessments.
+- **`Workspace.tsx`**: `atc` view renderiza `ATCImport`.
 
-## Restart instructions for SPRINT-05
-1. Verify `docs/delivery/EXECUTION_STATE.yaml` shows `last_completed_sprint: SPRINT-04`, `next_sprint: SPRINT-05`.
-2. Run `/clean-core-run-sprint` to create `sprint/05-dependencies-atc-and-technical-findings` from synced `main` and begin implementation.
+## Next sprint
+SPRINT-06: **Durable Pipeline Execution** — slug `durable-pipeline-execution`.
 
-## Known implementation context for SPRINT-05
-- `backend/alembic/versions/` has up to `0005_assessment_centric_alignment`; next migration will be `0006`.
-- Demo scan result: 3,469 ABAP files under `assessments/{assessment_id}/scan_runs/{scan_run_id}/source_files` (Rodobens/Assessment01 seed).
-- `SAPObject` model exists with `object_name`, `object_type`, `source_file_id`, `assessment_id`, `metadata_json`.
-- `docs/data/atc-import-contract.md` and `docs/adr/ADR-016.md` define ATC XLSX import contract.
-- ATC findings must NOT overwrite each other (multiple runs per Assessment coexist).
+## Restart instructions
+Run `/clean-core-run-sprint` to start SPRINT-06.

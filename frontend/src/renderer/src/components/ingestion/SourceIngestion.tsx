@@ -117,6 +117,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return `${m}m ${s}s`
+}
+
 export function SourceIngestion({ assessmentId }: Props) {
   const queryClient = useQueryClient()
   const [selectedPath, setSelectedPath] = useState<string>('')
@@ -201,6 +208,7 @@ export function SourceIngestion({ assessmentId }: Props) {
     activeScan?.status === 'pending' || activeScan?.status === 'scanning'
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div>
@@ -318,6 +326,9 @@ export function SourceIngestion({ assessmentId }: Props) {
             {activeScan.completed_at && (
               <span className="text-text-tertiary">
                 Concluído às {new Date(activeScan.completed_at).toLocaleTimeString()}
+                {activeScan.duration_seconds != null && (
+                  <> · <span className="font-mono text-text-primary">{formatDuration(activeScan.duration_seconds)}</span></>
+                )}
               </span>
             )}
           </div>
@@ -408,11 +419,15 @@ export function SourceIngestion({ assessmentId }: Props) {
                 <ScanStatusIcon status={s.status} />
                 <span className="font-mono flex-1 truncate">{s.source_path}</span>
                 <span className="text-text-tertiary">{s.scanned_files} arqs</span>
+                {s.duration_seconds != null && (
+                  <span className="font-mono text-text-tertiary">{formatDuration(s.duration_seconds)}</span>
+                )}
               </button>
             ))}
           </div>
         </section>
       )}
+    </div>
     </div>
   )
 }

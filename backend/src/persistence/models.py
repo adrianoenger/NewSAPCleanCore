@@ -1,9 +1,10 @@
 """ORM models. Import every model module here so Alembic autogenerate sees the full metadata."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
-from sqlalchemy import JSON, BigInteger, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from persistence.database import Base
@@ -80,6 +81,19 @@ class Assessment(Base):
     )
     sap_objects: Mapped[list["SAPObject"]] = relationship(
         "SAPObject", back_populates="assessment", cascade="all, delete-orphan"
+    )
+    dependencies: Mapped[list["SAPObjectDependency"]] = relationship(
+        "SAPObjectDependency", back_populates="assessment", cascade="all, delete-orphan"
+    )
+    atc_runs: Mapped[list["ATCRun"]] = relationship(
+        "ATCRun", back_populates="assessment", cascade="all, delete-orphan"
+    )
+    atc_findings: Mapped[list["ATCFinding"]] = relationship(
+        "ATCFinding", back_populates="assessment", cascade="all, delete-orphan",
+        foreign_keys="ATCFinding.assessment_id",
+    )
+    technical_findings: Mapped[list["TechnicalFinding"]] = relationship(
+        "TechnicalFinding", back_populates="assessment", cascade="all, delete-orphan"
     )
 
 
@@ -185,3 +199,203 @@ class SAPObject(Base):
 
     assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="sap_objects")
     source_file: Mapped["SourceFile"] = relationship("SourceFile", back_populates="sap_objects")
+    dependencies: Mapped[list["SAPObjectDependency"]] = relationship(
+        "SAPObjectDependency", back_populates="source_object", cascade="all, delete-orphan",
+        foreign_keys="SAPObjectDependency.source_object_id",
+    )
+    atc_findings: Mapped[list["ATCFinding"]] = relationship(
+        "ATCFinding", back_populates="correlated_object", foreign_keys="ATCFinding.correlated_object_id"
+    )
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-05 domain models
+# ---------------------------------------------------------------------------
+
+
+class SAPObjectDependency(Base):
+    """A deterministic dependency detected between a parsed SAPObject and a target name."""
+
+    __tablename__ = "sap_object_dependency"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_object_id: Mapped[int] = mapped_column(
+        ForeignKey("sap_object.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    target_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    dep_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False, default="CERTAIN")
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    source_object: Mapped["SAPObject"] = relationship(
+        "SAPObject", back_populates="dependencies", foreign_keys=[source_object_id]
+    )
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="dependencies")
+
+
+class ATCCheck(Base):
+    """Catalog of ATC check types — dynamically discovered during import."""
+
+    __tablename__ = "atc_check"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    check_title: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    findings: Mapped[list["ATCFinding"]] = relationship("ATCFinding", back_populates="atc_check")
+
+
+class ATCRunStatus(str, Enum):
+    ACCEPTED_FULL = "ACCEPTED_FULL"
+    ACCEPTED_PARTIAL = "ACCEPTED_PARTIAL"
+    REJECTED = "REJECTED"
+    IN_PROGRESS = "IN_PROGRESS"
+
+
+class ATCRun(Base):
+    """One ATC XLSX import run for an Assessment."""
+
+    __tablename__ = "atc_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    selected_worksheet: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    original_headers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    canonical_mapping: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    unknown_headers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    missing_known_headers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    importer_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0")
+    imported_row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    validation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ATCRunStatus.IN_PROGRESS.value
+    )
+    warnings_summary: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="atc_runs")
+    findings: Mapped[list["ATCFinding"]] = relationship(
+        "ATCFinding", back_populates="atc_run", cascade="all, delete-orphan"
+    )
+
+
+class ATCCorrelationStatus(str, Enum):
+    MATCHED_EXACT = "MATCHED_EXACT"
+    MATCHED_HEURISTIC = "MATCHED_HEURISTIC"
+    UNMATCHED = "UNMATCHED"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
+class ATCFinding(Base):
+    """A single ATC finding row imported from an XLSX file."""
+
+    __tablename__ = "atc_finding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    atc_run_id: Mapped[int] = mapped_column(
+        ForeignKey("atc_run.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    row_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    normalized_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    mapping_warnings: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    # Canonical nullable fields
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    check_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    check_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    object_name_raw: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    object_type_raw: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    exemption_state: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_person: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    package_name_raw: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    first_found_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    object_responsible: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_changed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    sap_note_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sap_note_short_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    referenced_application_component: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    referenced_object_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    referenced_object_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    additional_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    simplification_item_category: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    change_category: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    change_category_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Correlation
+    correlation_status: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    correlated_object_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sap_object.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    atc_check_id: Mapped[int | None] = mapped_column(
+        ForeignKey("atc_check.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    atc_run: Mapped["ATCRun"] = relationship("ATCRun", back_populates="findings")
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="atc_findings")
+    correlated_object: Mapped["SAPObject | None"] = relationship(
+        "SAPObject", back_populates="atc_findings", foreign_keys=[correlated_object_id]
+    )
+    atc_check: Mapped["ATCCheck | None"] = relationship("ATCCheck", back_populates="findings")
+
+
+class TechnicalFindingSource(str, Enum):
+    PARSING = "PARSING"
+    ATC = "ATC"
+    COMBINED = "COMBINED"
+
+
+class TechnicalFindingSeverity(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
+
+
+class TechnicalFinding(Base):
+    """A deterministic technical finding derived from parsing, ATC import, or both."""
+
+    __tablename__ = "technical_finding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sap_object_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sap_object.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    atc_finding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("atc_finding.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    finding_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="technical_findings")
+    sap_object: Mapped["SAPObject | None"] = relationship("SAPObject", foreign_keys=[sap_object_id])
+    atc_finding: Mapped["ATCFinding | None"] = relationship("ATCFinding", foreign_keys=[atc_finding_id])

@@ -1,5 +1,9 @@
 # SPRINT-15 — Demo Readiness
 
+## Position in the sequence
+- Prerequisite: SPRINT-14 completed.
+- Coherence rule: Demo hardening must preserve the accepted architecture and lean-test strategy; avoid introducing enterprise-scale scope solely for polish.
+
 ## Goal
 Polish the complete PoC journey.
 

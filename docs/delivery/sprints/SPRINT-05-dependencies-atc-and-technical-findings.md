@@ -1,5 +1,9 @@
 # SPRINT-05 — Dependencies, ATC and Technical Findings
 
+## Position in the sequence
+- Prerequisite: SPRINT-04 completed.
+- Coherence rule: `Client → Assessment` hierarchy and Assessment workspace are already canonical. ATC import must follow ADR-016 and `docs/data/atc-import-contract.md`.
+
 ## Goal
 Build objective technical analysis before AI interpretation, including a schema-tolerant ATC XLSX importer.
 

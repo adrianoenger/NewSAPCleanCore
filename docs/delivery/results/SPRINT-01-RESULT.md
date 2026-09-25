@@ -1,4 +1,4 @@
-> **HISTORICAL RESULT NOTICE (2026-09-24):** This is an accurate record of what Sprint 01 implemented. Its `SAPSystem` hierarchy is intentionally superseded by ADR-015 / Baseline R3.1 and will be corrected in Sprint 04. Do not reinterpret this result file as current architecture.
+> **HISTORICAL RESULT NOTICE (2026-09-24):** This is an accurate record of what Sprint 01 implemented. Its `SAPSystem` hierarchy is intentionally superseded by ADR-015 / Baseline R3.2 and will be corrected in Sprint 04. Do not reinterpret this result file as current architecture.
 
 # SPRINT-01 Result — Client, SAP System and Assessment
 

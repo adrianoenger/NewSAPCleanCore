@@ -1,4 +1,6 @@
-# Claude Code Prompt — Align Existing Code to Baseline R3.1 / ADR-015
+# Claude Code Prompt — Historical Sprint 04 Alignment (Baseline R3.2 / ADR-015)
+
+> **Historical/completed instruction.** This prompt documents the corrective alignment that produced the completed Sprint 04. Do not execute it again as the next development step. Current execution state starts from `EXECUTION_STATE.yaml` and the canonical sprint sequence in `development-roadmap.md`.
 
 Use this prompt only after the updated documentation package has replaced the current `/docs` and root documentation files.
 
@@ -199,7 +201,7 @@ At minimum validate:
 ## Documentation during implementation
 Update Sprint 04 progress and `SESSION_HANDOFF.md` as checkpoints are validated. Record any migration compromise or compatibility shim explicitly.
 
-Do not modify accepted product architecture to make the old code easier to keep. The code must adapt to Baseline R3.1 / ADR-015.
+Do not modify accepted product architecture to make the old code easier to keep. The code must adapt to Baseline R3.2 / ADR-015.
 
 When all Sprint 04 capabilities and minimal validations are complete, leave the sprint `ready_for_review`. Do not create the official sprint commit except through `/clean-core-finish-sprint`.
 

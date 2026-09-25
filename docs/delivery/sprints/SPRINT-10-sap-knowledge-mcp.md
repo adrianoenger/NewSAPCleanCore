@@ -1,5 +1,9 @@
 # SPRINT-10 — SAP Knowledge MCP
 
+## Position in the sequence
+- Prerequisite: SPRINT-09 completed.
+- Coherence rule: SAP knowledge enriches local analysis; it does not replace local evidence or become an indiscriminate RAG copy.
+
 ## Goal
 Enrich relevant findings and applications with SAP knowledge.
 

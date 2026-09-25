@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw } from 'lucide-react'
-import { fetchSAPObject, fetchSAPObjects, fetchScans, triggerParse, type SAPObjectRecord } from '@/lib/api'
+import { fetchObjectDependencies, fetchSAPObject, fetchSAPObjects, fetchScans, triggerParse, type SAPObjectRecord } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -62,6 +62,49 @@ function AttributeTable({ attrs }: { attrs: Record<string, unknown> }) {
   )
 }
 
+const DEP_TYPE_LABEL: Record<string, string> = {
+  CALL_FUNCTION: 'CALL FUNCTION',
+  INCLUDE: 'INCLUDE',
+  INHERITS_FROM: 'INHERITS FROM',
+  USES_TABLE: 'USES TABLE',
+}
+
+const DEP_TYPE_COLOR: Record<string, string> = {
+  CALL_FUNCTION: 'text-purple-400',
+  INCLUDE: 'text-cyan-400',
+  INHERITS_FROM: 'text-amber-400',
+  USES_TABLE: 'text-emerald-400',
+}
+
+function DependenciesPanel({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['dependencies', assessmentId, objectId],
+    queryFn: () => fetchObjectDependencies(assessmentId, objectId),
+  })
+
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Loading dependencies…</div>
+  if (!data || data.total === 0) return null
+
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-medium text-text-secondary">Dependencies ({data.total})</div>
+      <div className="space-y-1">
+        {data.dependencies.map((dep) => (
+          <div key={dep.id} className="flex items-center gap-2 rounded bg-surface-elevated px-2 py-1 text-[11px]">
+            <span className={cn('w-28 shrink-0 font-mono text-[10px]', DEP_TYPE_COLOR[dep.dep_type] ?? 'text-text-tertiary')}>
+              {DEP_TYPE_LABEL[dep.dep_type] ?? dep.dep_type}
+            </span>
+            <span className="font-mono text-text-primary">{dep.target_name}</span>
+            {dep.source_line != null && (
+              <span className="ml-auto text-text-tertiary">:{dep.source_line}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
   const { data, isLoading } = useQuery({
     queryKey: ['sap-object-detail', assessmentId, objectId],
@@ -74,7 +117,7 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
     return null
 
   return (
-    <div className="flex h-full flex-col overflow-auto p-4 space-y-4">
+    <div className="h-full overflow-y-auto p-4 space-y-4">
       <div>
         <div className="text-[11px] text-text-tertiary uppercase tracking-wide">Object Name</div>
         <div className="mt-0.5 font-mono text-[14px] font-semibold text-text-primary">{data.object_name}</div>
@@ -90,6 +133,7 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
           <AttributeTable attrs={data.attributes} />
         </div>
       )}
+      <DependenciesPanel assessmentId={assessmentId} objectId={objectId} />
     </div>
   )
 }

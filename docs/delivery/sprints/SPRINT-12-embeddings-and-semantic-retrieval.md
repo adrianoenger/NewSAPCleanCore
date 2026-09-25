@@ -1,5 +1,9 @@
 # SPRINT-12 — Embeddings and Semantic Retrieval
 
+## Position in the sequence
+- Prerequisite: SPRINT-11 completed.
+- Coherence rule: Semantic retrieval is Assessment-scoped and complements structured facts; it must not become the authoritative persistence model.
+
 ## Goal
 Enable semantic exploration without replacing structured facts.
 

@@ -1,5 +1,9 @@
 # SPRINT-06 — Durable Pipeline Execution
 
+## Position in the sequence
+- Prerequisite: SPRINT-05 completed.
+- Coherence rule: Durable execution wraps the deterministic ingestion/parsing/dependency/ATC work already available; it must not change their domain contracts merely to simplify orchestration.
+
 ## Goal
 Make long processing recoverable and user-controllable.
 

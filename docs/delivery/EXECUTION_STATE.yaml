@@ -1,18 +1,18 @@
 project: sap-clean-core-analysis-poc
-baseline: 2026-09-24-R3
+baseline: 2026-09-24-R3.2
 status: not_started
 implementation_started: true
 active_sprint: null
 active_sprint_status: null
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-04
-next_sprint: SPRINT-05
-next_sprint_slug: dependencies-atc-and-technical-findings
+last_completed_sprint: SPRINT-05
+next_sprint: SPRINT-06
+next_sprint_slug: durable-pipeline-execution
 notes:
-  - SPRINT-04 completed (Assessment-centric product alignment per ADR-015).
-  - SAPSystem entity removed; Assessment has client_id + sap_source_system directly.
-  - Assessments Home is first screen; sidebar only inside assessment.
-  - Migration 0005_assessment_alignment at head; seed v6 demo data.
-  - 35/35 pytest; typecheck clean.
-  - SPRINT-05 is Dependencies + ATC + Technical Findings.
+  - SPRINT-05 completed (Dependencies, ATC and Technical Findings).
+  - Alembic 0006 at head: sap_object_dependency, atc_check, atc_run, atc_finding, technical_finding.
+  - ATC importer ADR-016 compliant; Assessment-scoped correlation; 59/59 pytest.
+  - ScanRead exposes duration_seconds; SourceIngestion displays scan duration.
+  - Navigation: logo + chevron button return to assessments home.
+  - SPRINT-06 next: Durable Pipeline Execution.

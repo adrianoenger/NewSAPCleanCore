@@ -1,0 +1,41 @@
+sprint: SPRINT-05
+branch: sprint/05-dependencies-atc-and-technical-findings
+status: completed
+progress_percent: 100
+started_at: "2026-09-24"
+completed_at: "2026-09-24"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: "Dependency model: SAPObjectDependency ORM + Alembic 0006 + dependency detection API"
+    status: done
+    validation: "59/59 pytest. Alembic 0006 applied. detect_dependencies unit tests pass."
+  - id: CAP-002
+    description: "ATC run model: ATCRun/ATCCheck/ATCFinding ORM + Alembic 0006 (same migration)"
+    status: done
+    validation: "59/59 pytest. ATCRun/ATCFinding/ATCCheck tables created."
+  - id: CAP-003
+    description: "ATC XLSX importer: workbook discovery, header mapping, raw preservation, normalization"
+    status: done
+    validation: "All 10 ATC contract validation cases tested and passing."
+  - id: CAP-004
+    description: "ATC import API: upload endpoint, diagnostics, import execution, multiple run support"
+    status: done
+    validation: "Inspect/import/list endpoints tested. Multiple runs coexist. Correlation scoped."
+  - id: CAP-005
+    description: "Technical findings model + derivation from parsing + ATC correlation"
+    status: done
+    validation: "TechnicalFinding ORM + derivation from ATC import in atc.py."
+  - id: CAP-006
+    description: "Frontend: ATCImport component, dependency explorer, ObjectBrowser extension"
+    status: done
+    validation: "ATCImport + DependenciesPanel components. typecheck clean."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - "Sprint started 2026-09-24. Branch sprint/05-dependencies-atc-and-technical-findings from main."
+  - "59/59 pytest. typecheck clean. Alembic 0006. openpyxl + python-multipart added."
+  - "Post-review UX: ScanRead schema exposes duration_seconds (computed); SourceIngestion displays scan duration."

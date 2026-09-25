@@ -1,5 +1,9 @@
 # SPRINT-07 — AI Object Understanding
 
+## Position in the sequence
+- Prerequisite: SPRINT-06 completed.
+- Coherence rule: AI work runs through the provider abstraction and must support AWS Bedrock and Azure AI Foundry without domain coupling to either SDK.
+
 ## Goal
 Introduce provider-agnostic structured LLM processing.
 

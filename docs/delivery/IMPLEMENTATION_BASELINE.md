@@ -1,7 +1,7 @@
 # Implementation Baseline
 
-**Baseline:** 2026-09-24-R3.1  
-**Supersedes:** 2026-09-24-R3
+**Baseline:** 2026-09-24-R3.2  
+**Supersedes:** 2026-09-24-R3.1
 
 ## Purpose
 This document is the implementation contract for the SAP Clean Core Analysis PoC. Claude Code must implement the architecture and product behavior described here and in accepted ADRs. Historical sprint result files describe what was built at that time; they do not override this baseline.

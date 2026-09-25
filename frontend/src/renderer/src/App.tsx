@@ -51,7 +51,7 @@ export function App() {
       ) : (
         <main
           data-region="workspace"
-          className="flex min-w-0 flex-1 flex-col bg-surface-background"
+          className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-background"
         >
           <AssessmentsHome ctx={ctx} />
         </main>

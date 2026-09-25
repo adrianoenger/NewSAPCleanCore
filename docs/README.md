@@ -1,6 +1,6 @@
 # SAP Clean Core Analyzer — Documentation Index
 
-> Status: baseline de documentação da PoC atualizada em 24/09/2026 — R3.1.
+> Status: baseline de documentação da PoC atualizada em 24/09/2026 — R3.2.
 
 Este diretório consolida a documentação funcional, de dados, arquitetura e experiência de usuário da PoC **SAP Clean Core Analyzer**.
 
@@ -44,6 +44,8 @@ Esses documentos preservam o histórico e o detalhamento da modelagem/analítica
 
 
 ## Current product correction — 2026-09-24
+
+Baseline R3.2 also completes the Sprint 04 insertion cleanup: the future roadmap now has exactly one canonical sprint definition per number (05–15), obsolete pre-renumbering files were removed, and Sprint 04 progress was normalized under `delivery/sprints/`.
 
 ATC import is governed by `data/atc-import-contract.md` and `adr/016-variable-atc-xlsx-import.md`: the reviewed 21-column sample is a reference, not a fixed schema.
 

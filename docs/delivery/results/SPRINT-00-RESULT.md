@@ -31,7 +31,7 @@ Runnable development foundation: Docker Compose stack with PostgreSQL + pgvector
 - VS Code "Reopen in Container" not exercised interactively (config validated against the same compose service).
 - Renderer CSP allows backend connections only to localhost/127.0.0.1.
 - Vite pinned to ^7 (electron-vite 5 peer range); TypeScript pinned to ~5.9.
-- MCP compose services deferred to SPRINT-09 per roadmap.
+- MCP compose services deferred to SPRINT-10 per the corrected roadmap.
 
 ## Deferred items
 - BL-001 — remove duplicate root `gitignore` file.

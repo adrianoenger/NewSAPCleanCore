@@ -1,5 +1,9 @@
 # SPRINT-13 — Result Navigation Perspectives
 
+## Position in the sequence
+- Prerequisite: SPRINT-12 completed.
+- Coherence rule: All perspectives operate over the same Assessment and preserve the permanent right-side Copilot context.
+
 ## Goal
 Deliver the complete results information architecture over the same Assessment.
 

@@ -105,6 +105,7 @@ export interface ScanRecord {
   error: string | null
   started_at: string
   completed_at: string | null
+  duration_seconds: number | null
 }
 
 export interface ScanDetail extends ScanRecord {
@@ -190,3 +191,124 @@ export const fetchSAPObject = (
   assessmentId: number,
   objectId: number,
 ): Promise<SAPObjectDetail> => api(`/assessments/${assessmentId}/objects/${objectId}`)
+
+// ---------------------------------------------------------------------------
+// SPRINT-05: Dependencies, ATC runs/findings
+// ---------------------------------------------------------------------------
+
+export interface DependencyRecord {
+  id: number
+  source_object_id: number
+  target_name: string
+  target_type: string | null
+  dep_type: string
+  source_line: number | null
+  confidence: string
+}
+
+export interface DependenciesResponse {
+  assessment_id: number
+  object_id: number
+  dependencies: DependencyRecord[]
+  total: number
+}
+
+export const fetchObjectDependencies = (
+  assessmentId: number,
+  objectId: number,
+): Promise<DependenciesResponse> =>
+  api(`/assessments/${assessmentId}/objects/${objectId}/dependencies`)
+
+export const detectAllDependencies = (assessmentId: number): Promise<{ assessment_id: number; objects_processed: number; dependencies_detected: number }> =>
+  api(`/assessments/${assessmentId}/detect-dependencies`, { method: 'POST' })
+
+export interface ATCDiagnostics {
+  worksheet: string
+  total_rows: number
+  recognized_columns: string[]
+  missing_known_columns: string[]
+  unknown_columns: string[]
+  original_headers: string[]
+  validation_status: string
+  warnings: string[]
+}
+
+export interface ATCRunRecord {
+  id: number
+  assessment_id: number
+  source_filename: string
+  selected_worksheet: string | null
+  original_headers: string[]
+  canonical_mapping: Record<string, unknown>
+  unknown_headers: string[]
+  missing_known_headers: string[]
+  importer_version: string
+  imported_row_count: number
+  warning_count: number
+  validation_status: string
+  warnings_summary: string[]
+  imported_at: string
+}
+
+export interface ATCRunListResponse {
+  assessment_id: number
+  runs: ATCRunRecord[]
+  total: number
+}
+
+export interface ATCFindingRecord {
+  id: number
+  atc_run_id: number
+  assessment_id: number
+  source_row_number: number
+  priority: number | null
+  check_title: string | null
+  check_message: string | null
+  object_name_raw: string | null
+  object_type_raw: string | null
+  exemption_state: string | null
+  package_name_raw: string | null
+  first_found_on: string | null
+  sap_note_number: string | null
+  correlation_status: string | null
+  correlated_object_id: number | null
+  mapping_warnings: string[]
+}
+
+export interface ATCFindingsResponse {
+  assessment_id: number
+  atc_run_id: number
+  findings: ATCFindingRecord[]
+  total: number
+  correlation_summary: Record<string, number>
+}
+
+export const inspectATCFile = async (assessmentId: number, file: File): Promise<ATCDiagnostics> => {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch(`${BACKEND_URL}/assessments/${assessmentId}/atc/inspect`, { method: 'POST', body: form })
+  if (!resp.ok) throw new Error(`inspectATCFile → ${resp.status}`)
+  return resp.json()
+}
+
+export const importATCFile = async (assessmentId: number, file: File): Promise<ATCRunRecord> => {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch(`${BACKEND_URL}/assessments/${assessmentId}/atc/import`, { method: 'POST', body: form })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body?.detail?.message ?? `importATCFile → ${resp.status}`)
+  }
+  return resp.json()
+}
+
+export const fetchATCRuns = (assessmentId: number): Promise<ATCRunListResponse> =>
+  api(`/assessments/${assessmentId}/atc/runs`)
+
+export const fetchATCFindings = (
+  assessmentId: number,
+  runId: number,
+  limit = 200,
+  offset = 0,
+): Promise<ATCFindingsResponse> =>
+  api(`/assessments/${assessmentId}/atc/runs/${runId}/findings?limit=${limit}&offset=${offset}`)

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class ScanCreate(BaseModel):
@@ -19,8 +19,15 @@ class ScanRead(BaseModel):
     error: str | None
     started_at: datetime
     completed_at: datetime | None
+    duration_seconds: float | None = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def compute_duration(self) -> "ScanRead":
+        if self.started_at and self.completed_at:
+            self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
+        return self
 
 
 class CategoryCount(BaseModel):

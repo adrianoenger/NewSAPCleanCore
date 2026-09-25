@@ -1,5 +1,6 @@
 import {
   BarChart2,
+  ChevronLeft,
   Code2,
   LayoutDashboard,
   Network,
@@ -58,19 +59,32 @@ export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps)
       data-region="sidebar"
       className="flex w-[236px] shrink-0 flex-col border-r border-border-default bg-surface-sidebar"
     >
-      {/* Logo / title */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-border-soft px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-control bg-brand text-[13px] font-medium">
+      {/* Logo / title — click to go home */}
+      <button
+        type="button"
+        onClick={() => ctx.setAssessment(null)}
+        className="flex h-14 w-full items-center gap-2.5 border-b border-border-soft px-4 hover:bg-surface-hover transition-colors"
+        title="Voltar para lista de assessments"
+      >
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control bg-brand text-[13px] font-medium">
           T
         </div>
-        <div className="leading-tight">
+        <div className="leading-tight text-left">
           <div className="text-[13.5px] font-medium">Clean Core Analyzer</div>
           <div className="text-[11px] text-text-tertiary">SAP · PoC</div>
         </div>
-      </div>
+      </button>
 
-      {/* Assessment context */}
+      {/* Assessment context + back button */}
       <div className="border-b border-border-soft px-4 py-3">
+        <button
+          type="button"
+          onClick={() => ctx.setAssessment(null)}
+          className="mb-2 flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary transition-colors"
+        >
+          <ChevronLeft className="h-3 w-3" strokeWidth={2} />
+          Todos os assessments
+        </button>
         <div
           data-testid="sidebar-context"
           className="truncate text-[12px] font-medium text-text-primary"
