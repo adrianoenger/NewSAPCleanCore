@@ -3,7 +3,20 @@
 from datetime import date, datetime
 from enum import Enum
 
-from sqlalchemy import JSON, BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,6 +107,9 @@ class Assessment(Base):
     )
     technical_findings: Mapped[list["TechnicalFinding"]] = relationship(
         "TechnicalFinding", back_populates="assessment", cascade="all, delete-orphan"
+    )
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
+        "PipelineRun", back_populates="assessment", cascade="all, delete-orphan"
     )
 
 
@@ -399,3 +415,122 @@ class TechnicalFinding(Base):
     assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="technical_findings")
     sap_object: Mapped["SAPObject | None"] = relationship("SAPObject", foreign_keys=[sap_object_id])
     atc_finding: Mapped["ATCFinding | None"] = relationship("ATCFinding", foreign_keys=[atc_finding_id])
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-06 domain models — durable pipeline execution (ADR-005)
+# ---------------------------------------------------------------------------
+
+
+class PipelineRunStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class StageRunStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class WorkItemStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class PipelineRun(Base):
+    """A durable, resumable run of the deterministic processing pipeline for one Assessment."""
+
+    __tablename__ = "pipeline_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    source_scan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_scan.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=PipelineRunStatus.PENDING.value
+    )
+    pause_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="pipeline_runs")
+    source_scan: Mapped["SourceScan | None"] = relationship("SourceScan")
+    stage_runs: Mapped[list["StageRun"]] = relationship(
+        "StageRun",
+        back_populates="pipeline_run",
+        cascade="all, delete-orphan",
+        order_by="StageRun.sequence",
+    )
+
+
+class StageRun(Base):
+    """One stage (scan / parse / detect_dependencies) of a PipelineRun, decomposed into WorkItems."""
+
+    __tablename__ = "stage_run"
+    __table_args__ = (UniqueConstraint("pipeline_run_id", "stage_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_run.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stage_key: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    depends_on: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=StageRunStatus.PENDING.value
+    )
+    total_items: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_items: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_items: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    pipeline_run: Mapped["PipelineRun"] = relationship("PipelineRun", back_populates="stage_runs")
+    work_items: Mapped[list["WorkItem"]] = relationship(
+        "WorkItem", back_populates="stage_run", cascade="all, delete-orphan"
+    )
+
+
+class WorkItem(Base):
+    """A single unit of work within a StageRun (e.g. one file or one SAP object)."""
+
+    __tablename__ = "work_item"
+    __table_args__ = (UniqueConstraint("stage_run_id", "item_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stage_run_id: Mapped[int] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=WorkItemStatus.PENDING.value, index=True
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    stage_run: Mapped["StageRun"] = relationship("StageRun", back_populates="work_items")

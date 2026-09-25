@@ -6,13 +6,13 @@ active_sprint: null
 active_sprint_status: null
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-05
-next_sprint: SPRINT-06
-next_sprint_slug: durable-pipeline-execution
+last_completed_sprint: SPRINT-06
+next_sprint: SPRINT-07
+next_sprint_slug: ai-object-understanding
 notes:
-  - SPRINT-05 completed (Dependencies, ATC and Technical Findings).
-  - Alembic 0006 at head: sap_object_dependency, atc_check, atc_run, atc_finding, technical_finding.
-  - ATC importer ADR-016 compliant; Assessment-scoped correlation; 59/59 pytest.
-  - ScanRead exposes duration_seconds; SourceIngestion displays scan duration.
-  - Navigation: logo + chevron button return to assessments home.
-  - SPRINT-06 next: Durable Pipeline Execution.
+  - SPRINT-06 completed (Durable Pipeline Execution).
+  - Alembic 0007 at head: pipeline_run, stage_run, work_item.
+  - Pipeline wraps scan/parse/detect_dependencies as work-item-driven stages; ATC import stays standalone (BL-002).
+  - Cooperative pause/resume, bounded+manual retry, and startup orphan recovery all verified live (API and browser).
+  - New frontend nav item "Pipeline de Processamento" (PipelineRunner.tsx).
+  - SPRINT-07 next: AI Object Understanding.

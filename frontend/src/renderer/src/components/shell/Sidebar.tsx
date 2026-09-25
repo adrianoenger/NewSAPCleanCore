@@ -9,6 +9,7 @@ import {
   UploadCloud,
   Cpu,
   BarChart3,
+  Workflow,
 } from 'lucide-react'
 import type { AssessmentContext } from '@/lib/useClientContext'
 import type { Connectivity } from '@/lib/useHealth'
@@ -24,6 +25,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'ingestion', label: '1 - Ingestão dos dados', icon: UploadCloud, group: 'clean-core' },
+  { id: 'pipeline', label: 'Pipeline de Processamento', icon: Workflow, group: 'clean-core' },
   { id: 'atc', label: '2 - Análise ATC', icon: ScrollText, group: 'clean-core' },
   { id: 'ai-processing', label: '3 - Processamento por IA', icon: Cpu, group: 'clean-core' },
   { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, group: 'resultado' },

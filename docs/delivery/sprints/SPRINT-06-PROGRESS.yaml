@@ -1,0 +1,46 @@
+sprint: SPRINT-06
+branch: sprint/06-durable-pipeline-execution
+status: completed
+progress_percent: 100
+started_at: "2026-09-24"
+completed_at: "2026-09-25"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: "Persistence: PipelineRun/StageRun/WorkItem ORM models + Alembic migration"
+    status: done
+    validation: "Alembic 0007 applied cleanly on top of 0006. Models added to persistence/models.py with CASCADE FKs to assessment/source_scan/stage_run."
+  - id: CAP-002
+    description: "Orchestration engine: stage/work-item state machine with DAG dependencies, wraps scan/parse/detect_dependencies handlers without changing their domain contracts"
+    status: done
+    validation: "backend/src/pipeline/{engine,stages}.py. Stage handlers call ingestion.classifier.classify, parsing.dispatcher.parse_file, parsing.dependency_detector.detect_dependencies unmodified. 68/68 pytest, including full scan->parse->detect_dependencies run against a synthetic dataset (test_pipeline_full_run_wraps_scan_parse_dependencies) and cross-run scoping (test_second_pipeline_run_dependencies_stage_ignores_other_scans)."
+  - id: CAP-003
+    description: "Cooperative pause/resume + bounded per-item retry"
+    status: done
+    validation: "test_pause_after_first_stage_then_resume (engine-level) + live smoke test: paused mid-scan at 250/3000 items, resumed, completed. test_bounded_retry_marks_item_failed_then_manual_retry_succeeds proves 3x bounded auto-retry then manual retry via API semantics."
+  - id: CAP-004
+    description: "Orphan recovery: requeue RUNNING work items/stage/pipeline to a resumable state on backend startup"
+    status: done
+    validation: "test_recover_orphans_requeues_running_work + live smoke test: SIGKILL'd the backend mid-scan (961/3000 completed), restarted, run automatically surfaced as status=paused/pause_requested=true with the running WorkItem/StageRun reset to pending and completed_items preserved; resume continued from 961 without reprocessing."
+  - id: CAP-005
+    description: "API: pipeline-run start/detail/list/pause/resume/retry-item routes + schemas"
+    status: done
+    validation: "backend/src/api/routes/pipeline.py + api/schemas/pipeline.py, wired in api/main.py. API contract tests: start/list/detail, pause rejects non-running (409), retry rejects non-failed (409)."
+  - id: CAP-006
+    description: "Frontend: PipelineRunner panel (stage progress, pause/resume, failed-item retry) + nav wiring"
+    status: done
+    validation: "components/pipeline/PipelineRunner.tsx; new 'Pipeline de Processamento' nav item in Sidebar/Workspace. npm run typecheck and npm run build both clean. Manually driven end to end in a real browser via Playwright against the electron-vite renderer dev server (localhost:5173): created client/assessment, started a pipeline, paused mid-scan, resumed, hit a deliberately failed item, clicked Retry, resumed again, reached full completion (801/801 across all 3 stages) with the failed-items panel clearing correctly."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-002: wrap ATC import as an optional pipeline stage (future)"
+  - "BL-003: wrap future AI-processing stages (SPRINT-07+) in the same engine"
+notes:
+  - "Sprint started 2026-09-24, closed out 2026-09-25. Branch sprint/06-durable-pipeline-execution from main."
+  - "Design: pipeline wraps existing scanner.py/dispatcher.py/dependency_detector.py handlers as work-item-driven stages (scan -> parse -> detect_dependencies); ATC import stays a standalone upload-triggered action per ADR-016 (unchanged contract). See BL-002."
+  - "Alembic 0007 (pipeline_run, stage_run, work_item) applied on the running dev DB. 68/68 pytest (63 pre-existing + 12 SPRINT-06 tests in test_sprint06.py; test_foundation.py health-contract literal bumped to 0007 per existing per-sprint convention)."
+  - "Live end-to-end smoke test (curl) against a synthetic 3000-file dataset: start -> pause mid-scan (cooperative) -> resume -> SIGKILL backend mid-scan (crash simulation) -> restart -> orphan recovery surfaced run as paused/resumable with progress intact -> resume -> full completion of scan+parse+detect_dependencies with real SAPObject/SAPObjectDependency rows persisted."
+  - "clean-core-review-sprint (first pass) returned READY_TO_FINISH: NO — CAP-006 had not been run in a real browser, and the retry endpoint's success path had no reliable evidence. Both were addressed: (1) manually drove the PipelineRunner UI end to end via Playwright, which surfaced two real bugs — runsQuery.refetchInterval never polled a freshly-created 'pending' run, and the activeRunId-selection useEffect raced a stale query cache and silently reverted the active run back to a previous one after clicking 'Iniciar Pipeline' — both fixed in PipelineRunner.tsx; (2) the same UI pass also caught a cross-run correctness bug in stages.py: _dependencies_prepare scoped objects by assessment_id instead of the current run's own scan, so a second pipeline run's detect_dependencies stage would try to reprocess every object ever parsed for the assessment, including ones from an earlier (possibly now-deleted) scan — fixed to scope via SourceFile.scan_id == run.source_scan_id, matching _parse_prepare's existing scoping, with a regression test (test_second_pipeline_run_dependencies_stage_ignores_other_scans). (3) Added test_retry_endpoint_success_path_then_resume_completes, which calls the real POST .../work-items/{id}/retry and POST .../resume HTTP routes (not just the engine) end to end."
+  - "npm run typecheck and npm run build (frontend) both clean. All UI smoke-test client/assessment DB rows and synthetic host directories removed afterward."

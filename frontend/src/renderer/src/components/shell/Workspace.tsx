@@ -1,6 +1,7 @@
 import { ATCImport } from '@/components/atc/ATCImport'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
 import { ObjectBrowser } from '@/components/parsing/ObjectBrowser'
+import { PipelineRunner } from '@/components/pipeline/PipelineRunner'
 import type { AssessmentContext } from '@/lib/useClientContext'
 import type { useHealth } from '@/lib/useHealth'
 import { ConnectionIndicator } from './ConnectionIndicator'
@@ -46,6 +47,7 @@ export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
 
       <div className="flex-1 overflow-hidden">
         {activeView === 'ingestion' && <SourceIngestion assessmentId={assessment.id} />}
+        {activeView === 'pipeline' && <PipelineRunner assessmentId={assessment.id} />}
         {activeView === 'technical' && <ObjectBrowser assessmentId={assessment.id} />}
         {activeView === 'atc' && <ATCImport assessmentId={assessment.id} />}
         {activeView === 'ai-processing' && <PlaceholderView title="Processamento por IA" />}

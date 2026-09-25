@@ -312,3 +312,118 @@ export const fetchATCFindings = (
   offset = 0,
 ): Promise<ATCFindingsResponse> =>
   api(`/assessments/${assessmentId}/atc/runs/${runId}/findings?limit=${limit}&offset=${offset}`)
+
+// ---------------------------------------------------------------------------
+// SPRINT-06: Durable Pipeline Execution (ADR-005)
+// ---------------------------------------------------------------------------
+
+export interface StageRunRecord {
+  id: number
+  stage_key: 'scan' | 'parse' | 'detect_dependencies'
+  sequence: number
+  depends_on: string[]
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'skipped'
+  total_items: number
+  completed_items: number
+  failed_items: number
+  started_at: string | null
+  completed_at: string | null
+  error: string | null
+}
+
+export interface PipelineRunRecord {
+  id: number
+  assessment_id: number
+  source_path: string
+  source_scan_id: number | null
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed'
+  pause_requested: boolean
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  stages: StageRunRecord[]
+}
+
+export interface PipelineRunListResponse {
+  assessment_id: number
+  runs: PipelineRunRecord[]
+  total: number
+}
+
+export interface WorkItemRecord {
+  id: number
+  stage_run_id: number
+  item_key: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  attempts: number
+  max_attempts: number
+  last_error: string | null
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface WorkItemsResponse {
+  items: WorkItemRecord[]
+  total: number
+}
+
+async function apiOrDetail<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BACKEND_URL}${path}`, init)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `API ${path} → ${response.status}`)
+  }
+  return response.json() as Promise<T>
+}
+
+export const startPipelineRun = (
+  assessmentId: number,
+  sourcePath: string,
+): Promise<PipelineRunRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/pipeline-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_path: sourcePath }),
+  })
+
+export const fetchPipelineRuns = (assessmentId: number): Promise<PipelineRunListResponse> =>
+  api(`/assessments/${assessmentId}/pipeline-runs`)
+
+export const fetchPipelineRun = (
+  assessmentId: number,
+  runId: number,
+): Promise<PipelineRunRecord> => api(`/assessments/${assessmentId}/pipeline-runs/${runId}`)
+
+export const fetchPipelineWorkItems = (
+  assessmentId: number,
+  runId: number,
+  params?: { stage_key?: string; status?: string },
+): Promise<WorkItemsResponse> => {
+  const qs = new URLSearchParams()
+  if (params?.stage_key) qs.set('stage_key', params.stage_key)
+  if (params?.status) qs.set('status', params.status)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return api(`/assessments/${assessmentId}/pipeline-runs/${runId}/work-items${query}`)
+}
+
+export const pausePipelineRun = (
+  assessmentId: number,
+  runId: number,
+): Promise<PipelineRunRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/pipeline-runs/${runId}/pause`, { method: 'POST' })
+
+export const resumePipelineRun = (
+  assessmentId: number,
+  runId: number,
+): Promise<PipelineRunRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/pipeline-runs/${runId}/resume`, { method: 'POST' })
+
+export const retryWorkItem = (
+  assessmentId: number,
+  runId: number,
+  itemId: number,
+): Promise<WorkItemRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/pipeline-runs/${runId}/work-items/${itemId}/retry`, {
+    method: 'POST',
+  })
