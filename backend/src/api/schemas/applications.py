@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from api.schemas.business_rules import BusinessRuleRead
+from api.schemas.clean_core import CleanCoreAssessmentRead
 
 
 class ApplicationMemberRead(BaseModel):
@@ -46,6 +47,7 @@ class ApplicationRead(BaseModel):
     updated_at: datetime
     member_count: int
     members: list[ApplicationMemberRead]
+    clean_core: CleanCoreAssessmentRead | None = None
 
     model_config = {"from_attributes": True}
 

@@ -654,6 +654,32 @@ export interface ApplicationMemberRecord {
   object_name: string
 }
 
+// ---------------------------------------------------------------------------
+// SPRINT-13: Clean Core Analysis (ADR-008/ADR-012) — embedded in ApplicationRecord
+// ---------------------------------------------------------------------------
+
+export interface CleanCoreAssessmentRecord {
+  id: number
+  application_id: number
+  status: 'COMPLETED' | 'INSUFFICIENT_CONTEXT' | 'FAILED'
+  technical_risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null
+  technical_risk_rationale: string
+  technical_risk_evidence_refs: ApplicationEvidenceRef[]
+  business_importance: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null
+  business_importance_rationale: string
+  business_importance_evidence_refs: ApplicationEvidenceRef[]
+  business_importance_uses_process_usage_evidence: boolean
+  recommendation: 'RETAIN' | 'REMEDIATE' | 'REPLATFORM' | 'RETIRE' | 'REVIEW'
+  recommendation_rationale: string
+  recommendation_evidence_refs: ApplicationEvidenceRef[]
+  confidence: number | null
+  provider: string
+  model_id: string
+  error: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface ApplicationRecord {
   id: number
   assessment_id: number
@@ -675,6 +701,7 @@ export interface ApplicationRecord {
   updated_at: string
   member_count: number
   members: ApplicationMemberRecord[]
+  clean_core: CleanCoreAssessmentRecord | null
 }
 
 export interface ApplicationFindingRecord {

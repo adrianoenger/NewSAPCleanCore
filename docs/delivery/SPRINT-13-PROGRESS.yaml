@@ -1,0 +1,66 @@
+sprint: SPRINT-13
+branch: sprint/13-clean-core-intelligence
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      CleanCoreAssessment persistence model (migration 0015) — one row per Application,
+      separating technical_risk / business_importance / recommendation (with REVIEW fallback),
+      mirroring ObjectUnderstanding's upsert-not-recreate + provider provenance pattern.
+    status: done
+    validation: "alembic upgrade head applied cleanly; alembic check shows only the pre-existing BL-013 drift (sap_object/technical_finding), nothing new from clean_core_assessment."
+  - id: CAP-002
+    description: >-
+      ai.clean_core_analysis evidence package — aggregates member SAPObjects' source/ATC/
+      TechnicalFinding (technical evidence), supplemental EvidenceRecord split into
+      technical-signal vs business/process/usage/role-signal pools (quality-gated to MATCHED_*
+      correlations only), and SapKnowledgeReference guidance already retrieved for the
+      Application (ADR-008/ADR-017/ADR-007).
+    status: done
+    validation: "covered by test_clean_core_analysis.py + test_clean_core_analysis_pipeline.py (pool separation asserted via technical_risk_evidence_refs rejection of business-pool refs)."
+  - id: CAP-003
+    description: >-
+      ai.clean_core_analysis structured schema/prompt (RiskLevel, ImportanceLevel,
+      CleanCoreRecommendation incl. REVIEW) + validate_result enforcing separation of dimensions
+      and the two Review-fallback paths (INSUFFICIENT_CONTEXT and ambiguous-but-evidenced).
+      Redesigned mid-sprint after a live Bedrock run: technical_risk/business_importance are now
+      independently nullable rather than both gated by one blanket status field (see notes below).
+    status: done
+    validation: "backend/tests/test_clean_core_analysis.py — 15 domain-validator unit tests, all passing."
+  - id: CAP-004
+    description: >-
+      clean_core_analysis pipeline stage (7th source_processing stage, depends_on
+      application_discovery) — upserts CleanCoreAssessment per eligible (non-MERGED) Application,
+      FAILED status on provider/domain-validation error, never touching MERGED applications.
+    status: done
+    validation: "backend/tests/test_clean_core_analysis_pipeline.py — completed/insufficient-context/provider-error outcomes all persisted correctly through run_pipeline with a mocked AIProvider."
+  - id: CAP-005
+    description: >-
+      API: embed CleanCoreAssessmentRead into ApplicationRead/ApplicationDetailRead
+      (GET /assessments/{id}/applications, /applications/{id}).
+    status: done
+    validation: "test_get_application_api_embeds_clean_core_assessment passing (both list and detail endpoints)."
+  - id: CAP-006
+    description: >-
+      Architecture View (ApplicationBrowser): recommendation distribution summary in the list,
+      risk/importance/recommendation badges, detail panel with rationale + evidence drill-down
+      and explicit process/usage-signal-used indicator for Business Importance.
+    status: done
+    validation: "frontend tsc --noEmit and vite build both clean; live-validated via Playwright against the real electron-vite renderer (localhost:5173) with a real Bedrock pipeline run over demo-source/ABAP — see notes."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-019 (new): no manual override/validation for the Clean Core recommendation."
+  - "BL-008 (pre-existing) amended with a SPRINT-13 live reproduction note; not a new item."
+notes:
+  - "Scope boundary: Dashboard Geral / Executive View remain placeholders — SPRINT-15 (navigation-perspectives) is the dedicated sprint for those. This sprint's 'dashboards and drill-down' capability is delivered as a Clean Core section inside the already-implemented ApplicationBrowser (Architecture View), consistent with how SPRINT-12 added SapGuidancePanel to the same screen."
+  - "Clean Core conclusions are computed per Application (not per SAPObject) — matches the sprint's demonstrable outcome ('Open an application, see risk/importance/recommendation') and the Baseline's Architecture/Executive View framing of applications as the recommendation unit."
+  - "No manual user-override/validation endpoint for the Clean Core recommendation is planned — not in this sprint's planned capabilities; recorded as backlog if judged valuable."
+  - "Mid-sprint schema fix (CAP-003): a live Bedrock run over demo-source/ABAP initially showed all 4 discovered applications persisting as CleanCoreStatus.FAILED — the model routinely determines technical_risk/business_importance for a sparsely-evidenced object while still choosing status=INSUFFICIENT_CONTEXT for the overall recommendation confidence, which the original validator (one status field gating both dimensions' nullability) always rejected. Fixed by making technical_risk/business_importance independently nullable, each validated against its own rationale/evidence_refs, with status derived from whether anything was determined at all — matches Baseline core rule 8's own 'these are separate dimensions' principle more faithfully than the original all-or-nothing design. Re-validated live after the fix: 2 RETAIN, 1 REPLATFORM, 1 REVIEW (undetermined-dimensions case), no FAILED. See ai/clean_core_analysis/schema.py's module docstring."
+  - "BL-008 (pipeline.engine.recover_orphans is global/unscoped) reproduced live twice during this sprint's own validation: running the backend pytest full suite concurrently with a live Playwright demo caused (a) the live demo's own in-flight run to be paused mid-execution, and (b) test_sprint06.py::test_recover_orphans_requeues_running_work to see 2 orphans instead of the 1 it manufactured. Both were transient — resuming the paused run completed it correctly, and a subsequent full-suite run with no concurrent activity passed 208/208. No code change made (BL-008 is pre-existing, unrelated to this sprint's capabilities); recorded here only as a reproduction data point, and as a reminder not to run pytest and a live pipeline demo concurrently against the same shared dev database."

@@ -934,6 +934,9 @@ class Application(Base):
         "SAPObject", back_populates="application", foreign_keys="SAPObject.application_id"
     )
     consolidated_into: Mapped["Application | None"] = relationship("Application", remote_side=[id])
+    clean_core_assessment: Mapped["CleanCoreAssessment | None"] = relationship(
+        "CleanCoreAssessment", back_populates="application", cascade="all, delete-orphan"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -986,3 +989,97 @@ class SapKnowledgeReference(Base):
     reused_from: Mapped["SapKnowledgeReference | None"] = relationship(
         "SapKnowledgeReference", remote_side=[id]
     )
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-13 domain model — Clean Core Intelligence (ADR-008/ADR-012, Baseline core rule 8/11)
+# ---------------------------------------------------------------------------
+
+
+class CleanCoreStatus(str, Enum):
+    COMPLETED = "COMPLETED"
+    INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
+    FAILED = "FAILED"
+
+
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class ImportanceLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class CleanCoreRecommendation(str, Enum):
+    RETAIN = "RETAIN"
+    REMEDIATE = "REMEDIATE"
+    REPLATFORM = "REPLATFORM"
+    RETIRE = "RETIRE"
+    REVIEW = "REVIEW"
+
+
+class CleanCoreAssessment(Base):
+    """The current AI-produced Clean Core conclusion for one `Application` (ADR-008 — every
+    dimension must reference supporting evidence; ADR-012 — structured, validated, provenance
+    recorded). One row per Application: reprocessing upserts in place, mirroring
+    `ObjectUnderstanding`'s own upsert-not-recreate pattern.
+
+    Baseline core rule 8 requires Technical Risk, Business Importance and Recommendation to stay
+    separate — each has its own rationale/evidence_refs rather than one blended narrative.
+    `business_importance_uses_process_usage_evidence` makes rule 11 ("process/usage/user-role
+    signals may inform Business Importance but do not prove causality without a valid correlation
+    chain") visible to the UI: it is true only when at least one resolved
+    `business_importance_evidence_refs` entry is a quality-gated process/usage/role signal
+    (`ai.clean_core_analysis.evidence_package` only ever includes `MATCHED_*` correlations in that
+    pool in the first place — this flag is a transparency signal, not an additional gate).
+    `recommendation` includes `REVIEW` as the explicit fallback: forced when `status`
+    is `INSUFFICIENT_CONTEXT`, or chosen by the model itself when risk/importance were determined
+    but the evidence is too conflicting for a confident RETAIN/REMEDIATE/REPLATFORM/RETIRE call.
+    """
+
+    __tablename__ = "clean_core_assessment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("application.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    technical_risk: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    technical_risk_rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    technical_risk_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    business_importance: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    business_importance_rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    business_importance_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    business_importance_uses_process_usage_evidence: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    recommendation: Mapped[str] = mapped_column(String(20), nullable=False)
+    recommendation_rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    recommendation_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_capability: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
+    application: Mapped["Application"] = relationship("Application", back_populates="clean_core_assessment")

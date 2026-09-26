@@ -32,6 +32,17 @@ from settings import get_settings
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
 _APPLICATION_DISCOVERY_SCHEMA = "application_discovery_result"
+# This file exercises application_discovery only; clean_core_analysis now runs as the next stage
+# in the same pipeline (SPRINT-13) and needs *some* schema-valid response to let the run reach
+# "completed" — an INSUFFICIENT_CONTEXT/REVIEW stub is a safe default regardless of which
+# Application ids these tests happen to create.
+_CLEAN_CORE_ANALYSIS_SCHEMA = "clean_core_analysis_result"
+_INSUFFICIENT_CLEAN_CORE_OUTPUT = {
+    "status": "INSUFFICIENT_CONTEXT",
+    "recommendation": "REVIEW",
+    "recommendation_rationale": "Not enough grouped evidence.",
+    "confidence": 0.2,
+}
 
 _COMPLETED_UNDERSTANDING_OUTPUT = {
     "status": "COMPLETED",
@@ -96,7 +107,7 @@ class _SequencedFakeProvider:
     model_id = "fake-model-1"
 
     def __init__(self, outputs: dict | None = None, errors: dict | None = None):
-        self._outputs = outputs or {}
+        self._outputs = {_CLEAN_CORE_ANALYSIS_SCHEMA: _INSUFFICIENT_CLEAN_CORE_OUTPUT, **(outputs or {})}
         self._errors = errors or {}
 
     def complete_structured(self, request):

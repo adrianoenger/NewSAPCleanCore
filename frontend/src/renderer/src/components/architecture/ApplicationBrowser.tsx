@@ -18,6 +18,7 @@ import {
   renameApplication,
   type ApplicationDetailRecord,
   type ApplicationRecord,
+  type CleanCoreAssessmentRecord,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,189 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'text-text-tertiary' }
   return <span className={cn('text-[10px] font-medium', cfg.color)}>{cfg.label}</span>
+}
+
+// Baseline core rule 8: Technical Risk and Business Importance are separate dimensions, each
+// using the same 4-level severity palette from docs/design/design-system.md §3.4.
+const LEVEL_CONFIG: Record<string, { label: string; color: string }> = {
+  LOW: { label: 'Baixo', color: 'text-low' },
+  MEDIUM: { label: 'Médio', color: 'text-attention' },
+  HIGH: { label: 'Alto', color: 'text-legacy' },
+  CRITICAL: { label: 'Crítico', color: 'text-risk' },
+}
+
+const RECOMMENDATION_CONFIG: Record<string, { label: string; color: string }> = {
+  RETAIN: { label: 'Manter', color: 'text-success' },
+  REMEDIATE: { label: 'Remediar', color: 'text-attention' },
+  REPLATFORM: { label: 'Replataformar', color: 'text-info' },
+  RETIRE: { label: 'Aposentar', color: 'text-risk' },
+  REVIEW: { label: 'Revisão necessária', color: 'text-legacy' },
+}
+
+function LevelBadge({ level, title }: { level: string | null; title: string }) {
+  if (level == null) {
+    return <span className="text-[10px] text-text-tertiary">—</span>
+  }
+  const cfg = LEVEL_CONFIG[level] ?? { label: level, color: 'text-text-tertiary' }
+  return (
+    <span className={cn('text-[10px] font-medium', cfg.color)} title={title}>
+      {cfg.label}
+    </span>
+  )
+}
+
+function RecommendationChip({ recommendation }: { recommendation: string }) {
+  const cfg = RECOMMENDATION_CONFIG[recommendation] ?? { label: recommendation, color: 'text-text-tertiary' }
+  return (
+    <span
+      className={cn(
+        'rounded-full border border-border-soft bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium',
+        cfg.color,
+      )}
+    >
+      {cfg.label}
+    </span>
+  )
+}
+
+function CleanCorePanel({ cleanCore }: { cleanCore: CleanCoreAssessmentRecord | null }) {
+  if (cleanCore == null) {
+    return (
+      <div className="rounded border border-border-soft bg-surface-elevated px-3 py-2 text-[11px] text-text-tertiary">
+        Ainda não analisado pelo Clean Core. Execute &quot;3 - Processamento por IA&quot;.
+      </div>
+    )
+  }
+
+  if (cleanCore.status === 'FAILED') {
+    return (
+      <div className="rounded border border-risk/30 bg-risk/5 px-3 py-2 text-[11px] text-risk">
+        Falha ao gerar a análise Clean Core: {cleanCore.error ?? 'erro desconhecido'}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3 rounded border border-border-soft bg-surface-elevated p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary">
+          <Sparkles className="h-3.5 w-3.5 text-brand" strokeWidth={2} />
+          Clean Core
+        </div>
+        {cleanCore.confidence != null && (
+          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-[10px] font-mono text-text-tertiary">
+            confiança {Math.round(cleanCore.confidence * 100)}%
+          </span>
+        )}
+      </div>
+
+      {cleanCore.status === 'INSUFFICIENT_CONTEXT' && (
+        <div className="rounded border border-attention/30 bg-attention/5 px-2 py-1.5 text-[11px] text-attention">
+          Evidência insuficiente para determinar risco/importância.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Risco Técnico</div>
+          <div className="mt-0.5">
+            <LevelBadge level={cleanCore.technical_risk} title="Risco Técnico" />
+          </div>
+          {cleanCore.technical_risk_rationale && (
+            <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.technical_risk_rationale}</div>
+          )}
+          {cleanCore.technical_risk_evidence_refs.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {cleanCore.technical_risk_evidence_refs.map((ref) => (
+                <span
+                  key={ref.ref_id}
+                  title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
+                  className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+                >
+                  {ref.ref_id}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+            Importância de Negócio
+          </div>
+          <div className="mt-0.5">
+            <LevelBadge level={cleanCore.business_importance} title="Importância de Negócio" />
+          </div>
+          {cleanCore.business_importance_rationale && (
+            <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.business_importance_rationale}</div>
+          )}
+          {cleanCore.business_importance_evidence_refs.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {cleanCore.business_importance_evidence_refs.map((ref) => (
+                <span
+                  key={ref.ref_id}
+                  title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
+                  className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+                >
+                  {ref.ref_id}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="mt-1 text-[10px] text-text-tertiary">
+            {cleanCore.business_importance_uses_process_usage_evidence
+              ? '✓ considera sinais de processo/uso/perfil correlacionados'
+              : 'baseada apenas na identidade dos objetos — sem sinais de processo/uso correlacionados'}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border-soft pt-2">
+        <div className="flex items-center gap-2">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Recomendação</div>
+          <RecommendationChip recommendation={cleanCore.recommendation} />
+        </div>
+        {cleanCore.recommendation_rationale && (
+          <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.recommendation_rationale}</div>
+        )}
+        {cleanCore.recommendation_evidence_refs.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {cleanCore.recommendation_evidence_refs.map((ref) => (
+              <span
+                key={ref.ref_id}
+                title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
+                className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+              >
+                {ref.ref_id}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CleanCoreDistribution({ applications }: { applications: ApplicationRecord[] }) {
+  const counts: Record<string, number> = {}
+  let analyzed = 0
+  for (const app of applications) {
+    if (!app.clean_core || app.clean_core.status === 'FAILED') continue
+    analyzed += 1
+    counts[app.clean_core.recommendation] = (counts[app.clean_core.recommendation] ?? 0) + 1
+  }
+  if (analyzed === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-border-soft px-4 py-2">
+      {Object.entries(counts).map(([recommendation, count]) => (
+        <span key={recommendation} className="flex items-center gap-1">
+          <RecommendationChip recommendation={recommendation} />
+          <span className="text-[10px] text-text-tertiary">{count}</span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function RenameForm({
@@ -243,6 +427,8 @@ function ApplicationDetail({
 
       {data.rationale && <div className="text-[11px] italic text-text-tertiary">{data.rationale}</div>}
 
+      <CleanCorePanel cleanCore={data.clean_core} />
+
       {data.clustering_signals.length > 0 && (
         <div>
           <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
@@ -376,6 +562,8 @@ export function ApplicationBrowser({ assessmentId }: Props) {
           </button>
         </div>
 
+        <CleanCoreDistribution applications={applications} />
+
         <div className="flex-1 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
@@ -407,6 +595,9 @@ export function ApplicationBrowser({ assessmentId }: Props) {
                     <div className="flex items-center gap-2">
                       <StatusBadge status={app.status} />
                       <span className="text-[10px] text-text-tertiary">{app.member_count} objeto(s)</span>
+                      {app.clean_core && app.clean_core.status !== 'FAILED' && (
+                        <RecommendationChip recommendation={app.clean_core.recommendation} />
+                      )}
                     </div>
                   </div>
                   <ChevronRight

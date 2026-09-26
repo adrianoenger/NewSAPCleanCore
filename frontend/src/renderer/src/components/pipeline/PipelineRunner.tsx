@@ -44,6 +44,8 @@ const STAGE_LABELS: Record<string, string> = {
   detect_dependencies: 'Detecção de Dependências',
   object_understanding: 'Entendimento por IA',
   business_rule_discovery: 'Descoberta de Regras de Negócio',
+  application_discovery: 'Descoberta de Aplicações',
+  clean_core_analysis: 'Análise Clean Core',
 }
 
 const RUN_LABELS: Record<PipelineRunRecord['status'], string> = {

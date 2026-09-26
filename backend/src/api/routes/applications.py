@@ -22,6 +22,7 @@ from api.schemas.applications import (
     ApplicationRenameRequest,
 )
 from api.schemas.business_rules import BusinessRuleRead
+from api.schemas.clean_core import CleanCoreAssessmentRead
 from persistence.database import get_session
 from persistence.models import ATCFinding, Application, ApplicationStatus, Assessment, BusinessRule, BusinessRuleStatus, SAPObject
 
@@ -68,6 +69,7 @@ def _to_read(app: Application, members: list[SAPObject]) -> ApplicationRead:
         updated_at=app.updated_at,
         member_count=len(members),
         members=[ApplicationMemberRead.model_validate(m) for m in members],
+        clean_core=CleanCoreAssessmentRead.model_validate(app.clean_core_assessment) if app.clean_core_assessment else None,
     )
 
 

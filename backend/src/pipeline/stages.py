@@ -32,6 +32,11 @@ from ai.business_rule_discovery.evidence_package import (
 from ai.business_rule_discovery.evidence_package import render_prompt as render_business_rule_prompt
 from ai.business_rule_discovery.schema import BusinessRuleDiscoveryResult
 from ai.business_rule_discovery.schema import validate_result as validate_business_rule_result
+from ai.clean_core_analysis import CAPABILITY as CLEAN_CORE_ANALYSIS_CAPABILITY
+from ai.clean_core_analysis.evidence_package import build_clean_core_evidence_package
+from ai.clean_core_analysis.evidence_package import render_prompt as render_clean_core_prompt
+from ai.clean_core_analysis.schema import CleanCoreAnalysisResult, CleanCoreAnalysisStatus
+from ai.clean_core_analysis.schema import validate_result as validate_clean_core_result
 from ai.object_understanding import CAPABILITY as OBJECT_UNDERSTANDING_CAPABILITY
 from ai.object_understanding.evidence_package import ObjectEvidencePackage, build_evidence_package, render_prompt
 from ai.object_understanding.schema import ObjectUnderstandingResult, validate_result
@@ -49,6 +54,8 @@ from persistence.models import (
     ApplicationStatus,
     BusinessRule,
     BusinessRuleStatus,
+    CleanCoreAssessment,
+    CleanCoreStatus,
     EvidenceDataset,
     EvidenceDatasetStatus,
     EvidenceRecord,
@@ -864,6 +871,184 @@ def _application_discovery_process_item(
     session.flush()
 
 
+# ---------------------------------------------------------------------------
+# clean_core_analysis — wraps ai.clean_core_analysis; produces CleanCoreAssessment rows (ADR-008/
+# ADR-012, Baseline core rule 8/11) — a 7th source_processing stage, mirroring
+# application_discovery's per-Application WorkItem pattern.
+# ---------------------------------------------------------------------------
+
+
+def _clean_core_analysis_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    existing_keys = set(
+        session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
+    )
+    # Every non-MERGED application of this assessment is eligible, regardless of which scan
+    # produced/last touched it — Applications (unlike WorkItems for scan/parse/understanding) are
+    # assessment-scoped durable clusters, not per-scan artifacts, mirroring
+    # application_discovery_prepare's own assessment-wide (not scan-scoped) application lookup.
+    apps = list(
+        session.scalars(
+            select(Application).where(
+                Application.assessment_id == run.assessment_id,
+                Application.status != ApplicationStatus.MERGED.value,
+            )
+        )
+    )
+    created = 0
+    for app in apps:
+        member_count = session.scalar(
+            select(func.count()).select_from(SAPObject).where(SAPObject.application_id == app.id)
+        )
+        if not member_count:
+            continue
+        key = f"cca-{app.id}"
+        if key in existing_keys:
+            continue
+        session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"application_id": app.id}))
+        existing_keys.add(key)
+        created += 1
+
+    stage.total_items = created + (stage.total_items or 0)
+    session.commit()
+
+
+def _upsert_clean_core_assessment(
+    session: Session,
+    existing: CleanCoreAssessment | None,
+    *,
+    assessment_id: int,
+    application_id: int,
+    stage_run_id: int,
+    status: str,
+    technical_risk: str | None,
+    technical_risk_rationale: str,
+    technical_risk_evidence_refs: list[dict],
+    business_importance: str | None,
+    business_importance_rationale: str,
+    business_importance_evidence_refs: list[dict],
+    recommendation: str,
+    recommendation_rationale: str,
+    recommendation_evidence_refs: list[dict],
+    confidence: float | None,
+    provider: str,
+    model_id: str,
+    prompt_capability: str,
+    prompt_version: str,
+    error: str | None,
+) -> None:
+    row = existing or CleanCoreAssessment(assessment_id=assessment_id, application_id=application_id)
+    row.status = status
+    row.technical_risk = technical_risk
+    row.technical_risk_rationale = technical_risk_rationale
+    row.technical_risk_evidence_refs = technical_risk_evidence_refs
+    row.business_importance = business_importance
+    row.business_importance_rationale = business_importance_rationale
+    row.business_importance_evidence_refs = business_importance_evidence_refs
+    row.business_importance_uses_process_usage_evidence = any(
+        ref.get("source_type") == "PROCESS_USAGE_EVIDENCE" for ref in business_importance_evidence_refs
+    )
+    row.recommendation = recommendation
+    row.recommendation_rationale = recommendation_rationale
+    row.recommendation_evidence_refs = recommendation_evidence_refs
+    row.confidence = confidence
+    row.provider = provider
+    row.model_id = model_id
+    row.prompt_capability = prompt_capability
+    row.prompt_version = prompt_version
+    row.error = error
+    row.stage_run_id = stage_run_id
+    if existing is None:
+        session.add(row)
+    session.flush()
+
+
+def _clean_core_analysis_process_item(
+    item: WorkItem, stage: StageRun, run: PipelineRun, session: Session
+) -> None:
+    app = session.get(Application, item.payload["application_id"])
+    if app is None or app.status == ApplicationStatus.MERGED.value:
+        # Eligibility may have changed since `prepare` scoped this WorkItem (e.g. a concurrent
+        # manual merge) — never analyze an application that has been folded away.
+        return
+
+    member_ids = [obj.id for obj in session.scalars(select(SAPObject).where(SAPObject.application_id == app.id))]
+    if not member_ids:
+        return
+
+    package = build_clean_core_evidence_package(session, app, member_ids)
+    prompt_version = get_version(CLEAN_CORE_ANALYSIS_CAPABILITY)
+    provider = get_provider(get_settings())
+
+    existing = session.scalars(
+        select(CleanCoreAssessment).where(CleanCoreAssessment.application_id == app.id)
+    ).first()
+
+    # ADR-012: schema, evidence-reference and domain rules are validated before persistence. A
+    # provider/validation failure is recorded as CleanCoreStatus.FAILED — never a false conclusion.
+    try:
+        completion = provider.complete_structured(
+            StructuredCompletionRequest(
+                system_prompt=prompt_version.system_prompt,
+                user_prompt=render_clean_core_prompt(package),
+                json_schema=prompt_version.json_schema,
+                schema_name=prompt_version.schema_name,
+            )
+        )
+        result = CleanCoreAnalysisResult.model_validate(completion.output)
+        domain_errors = validate_clean_core_result(result, package)
+        if domain_errors:
+            raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
+    except (AIProviderError, ValidationError) as exc:
+        _upsert_clean_core_assessment(
+            session,
+            existing,
+            assessment_id=run.assessment_id,
+            application_id=app.id,
+            stage_run_id=stage.id,
+            status=CleanCoreStatus.FAILED.value,
+            technical_risk=None,
+            technical_risk_rationale="",
+            technical_risk_evidence_refs=[],
+            business_importance=None,
+            business_importance_rationale="",
+            business_importance_evidence_refs=[],
+            recommendation="REVIEW",
+            recommendation_rationale="",
+            recommendation_evidence_refs=[],
+            confidence=None,
+            provider=provider.name,
+            model_id=provider.model_id,
+            prompt_capability=CLEAN_CORE_ANALYSIS_CAPABILITY,
+            prompt_version=prompt_version.version,
+            error=str(exc)[:2000],
+        )
+        return
+
+    _upsert_clean_core_assessment(
+        session,
+        existing,
+        assessment_id=run.assessment_id,
+        application_id=app.id,
+        stage_run_id=stage.id,
+        status=result.status.value,
+        technical_risk=result.technical_risk.value if result.technical_risk else None,
+        technical_risk_rationale=result.technical_risk_rationale,
+        technical_risk_evidence_refs=_resolve_evidence_refs(result.technical_risk_evidence_refs, package),
+        business_importance=result.business_importance.value if result.business_importance else None,
+        business_importance_rationale=result.business_importance_rationale,
+        business_importance_evidence_refs=_resolve_evidence_refs(result.business_importance_evidence_refs, package),
+        recommendation=result.recommendation.value,
+        recommendation_rationale=result.recommendation_rationale,
+        recommendation_evidence_refs=_resolve_evidence_refs(result.recommendation_evidence_refs, package),
+        confidence=result.confidence,
+        provider=completion.provider,
+        model_id=completion.model_id,
+        prompt_capability=CLEAN_CORE_ANALYSIS_CAPABILITY,
+        prompt_version=prompt_version.version,
+        error=None,
+    )
+
+
 SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
     StageDefinition(
         key="scan",
@@ -903,6 +1088,12 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         depends_on=("business_rule_discovery",),
         prepare=_application_discovery_prepare,
         process_item=_application_discovery_process_item,
+    ),
+    StageDefinition(
+        key="clean_core_analysis",
+        depends_on=("application_discovery",),
+        prepare=_clean_core_analysis_prepare,
+        process_item=_clean_core_analysis_process_item,
     ),
 ]
 

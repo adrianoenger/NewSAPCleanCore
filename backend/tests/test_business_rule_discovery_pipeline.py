@@ -42,6 +42,15 @@ _INSUFFICIENT_APPLICATION_OUTPUT = {
     "rationale": "Not enough grouped evidence.",
     "evidence_refs": [],
 }
+# clean_core_analysis now runs as the stage after application_discovery (SPRINT-13) — same
+# defaulting rationale as _INSUFFICIENT_APPLICATION_OUTPUT above.
+_CLEAN_CORE_ANALYSIS_SCHEMA = "clean_core_analysis_result"
+_INSUFFICIENT_CLEAN_CORE_OUTPUT = {
+    "status": "INSUFFICIENT_CONTEXT",
+    "recommendation": "REVIEW",
+    "recommendation_rationale": "Not enough grouped evidence.",
+    "confidence": 0.2,
+}
 
 _COMPLETED_UNDERSTANDING_OUTPUT = {
     "status": "COMPLETED",
@@ -97,7 +106,11 @@ class _SequencedFakeProvider:
     model_id = "fake-model-1"
 
     def __init__(self, outputs: dict[str, dict] | None = None, errors: dict[str, Exception] | None = None):
-        self._outputs = {_APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT, **(outputs or {})}
+        self._outputs = {
+            _APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT,
+            _CLEAN_CORE_ANALYSIS_SCHEMA: _INSUFFICIENT_CLEAN_CORE_OUTPUT,
+            **(outputs or {}),
+        }
         self._errors = errors or {}
 
     def complete_structured(self, request):

@@ -169,6 +169,9 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
   SUPPLEMENTAL_EVIDENCE: 'Evidência complementar',
   SAP_OBJECT: 'Objeto SAP',
   DEPENDENCY: 'Dependência detectada',
+  TECHNICAL_FINDING: 'Finding técnico',
+  PROCESS_USAGE_EVIDENCE: 'Evidência de processo/uso',
+  SAP_KNOWLEDGE: 'Referência SAP',
 }
 
 function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstandingRecord | null }) {
