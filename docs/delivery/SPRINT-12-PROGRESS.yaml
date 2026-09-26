@@ -1,0 +1,42 @@
+sprint: SPRINT-12
+branch: sprint/12-sap-knowledge-mcp
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: "Implement SAPKnowledgeProvider abstraction (adapter interface over mcp-sap-docs/mcp-abap)"
+    status: done
+    validation: "ai/knowledge_provider.py (Protocol, ADR-006-style); ai/knowledge_providers/mcp_client.py::MCPKnowledgeProvider against real mcp==2.2.0 SDK (streamable_http_client/ClientSession), unit-tested with mocked transport in tests/test_sap_knowledge.py (3 tests)"
+  - id: CAP-002
+    description: "Connect configurable mcp-sap-docs and mcp-abap endpoints"
+    status: done
+    validation: "settings.py sap_docs_mcp_endpoint/tool_name + abap_mcp_endpoint/tool_name (CCA_ env prefix, .env.example documented); ai/knowledge_providers/__init__.py::get_knowledge_providers skips an unset endpoint (tested)"
+  - id: CAP-003
+    description: "Query only when relevant and cache/reuse guidance"
+    status: done
+    validation: "ai/knowledge_service.py::fetch_guidance — explicit POST-only trigger (never on GET/automatic), skips a provider already having a reference for the exact target, reuses a query_fingerprint match across targets (reused_from_id); covered by test_fetch_guidance_persists_and_is_idempotent_per_target + test_fetch_guidance_reuses_cache_across_semantically_equivalent_targets"
+  - id: CAP-004
+    description: "Persist SAP documentation evidence with provider/reference provenance"
+    status: done
+    validation: "persistence/models.py::SapKnowledgeReference + alembic 0014_sap_knowledge_mcp (applied); provider/query/title/reference/summary/retrieved_at/reused_from_id columns"
+  - id: CAP-005
+    description: "Render SAP Guidance in finding/application detail"
+    status: done
+    validation: "components/knowledge/SapGuidancePanel.tsx wired into ApplicationBrowser.tsx (applications) and BusinessRuleBrowser.tsx (business rules, the closest existing 'finding' detail view); live-checked in the real electron-vite renderer via Playwright (button visible, POST succeeds, no console errors, empty-state renders correctly with no MCP endpoint configured) — throwaway demo Client/Assessment/Application deleted via scoped DELETE FROM client WHERE id=:cid after the check. ATC finding detail has no per-row detail view to plug into yet (BL-017, deferred)."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-017: ATC finding detail has no SAP Guidance block (ATCImport.tsx findings table has no per-row detail affordance)"
+  - "BL-018: MCP adapter unit-tested only, no real mcp-sap-docs/mcp-abap server available in this environment (mirrors Azure Foundry precedent)"
+notes:
+  - "2026-09-26: sprint branch created from synced main; architecture research dispatched before design (AIProvider abstraction, pipeline capability pattern, evidence model, existing MCP config, API/frontend detail surfaces)."
+  - "2026-09-26: backend implemented — SapKnowledgeReference model + migration 0014, SAPKnowledgeProvider/KnowledgeQuery/KnowledgeReference abstraction (ai/knowledge_provider.py), MCPKnowledgeProvider generic adapter (ai/knowledge_providers/mcp_client.py) against the real 'mcp' SDK, get_knowledge_providers registry, knowledge_service (build_query_text/list_guidance/fetch_guidance with cache/reuse + query-only-when-relevant), API routes (api/routes/sap_knowledge.py, GET read-only / POST explicit trigger) mounted for 'applications' and 'business-rules' target kinds. mcp>=1.2 added to pyproject.toml (resolved to mcp 2.2.0); backend Docker image rebuilt."
+  - "2026-09-26: added mcp SDK dependency during rebuild resolved to a much newer API surface than assumed (mcp 2.2.0: streamable_http_client not streamablehttp_client, 2-tuple not 3-tuple, CallToolResult.is_error not .isError) — fixed against the actually-installed package via direct inspection (inspect.signature/model_fields in the running container), not assumption. All 16 new tests in tests/test_sap_knowledge.py pass; full existing backend suite passed before and after this fix (previously 0-exit; re-run after the fix is in progress in the background — will confirm before ready_for_review)."
+  - "2026-09-26: frontend — lib/api.ts SapKnowledge types/fetchers, components/knowledge/SapGuidancePanel.tsx (explicit 'Consultar SAP Docs' button, never automatic), wired into ApplicationBrowser.tsx and BusinessRuleBrowser.tsx. tsc typecheck clean, electron-vite build clean, live Playwright check against the real renderer (empty-state -> POST -> no console errors) using a throwaway demo Application (deleted after)."
+  - "compose.yml's stale 'mcp-sap-docs / mcp-abap services are introduced in SPRINT-09' comment corrected to reflect SPRINT-12/ADR-007 and the actual configurable-endpoint approach (no Docker image provisioned yet)."
+  - "2026-09-26: review-sprint's confirmations had relied on a piped pytest invocation (`pytest -q | tail -N`) whose reported 'exit code 0' was actually tail's exit code, not pytest's — masking a real failure. Running pytest with its own exit code captured directly surfaced 1 deterministic failure (test_foundation.py::test_health_contract hardcoded migration_revision=0013_application_discovery, the same pattern SPRINT-11 fixed for its own new migration) plus one non-reproducing failure on a single earlier run (likely a transient live-Bedrock network hiccup per BL-014). Fixed the hardcoded revision to 0014_sap_knowledge_mcp; a clean direct-exit-code re-run confirmed 189/189 passed."

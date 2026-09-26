@@ -17,6 +17,7 @@ from api.routes.ingestion import assessments_router as ingestion_router
 from api.routes.ingestion import config_router as ingestion_config_router
 from api.routes.parsing import router as parsing_router
 from api.routes.pipeline import router as pipeline_router
+from api.routes.sap_knowledge import router as sap_knowledge_router
 from persistence.database import get_session_factory
 from pipeline.engine import recover_orphans
 from settings import get_settings
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(evidence_router)
     app.include_router(business_rules_router)
     app.include_router(applications_router)
+    app.include_router(sap_knowledge_router)
     return app
 
 

@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -933,3 +934,55 @@ class Application(Base):
         "SAPObject", back_populates="application", foreign_keys="SAPObject.application_id"
     )
     consolidated_into: Mapped["Application | None"] = relationship("Application", remote_side=[id])
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-12 domain model — SAP Knowledge via MCP (ADR-007/ADR-008)
+# ---------------------------------------------------------------------------
+
+
+class SapKnowledgeTargetType(str, Enum):
+    APPLICATION = "APPLICATION"
+    BUSINESS_RULE = "BUSINESS_RULE"
+
+
+class SapKnowledgeReference(Base):
+    """One piece of SAP/ABAP guidance retrieved through an `mcp-sap-docs`/`mcp-abap` provider for
+    a specific finding/application (ADR-007), kept separate from `EvidenceDataset`/`EvidenceRecord`
+    (ADR-017) because its provenance is a live MCP retrieval — provider/tool/timestamp — never a
+    dataset imported by the user.
+
+    `query_fingerprint` (sha256 of `provider` + normalized query text) lets a later request for a
+    semantically equivalent query reuse a prior retrieval instead of calling MCP again
+    (`reused_from_id` records that reuse); it is never a customer-evidence correlation.
+    """
+
+    __tablename__ = "sap_knowledge_reference"
+    __table_args__ = (
+        Index("ix_sap_knowledge_reference_target", "target_type", "target_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    query_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    reference: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reused_from_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sap_knowledge_reference.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
+    reused_from: Mapped["SapKnowledgeReference | None"] = relationship(
+        "SapKnowledgeReference", remote_side=[id]
+    )

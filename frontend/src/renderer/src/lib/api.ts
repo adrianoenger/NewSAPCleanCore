@@ -745,3 +745,45 @@ export const mergeApplications = (
       target_application_id: targetApplicationId,
     }),
   })
+
+// ---------------------------------------------------------------------------
+// SPRINT-12: SAP Knowledge via MCP (ADR-007)
+// ---------------------------------------------------------------------------
+
+export type SapKnowledgeTargetKind = 'applications' | 'business-rules'
+
+export interface SapKnowledgeReferenceRecord {
+  id: number
+  target_type: string
+  target_id: number
+  provider: string
+  query: string
+  title: string
+  reference: string
+  summary: string
+  retrieved_at: string
+  reused: boolean
+}
+
+export interface SapKnowledgeGuidanceResponse {
+  assessment_id: number
+  target_type: string
+  target_id: number
+  references: SapKnowledgeReferenceRecord[]
+}
+
+export const fetchSapGuidance = (
+  assessmentId: number,
+  targetKind: SapKnowledgeTargetKind,
+  targetId: number,
+): Promise<SapKnowledgeGuidanceResponse> =>
+  api(`/assessments/${assessmentId}/sap-knowledge/${targetKind}/${targetId}`)
+
+export const requestSapGuidance = (
+  assessmentId: number,
+  targetKind: SapKnowledgeTargetKind,
+  targetId: number,
+): Promise<SapKnowledgeGuidanceResponse> =>
+  apiOrDetail(`/assessments/${assessmentId}/sap-knowledge/${targetKind}/${targetId}`, {
+    method: 'POST',
+  })

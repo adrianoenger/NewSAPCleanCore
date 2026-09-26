@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ChevronRight, Scale, Sparkles } from 'lucide-react'
+import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
 import { EvidencePanel, SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
 import {
   fetchBusinessRules,
@@ -105,6 +106,7 @@ function RuleDetail({ assessmentId, rule }: { assessmentId: number; rule: Busine
 
       <RuleObjectContext assessmentId={assessmentId} objectId={rule.sap_object_id} />
       <EvidencePanel assessmentId={assessmentId} objectId={rule.sap_object_id} />
+      <SapGuidancePanel assessmentId={assessmentId} targetKind="business-rules" targetId={rule.id} />
 
       <div className="text-[10px] text-text-tertiary">
         {rule.provider} / {rule.model_id} · prompt {rule.prompt_capability}@{rule.prompt_version}

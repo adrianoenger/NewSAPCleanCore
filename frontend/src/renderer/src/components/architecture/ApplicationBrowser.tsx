@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Boxes, ChevronRight, GitMerge, Pencil, Sparkles } from 'lucide-react'
+import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
 import { SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
 import {
   fetchApplication,
@@ -329,6 +330,8 @@ function ApplicationDetail({
           <MergeControl assessmentId={assessmentId} application={data} candidates={candidates} />
         </div>
       )}
+
+      <SapGuidancePanel assessmentId={assessmentId} targetKind="applications" targetId={data.id} />
 
       {data.error && (
         <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-400">

@@ -42,7 +42,9 @@ services:
       timeout: 3s
       retries: 20
 
-  # mcp-sap-docs / mcp-abap services are introduced in SPRINT-09 (SAP knowledge via MCP).
+  # mcp-sap-docs / mcp-abap: no official Docker image is provisioned yet (SPRINT-12 / ADR-007).
+  # Configure CCA_SAP_DOCS_MCP_ENDPOINT / CCA_ABAP_MCP_ENDPOINT to point at whatever local
+  # streamable-HTTP MCP server instance is available; both are optional and skipped when unset.
 
 volumes:
   postgres-data:

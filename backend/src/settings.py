@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     azure_foundry_api_key: str | None = None
     azure_foundry_deployment: str | None = None
 
+    # SAP knowledge via MCP (ADR-007): configurable local/dev endpoints for `mcp-sap-docs` and
+    # `mcp-abap`. Left unset, each provider is simply skipped (contextual enrichment is optional,
+    # never a hard dependency of the demonstrable flow).
+    sap_docs_mcp_endpoint: str | None = None
+    sap_docs_mcp_tool_name: str = "search"
+    abap_mcp_endpoint: str | None = None
+    abap_mcp_tool_name: str = "search"
+
 
 @lru_cache
 def get_settings() -> Settings:
