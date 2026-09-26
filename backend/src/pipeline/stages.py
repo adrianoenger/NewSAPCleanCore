@@ -19,6 +19,13 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ai.business_rule_discovery import CAPABILITY as BUSINESS_RULE_DISCOVERY_CAPABILITY
+from ai.business_rule_discovery.evidence_package import (
+    build_business_rule_evidence_package,
+)
+from ai.business_rule_discovery.evidence_package import render_prompt as render_business_rule_prompt
+from ai.business_rule_discovery.schema import BusinessRuleDiscoveryResult
+from ai.business_rule_discovery.schema import validate_result as validate_business_rule_result
 from ai.object_understanding import CAPABILITY as OBJECT_UNDERSTANDING_CAPABILITY
 from ai.object_understanding.evidence_package import ObjectEvidencePackage, build_evidence_package, render_prompt
 from ai.object_understanding.schema import ObjectUnderstandingResult, validate_result
@@ -32,6 +39,8 @@ from ingestion.classifier import classify
 from parsing.dependency_detector import detect_dependencies
 from parsing.dispatcher import parse_file
 from persistence.models import (
+    BusinessRule,
+    BusinessRuleStatus,
     EvidenceDataset,
     EvidenceDatasetStatus,
     EvidenceRecord,
@@ -525,6 +534,173 @@ def _object_understanding_process_item(
     )
 
 
+# ---------------------------------------------------------------------------
+# business_rule_discovery — wraps ai.business_rule_discovery; produces BusinessRule rows
+# (ADR-008/ADR-012, Baseline "Business Rules are derived from persisted structured object
+# understanding") — a 5th source_processing stage, mirroring object_understanding's pattern.
+# ---------------------------------------------------------------------------
+
+
+def _business_rule_discovery_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    existing_keys = set(
+        session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
+    )
+    # Eligible objects are those with a COMPLETED understanding for this run's scan — an
+    # INSUFFICIENT_CONTEXT/FAILED understanding gives business-rule discovery nothing more
+    # to reason from than object_understanding already had, so it is not re-attempted here.
+    objects = list(
+        session.scalars(
+            select(SAPObject)
+            .join(SourceFile, SAPObject.source_file_id == SourceFile.id)
+            .join(ObjectUnderstanding, ObjectUnderstanding.sap_object_id == SAPObject.id)
+            .where(
+                SourceFile.scan_id == run.source_scan_id,
+                ObjectUnderstanding.status == ObjectUnderstandingStatus.COMPLETED.value,
+            )
+        )
+    )
+    created = 0
+    for obj in objects:
+        key = str(obj.id)
+        if key in existing_keys:
+            continue
+        session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"object_id": obj.id}))
+        created += 1
+
+    stage.total_items = created + (stage.total_items or 0)
+    session.commit()
+
+
+def _business_rule_discovery_process_item(
+    item: WorkItem, stage: StageRun, run: PipelineRun, session: Session
+) -> None:
+    obj = session.get(SAPObject, item.payload["object_id"])
+    understanding = session.scalars(
+        select(ObjectUnderstanding).where(ObjectUnderstanding.sap_object_id == obj.id)
+    ).first()
+    if understanding is None or understanding.status != ObjectUnderstandingStatus.COMPLETED.value:
+        # Eligibility may have changed since `prepare` scoped this WorkItem (e.g. a concurrent
+        # reprocess invalidated the understanding) — nothing to discover from here.
+        return
+
+    package = build_business_rule_evidence_package(session, obj, understanding)
+    prompt_version = get_version(BUSINESS_RULE_DISCOVERY_CAPABILITY)
+    provider = get_provider(get_settings())
+
+    # ADR-012: schema, evidence-reference and domain rules are validated before persistence.
+    # Unlike object_understanding's single upserted row, there is no natural per-object "failed"
+    # row to write for a list of candidate rules — a provider/validation failure is recorded
+    # durably on the WorkItem itself (the same field the engine would set on an uncaught
+    # exception) and this run's already-persisted non-validated candidates for the object are
+    # left untouched, rather than failing the whole stage for every other object or wiping a
+    # prior successful result because of one transient failure.
+    try:
+        completion = provider.complete_structured(
+            StructuredCompletionRequest(
+                system_prompt=prompt_version.system_prompt,
+                user_prompt=render_business_rule_prompt(package),
+                json_schema=prompt_version.json_schema,
+                schema_name=prompt_version.schema_name,
+            )
+        )
+        result = BusinessRuleDiscoveryResult.model_validate(completion.output)
+        domain_errors = validate_business_rule_result(result, package)
+        if domain_errors:
+            raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
+    except (AIProviderError, ValidationError) as exc:
+        item.last_error = str(exc)[:2000]
+        return
+
+    existing = list(
+        session.scalars(
+            select(BusinessRule).where(
+                BusinessRule.sap_object_id == obj.id, BusinessRule.user_validated.is_(False)
+            )
+        )
+    )
+    for row in existing:
+        session.delete(row)
+    session.flush()
+
+    for rule in result.rules:
+        session.add(
+            BusinessRule(
+                assessment_id=run.assessment_id,
+                sap_object_id=obj.id,
+                rule_type=rule.rule_type.value,
+                condition=rule.condition,
+                action=rule.action,
+                confidence=rule.confidence,
+                rationale=rule.rationale,
+                evidence_refs=_resolve_evidence_refs(rule.evidence_refs, package.object_package),
+                status=BusinessRuleStatus.CANDIDATE.value,
+                provider=completion.provider,
+                model_id=completion.model_id,
+                prompt_capability=BUSINESS_RULE_DISCOVERY_CAPABILITY,
+                prompt_version=prompt_version.version,
+                stage_run_id=stage.id,
+            )
+        )
+    session.flush()
+
+
+def _normalize_rule_text(text: str) -> str:
+    return " ".join(text.strip().lower().split())
+
+
+def _evidence_ref_key(ref: dict) -> tuple:
+    # `ref_id` (e.g. "SRC-1") is only unique within one object's own evidence package, not
+    # across objects — keying on the full tuple avoids treating two different objects'
+    # same-named ref_id as the same evidence when merging.
+    return (ref.get("ref_id"), ref.get("source_type"), ref.get("entity_id"))
+
+
+def _business_rule_discovery_finalize(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    """Basic consolidation/merge: candidate rules for this assessment that share the same
+    rule_type and normalized condition+action are duplicates of one another. One survivor is
+    kept CANDIDATE (preferring a user-validated row, so validated content is never relabeled);
+    every other row in the group is marked MERGED with `consolidated_into_id` pointing at the
+    survivor, and its evidence_refs are folded into the survivor's rather than lost. Recomputed
+    from scratch on every run, since `process_item` above already regenerated each reprocessed
+    object's own non-validated candidates.
+    """
+    if stage.status != "completed":
+        return
+
+    rows = list(
+        session.scalars(
+            select(BusinessRule)
+            .where(
+                BusinessRule.assessment_id == run.assessment_id,
+                BusinessRule.status == BusinessRuleStatus.CANDIDATE.value,
+            )
+            .order_by(BusinessRule.id)
+        )
+    )
+    groups: dict[tuple[str, str, str], list[BusinessRule]] = {}
+    for row in rows:
+        key = (row.rule_type, _normalize_rule_text(row.condition), _normalize_rule_text(row.action))
+        groups.setdefault(key, []).append(row)
+
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        survivor = next((r for r in group if r.user_validated), group[0])
+        seen_refs = {_evidence_ref_key(ref) for ref in survivor.evidence_refs}
+        for row in group:
+            if row is survivor:
+                continue
+            for ref in row.evidence_refs:
+                if _evidence_ref_key(ref) not in seen_refs:
+                    survivor.evidence_refs = [*survivor.evidence_refs, ref]
+                    seen_refs.add(_evidence_ref_key(ref))
+            if not row.user_validated:
+                row.status = BusinessRuleStatus.MERGED.value
+                row.consolidated_into_id = survivor.id
+
+    session.commit()
+
+
 SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
     StageDefinition(
         key="scan",
@@ -551,6 +727,13 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         depends_on=("detect_dependencies",),
         prepare=_object_understanding_prepare,
         process_item=_object_understanding_process_item,
+    ),
+    StageDefinition(
+        key="business_rule_discovery",
+        depends_on=("object_understanding",),
+        prepare=_business_rule_discovery_prepare,
+        process_item=_business_rule_discovery_process_item,
+        finalize=_business_rule_discovery_finalize,
     ),
 ]
 

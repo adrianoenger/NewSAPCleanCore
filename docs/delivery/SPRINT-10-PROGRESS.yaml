@@ -1,0 +1,102 @@
+sprint: SPRINT-10
+branch: sprint/10-business-rule-discovery
+status: completed
+progress_percent: 100
+started_at: "2026-09-25"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      ai/business_rule_discovery schema (condition/action/type/confidence/evidence_refs,
+      status COMPLETED|INSUFFICIENT_CONTEXT, domain validate_result) + prompt/schema
+      registration as capability "business_rule_discovery" v1 (ADR-012).
+    status: done
+    validation: "Reviewed against ai/object_understanding's pattern; domain rules mirror ADR-008/ADR-012 (per-rule evidence_refs must resolve against the evidence package regardless of overall status; INSUFFICIENT_CONTEXT must not carry rules). Exercised by CAP-007 unit tests."
+  - id: CAP-002
+    description: >-
+      BusinessRule persistence model (rule_type, condition, action, confidence,
+      rationale, evidence_refs JSONB, status incl. MERGED, consolidated_into_id,
+      provider/model/prompt provenance, user_validated hook fields) + Alembic
+      migration 0012.
+    status: done
+    validation: "alembic upgrade head applied migration 0012 cleanly against the running dev Postgres (docker exec sap-clean-core-backend-1); autogenerate diff after upgrade shows only the pre-existing BL-013 drift, nothing from business_rule."
+  - id: CAP-003
+    description: >-
+      business_rule_discovery pipeline stage registered in SOURCE_PROCESSING_STAGES
+      (depends_on object_understanding): prepare scopes eligible ObjectUnderstanding
+      rows (status COMPLETED) for the current scan, process_item builds an
+      evidence package (source/ATC/supplemental + understanding context), calls
+      the configured AIProvider through the versioned prompt/schema, validates
+      before persistence, upserts candidate BusinessRule rows (never a false
+      COMPLETED per ADR-012).
+    status: done
+    validation: "Module import smoke check inside sap-clean-core-backend-1: SOURCE_PROCESSING_STAGES now lists scan/parse/detect_dependencies/object_understanding/business_rule_discovery in order; ai.business_rule_discovery registers capability+v1 schema. Full pipeline integration exercised by CAP-007."
+  - id: CAP-004
+    description: >-
+      Basic rule consolidation/merge: stage finalize groups candidate rules by
+      exact (rule_type, normalized condition+action) match within the assessment,
+      merges duplicates' evidence_refs into one survivor, marks the rest MERGED
+      with consolidated_into_id (never touches user-validated rules).
+    status: done
+    validation: "Implemented as pipeline/stages.py::_business_rule_discovery_finalize, wired as the new stage's finalize hook. Exercised by CAP-007's pipeline integration test."
+  - id: CAP-005
+    description: >-
+      Backend API: list business rules for an Assessment (excludes MERGED-away
+      duplicates by default), rule detail with resolved evidence drill-down
+      (object/source excerpt or supplemental evidence record), and a validation
+      hook endpoint (PATCH user_validated/notes).
+    status: done
+    validation: "GET /assessments/{id}/business-rules and PATCH .../business-rules/{id}/validate registered on the app (confirmed via router.routes inside sap-clean-core-backend-1); reused SAPObjectDetailRead + the existing evidence-correlations endpoint for drill-down rather than duplicating them. Exercised end-to-end by CAP-007."
+  - id: CAP-006
+    description: >-
+      Frontend Functional View: BusinessRuleBrowser replaces the PlaceholderView
+      for activeView 'functional', lists discovered rules (condition/action/type/
+      confidence/status), opens evidence drill-down to the exact supporting
+      object/source or supplemental evidence, and exposes the validation hook.
+    status: done
+    validation: "npm run typecheck and npm run build both clean (frontend/). Reused ObjectBrowser's EvidencePanel/SOURCE_TYPE_LABELS (exported) instead of duplicating; source-object drill-down via fetchSAPObject, supplemental-evidence drill-down via the existing evidence-correlations endpoint. Not yet exercised live in the running Electron app — deferred to the sprint's live/e2e smoke (CAP-007)."
+  - id: CAP-007
+    description: >-
+      Minimal validation: backend pytest (domain validation unit tests, pipeline
+      integration test mirroring test_object_understanding_pipeline.py, API
+      tests), frontend typecheck/build, and a live/e2e smoke of the demonstrable
+      flow (browse rules, open supporting evidence).
+    status: done
+    validation: >-
+      backend: 154/154 pytest passing (16 new: 7 in test_business_rule_discovery.py, 9 in
+      test_business_rule_discovery_pipeline.py — covers COMPLETED-with-rules,
+      COMPLETED-with-zero-rules, provider-error/domain-validation-failure never persisting
+      without failing the stage, reprocessing replacing non-validated candidates, cross-object
+      consolidation with the ref_id-collision fix, user-validated-row-wins-consolidation, and
+      both API endpoints). Fixed 2 pre-existing hardcoded assertions (migration_revision, stage
+      count 4->5) in test_foundation.py/test_sprint06.py. frontend: typecheck+build clean.
+      Live smoke #1 via the real HTTP API with real AWS Bedrock credentials: disposable
+      client/assessment, full pipeline run over demo-source/ABAP end to end (5 stages
+      completed) — 3 real grounded, evidence-cited business rules persisted (condition/action/
+      type/confidence structure), PATCH validate hook exercised on a real rule; cleaned up
+      (scoped DELETE FROM client WHERE id=:cid, per project-test-isolation memory).
+      Live smoke #2 through the actual Electron/React renderer (electron-vite dev on
+      localhost:5173, driven with Playwright, mirroring SPRINT-09's own validation approach):
+      opened a fresh disposable assessment, scan already completed, navigated to Functional
+      View -> BusinessRuleBrowser lists the 3 real discovered rules with type badges; selected
+      one -> detail panel shows Condição/Ação/rationale/confidence, the SRC-1 evidence badge,
+      "Objeto de origem: ZFM_PROCESS_ORDER, function_module linhas 1-28" (drill-down to the
+      exact supporting source object), and the bedrock/model/prompt provenance line; clicked
+      "Marcar como validado" -> UI re-rendered "Validado pelo usuário" (validation hook
+      confirmed end-to-end against the real backend). Only console issue was a pre-existing,
+      unrelated favicon 404. Disposable client/assessment deleted afterward; dev server
+      process stopped. BL-015 recorded (unrelated stray leftover demo client from a prior
+      session's own live validation, noticed while browsing the assessments list).
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: ["BL-015"]
+notes:
+  - "Capability plan derived from docs/delivery/sprints/SPRINT-10-business-rule-discovery.md, ADR-008, ADR-012, ADR-011, and the SPRINT-09 object_understanding stage pattern (backend/src/pipeline/stages.py, backend/src/ai/object_understanding/)."
+  - "Next Alembic revision is 0012 (down_revision 0011_object_understanding)."
+  - "No condition/action rule structure or user-validation flag pre-exists in the codebase; both are new in this sprint."
+  - "Design decision: ref_id is only unique within one object's own evidence package, not across objects — the finalize consolidation step and its test caught this; fixed by keying evidence-ref dedup on (ref_id, source_type, entity_id) rather than ref_id alone (pipeline/stages.py::_evidence_ref_key)."
+  - "Design decision: unlike ObjectUnderstanding's single upserted row, a provider/domain-validation failure for business_rule_discovery has no natural single 'FAILED' row to write (the result is a list of candidate rules per object). Recorded durably on WorkItem.last_error instead (the same field the engine itself would set on an uncaught exception), while leaving that object's already-persisted non-validated candidates untouched — never failing the whole stage for one object's AI hiccup, and never fabricating a rule."
+  - "All sprint capabilities (CAP-001..CAP-007) done. /clean-core-review-sprint returned READY_TO_FINISH: YES; closed by /clean-core-finish-sprint. See docs/delivery/results/SPRINT-10-RESULT.md."

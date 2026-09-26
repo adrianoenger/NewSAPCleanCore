@@ -310,9 +310,9 @@ def test_start_pipeline_run_endpoint(client) -> None:
             assert resp.status_code == 201
             data = resp.json()
             run_id = data["id"]
-            assert len(data["stages"]) == 4
+            assert len(data["stages"]) == 5
             assert {s["stage_key"] for s in data["stages"]} == {
-                "scan", "parse", "detect_dependencies", "object_understanding",
+                "scan", "parse", "detect_dependencies", "object_understanding", "business_rule_discovery",
             }
 
             # The background task runs synchronously within the request lifecycle

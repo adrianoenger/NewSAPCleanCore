@@ -1,4 +1,5 @@
 import { ATCImport } from '@/components/atc/ATCImport'
+import { BusinessRuleBrowser } from '@/components/functional/BusinessRuleBrowser'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
 import { ObjectBrowser } from '@/components/parsing/ObjectBrowser'
 import { PipelineRunner } from '@/components/pipeline/PipelineRunner'
@@ -53,7 +54,7 @@ export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
         {activeView === 'ai-processing' && <PipelineRunner assessmentId={assessment.id} />}
         {activeView === 'dashboard' && <PlaceholderView title="Dashboard Geral" />}
         {activeView === 'executive' && <PlaceholderView title="Executive View" />}
-        {activeView === 'functional' && <PlaceholderView title="Functional View" />}
+        {activeView === 'functional' && <BusinessRuleBrowser assessmentId={assessment.id} />}
         {activeView === 'architecture' && <PlaceholderView title="Architecture View" />}
       </div>
     </main>

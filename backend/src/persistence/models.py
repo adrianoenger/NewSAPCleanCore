@@ -238,6 +238,10 @@ class SAPObject(Base):
     understanding: Mapped["ObjectUnderstanding | None"] = relationship(
         "ObjectUnderstanding", back_populates="sap_object", cascade="all, delete-orphan"
     )
+    business_rules: Mapped[list["BusinessRule"]] = relationship(
+        "BusinessRule", back_populates="sap_object", cascade="all, delete-orphan",
+        foreign_keys="BusinessRule.sap_object_id",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -781,3 +785,73 @@ class ObjectUnderstanding(Base):
 
     assessment: Mapped["Assessment"] = relationship("Assessment")
     sap_object: Mapped["SAPObject"] = relationship("SAPObject", back_populates="understanding")
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-10 domain models — Business Rule Discovery (ADR-008/ADR-012)
+# ---------------------------------------------------------------------------
+
+
+class BusinessRuleStatus(str, Enum):
+    CANDIDATE = "CANDIDATE"
+    MERGED = "MERGED"
+
+
+class BusinessRule(Base):
+    """A discovered candidate business rule for one SAPObject, derived from its persisted
+    `ObjectUnderstanding` plus the same evidence package (ADR-008 — evidence-bound, AI
+    interpretation alone is not authoritative; ADR-012 — structured, validated, provenance
+    recorded).
+
+    Unlike `ObjectUnderstanding`, one object may yield zero, one or several rules per run.
+    Reprocessing replaces this run's machine-generated candidates for the object (rows with
+    `user_validated=True` are never touched by reprocessing). `consolidated_into_id` implements
+    basic merge handling: a duplicate rule is marked `MERGED` and points at the surviving row
+    instead of being deleted, so its own evidence_refs/provenance stay inspectable.
+    """
+
+    __tablename__ = "business_rule"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sap_object_id: Mapped[int] = mapped_column(
+        ForeignKey("sap_object.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    rule_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    condition: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Resolved from the model's evidence_refs against the BusinessRuleEvidencePackage used at
+    # generation time — [{"ref_id","source_type","entity_id"}, ...], same shape as
+    # ObjectUnderstanding.evidence_refs, so the API/UI can link straight to the cited
+    # SourceFile/ATCFinding/EvidenceRecord without reparsing ref_ids.
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=BusinessRuleStatus.CANDIDATE.value)
+    consolidated_into_id: Mapped[int | None] = mapped_column(
+        ForeignKey("business_rule.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user_validated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    user_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_capability: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
+    sap_object: Mapped["SAPObject"] = relationship(
+        "SAPObject", back_populates="business_rules", foreign_keys=[sap_object_id]
+    )
+    consolidated_into: Mapped["BusinessRule | None"] = relationship("BusinessRule", remote_side=[id])

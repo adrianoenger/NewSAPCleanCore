@@ -130,7 +130,7 @@ const DATASET_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Evidência complementar',
 }
 
-function EvidencePanel({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
+export function EvidencePanel({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
   const { data, isLoading } = useQuery({
     queryKey: ['object-evidence-correlations', assessmentId, objectId],
     queryFn: () => fetchObjectEvidenceCorrelations(assessmentId, objectId),
@@ -163,7 +163,7 @@ function EvidencePanel({ assessmentId, objectId }: { assessmentId: number; objec
   )
 }
 
-const SOURCE_TYPE_LABELS: Record<string, string> = {
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
   SOURCE_CODE: 'Código-fonte',
   ATC_FINDING: 'Achado ATC',
   SUPPLEMENTAL_EVIDENCE: 'Evidência complementar',

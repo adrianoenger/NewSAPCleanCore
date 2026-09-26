@@ -572,3 +572,62 @@ export const fetchObjectEvidenceCorrelations = (
   objectId: number,
 ): Promise<ObjectEvidenceCorrelationsResponse> =>
   api(`/assessments/${assessmentId}/objects/${objectId}/evidence-correlations`)
+
+// ---------------------------------------------------------------------------
+// SPRINT-10: Business Rule Discovery (ADR-008/ADR-012)
+// ---------------------------------------------------------------------------
+
+export interface BusinessRuleEvidenceRef {
+  ref_id: string
+  source_type: string
+  entity_id: number
+}
+
+export interface BusinessRuleRecord {
+  id: number
+  assessment_id: number
+  sap_object_id: number
+  rule_type: 'VALIDATION' | 'CALCULATION' | 'AUTHORIZATION' | 'WORKFLOW' | 'DATA_INTEGRITY' | 'OTHER'
+  condition: string
+  action: string
+  confidence: number
+  rationale: string
+  evidence_refs: BusinessRuleEvidenceRef[]
+  status: 'CANDIDATE' | 'MERGED'
+  consolidated_into_id: number | null
+  user_validated: boolean
+  user_validated_at: string | null
+  user_notes: string | null
+  provider: string
+  model_id: string
+  prompt_capability: string
+  prompt_version: string
+  created_at: string
+  updated_at: string
+}
+
+export interface BusinessRuleListResponse {
+  assessment_id: number
+  rules: BusinessRuleRecord[]
+  total: number
+}
+
+export const fetchBusinessRules = (
+  assessmentId: number,
+  objectId?: number,
+): Promise<BusinessRuleListResponse> => {
+  const qs = objectId != null ? `?object_id=${objectId}` : ''
+  return api(`/assessments/${assessmentId}/business-rules${qs}`)
+}
+
+export const validateBusinessRule = (
+  assessmentId: number,
+  ruleId: number,
+  userValidated: boolean,
+  userNotes?: string | null,
+): Promise<BusinessRuleRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/business-rules/${ruleId}/validate`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_validated: userValidated, user_notes: userNotes ?? null }),
+  })

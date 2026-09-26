@@ -1,62 +1,69 @@
 # Session Handoff
 
 ## Current state
-SPRINT-09 (AI Object Understanding) is **completed** — closed by `/clean-core-finish-sprint`.
-`docs/delivery/SPRINT-09-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
-`ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-09-RESULT.md`. The
+SPRINT-10 (Business Rule Discovery) is **completed** — closed by `/clean-core-finish-sprint`.
+`docs/delivery/SPRINT-10-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
+`ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-10-RESULT.md`. The
 sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
 deleted (the remote copy is kept as the sprint record).
 
-**Next sprint:** SPRINT-10 — Business Rule Discovery
-(`docs/delivery/sprints/SPRINT-10-business-rule-discovery.md`), not started.
+**Next sprint:** SPRINT-11 — Application Discovery
+(`docs/delivery/sprints/SPRINT-11-application-discovery.md`), not started.
 
 ## What was delivered
-Provider-agnostic structured LLM processing (ADR-006/ADR-012) entered the product for the first
-time. `object_understanding` registers as a 4th stage of the existing `source_processing` durable
-pipeline (BL-003), running after `detect_dependencies`: for each `SAPObject` it assembles a
-provider-agnostic evidence package (source excerpt + correlated ATC findings + correlated
-supplemental evidence), calls the configured `AIProvider` through a versioned prompt/schema,
-validates the response against domain rules before persistence, and upserts one
-`ObjectUnderstanding` row per object with full provider/model/prompt/schema provenance. A provider
-error or a domain-validation failure persists as `ObjectUnderstandingStatus.FAILED` — never a
-false `COMPLETED` — without failing the pipeline WorkItem.
+`business_rule_discovery` registers as a 5th stage of the existing `source_processing` durable
+pipeline, running after `object_understanding`: for each `SAPObject` with a `COMPLETED`
+understanding, it reuses that object's evidence package (source excerpt, correlated ATC findings,
+correlated supplemental evidence) plus the persisted understanding as prompt context only (never
+a citable evidence ref, per ADR-008), calls the configured `AIProvider` through a versioned
+condition/action/type/confidence/evidence-bound prompt/schema, validates the response before
+persistence (a `COMPLETED` result with zero rules is a valid, non-forced outcome), and persists
+candidate `BusinessRule` rows. A finalize step performs basic consolidation of exact-duplicate
+candidates across the assessment, preferring a user-validated survivor. A new Functional View
+(`BusinessRuleBrowser`) lists discovered rules with evidence drill-down to the exact supporting
+object/source or supplemental evidence, and exposes a user-validation hook that survives later
+reprocessing/consolidation.
 
-- **`backend/src/ai/`**: `provider.py` (`AIProvider` Protocol), `providers/{bedrock,azure_foundry}.py`,
-  `providers/__init__.py::get_provider`, `registry.py` (versioned prompt/schema), `chunking.py`
-  (ABAP boundary-aware chunking), `object_understanding/{schema,evidence_package,__init__}.py`.
-- **`persistence/models.py::ObjectUnderstanding`** + migration `0011_object_understanding`.
-- **`pipeline/stages.py`**: `object_understanding` stage registered in `SOURCE_PROCESSING_STAGES`.
-- **API**: `SAPObjectDetailRead.understanding` (`api/schemas/parsing.py`).
-- **Frontend**: `ObjectBrowser.tsx::UnderstandingPanel`, `PipelineRunner.tsx` stage label.
+- **`backend/src/ai/business_rule_discovery/`**: `schema.py`, `evidence_package.py`,
+  `__init__.py` (registers capability `business_rule_discovery` v1).
+- **`persistence/models.py::BusinessRule`** (+ `BusinessRuleStatus`) — migration
+  `0012_business_rule_discovery`.
+- **`pipeline/stages.py`**: `business_rule_discovery` stage (prepare/process_item/finalize),
+  appended to `SOURCE_PROCESSING_STAGES`.
+- **API**: `api/schemas/business_rules.py`, `api/routes/business_rules.py` — `GET
+  /assessments/{id}/business-rules`, `PATCH .../business-rules/{id}/validate`.
+- **Frontend**: `components/functional/BusinessRuleBrowser.tsx`, wired into `Workspace.tsx`;
+  exported `EvidencePanel`/`SOURCE_TYPE_LABELS` from `ObjectBrowser.tsx` for reuse; `lib/api.ts`
+  additions.
 - Bedrock is live-validated (real `us.anthropic.claude-sonnet-4-5-20250929-v1:0` calls, both via
   the HTTP API over `demo-source/ABAP` and via a live Playwright e2e against the electron-vite
-  renderer). Azure AI Foundry is implemented and unit-tested against a mocked HTTP layer; its live
-  validation remains deferred — no credentials were available this sprint.
-- 138/138 backend pytest (13 new tests), frontend `tsc`/`build` clean.
+  renderer, including the "Marcar como validado" hook end to end).
+- 154/154 backend pytest (16 new tests), frontend `tsc`/`build` clean.
 
 Full detail, demonstration path, and known limitations are in
-`docs/delivery/results/SPRINT-09-RESULT.md`.
+`docs/delivery/results/SPRINT-10-RESULT.md`.
 
 ## Known deferrals / backlog
-- **BL-014** (new): pre-existing SPRINT-06/07/08 tests that run the full pipeline without mocking
-  the AI provider now transitively make real Bedrock calls (intended per BL-003, not a defect;
-  tripled full-suite runtime ~7s → ~132s). Not fixed this sprint — recorded for future
-  consideration.
-- Azure AI Foundry live validation remains deferred — no credentials available this sprint.
-- BL-013 (pre-existing schema/ORM autogenerate drift) is unrelated to this sprint and untouched.
-- ATC import remains a standalone action (ADR-016/BL-002) — untouched by this sprint.
-- The rest of the baseline's "AI Processing" list (customisation identification, ATC
-  interpretation, dependency/application discovery, business-rule discovery, Clean Core analysis,
-  embeddings, aggregation) is out of this sprint's scope — SPRINT-10+ builds on the
-  `AIProvider`/registry/pipeline-stage foundation this sprint established.
+- **BL-015** (new): a stray un-cleaned-up "SPRINT09 Live Smoke Test" client noticed in the
+  assessments list from a prior session — not this sprint's data, not a data-loss risk, just
+  dev-database clutter. Not fixed (out of this sprint's scope).
+- Consolidation is intentionally "basic" (exact rule_type + normalized text match), no
+  embeddings/semantic similarity — that remains future work under the baseline's separate
+  "embeddings / semantic indexing" AI Processing item.
+- BL-013 (pre-existing schema/ORM autogenerate drift) and BL-014 (pre-existing sprint tests now
+  making live Bedrock calls) are unrelated to this sprint and untouched.
+- Azure AI Foundry live validation remains deferred (unchanged from SPRINT-09 — no credentials
+  available).
 
 ## Next steps
-SPRINT-09 is closed. Run `/clean-core-run-sprint` to start SPRINT-10 (Business Rule Discovery) —
-it will sync `main`, create branch `sprint/10-business-rule-discovery`, and begin from that
-sprint's first capability.
+SPRINT-10 is closed. Run `/clean-core-run-sprint` to start SPRINT-11 (Application Discovery) —
+it will sync `main`, create branch `sprint/11-application-discovery`, and begin from that
+sprint's first capability. SPRINT-11 groups technical objects into functional custom applications
+and persists related business rules/evidence links — it builds directly on this sprint's
+`BusinessRule` model and the `object_understanding`/`business_rule_discovery` stage pair.
 
 ## Restart instructions
-SPRINT-09 has no unfinished work — `docs/delivery/SPRINT-09-PROGRESS.yaml` is `status: completed`
-and all 12 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+SPRINT-10 has no unfinished work — `docs/delivery/SPRINT-10-PROGRESS.yaml` is `status: completed`
+and all 7 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
 checked out, `main` is the correct branch to be on; the next action is `/clean-core-run-sprint`
-for SPRINT-10, not a resume of SPRINT-09.
+for SPRINT-11, not a resume of SPRINT-10.
