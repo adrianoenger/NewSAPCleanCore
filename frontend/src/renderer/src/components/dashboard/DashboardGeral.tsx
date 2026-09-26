@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { fetchDashboardSummary } from '@/lib/api'
+import { ErrorState } from '@/components/shared/ErrorState'
 
 interface Props {
   assessmentId: number
@@ -48,13 +49,17 @@ const RESULT_VIEWS = [
 ]
 
 export function DashboardGeral({ assessmentId, onSelectView }: Props) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard-summary', assessmentId],
     queryFn: () => fetchDashboardSummary(assessmentId),
   })
 
   if (isLoading) {
     return <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">Carregando…</div>
+  }
+
+  if (isError) {
+    return <ErrorState message="Não foi possível carregar o resumo do processamento." onRetry={refetch} />
   }
 
   return (

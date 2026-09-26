@@ -8,9 +8,11 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw, Sparkles, Wrench } from 'lucide-react'
 import { RecommendationChip } from '@/components/shared/cleanCoreDisplay'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { DependencyGraph } from '@/components/parsing/DependencyGraph'
+import { SourceViewer } from '@/components/parsing/SourceViewer'
 import {
   fetchApplication,
-  fetchObjectDependencies,
   fetchObjectEvidenceCorrelations,
   fetchProcessingStatus,
   fetchSAPObject,
@@ -73,49 +75,6 @@ function AttributeTable({ attrs }: { attrs: Record<string, unknown> }) {
           )}
         </div>
       ))}
-    </div>
-  )
-}
-
-const DEP_TYPE_LABEL: Record<string, string> = {
-  CALL_FUNCTION: 'CALL FUNCTION',
-  INCLUDE: 'INCLUDE',
-  INHERITS_FROM: 'INHERITS FROM',
-  USES_TABLE: 'USES TABLE',
-}
-
-const DEP_TYPE_COLOR: Record<string, string> = {
-  CALL_FUNCTION: 'text-purple-400',
-  INCLUDE: 'text-cyan-400',
-  INHERITS_FROM: 'text-amber-400',
-  USES_TABLE: 'text-emerald-400',
-}
-
-function DependenciesPanel({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['dependencies', assessmentId, objectId],
-    queryFn: () => fetchObjectDependencies(assessmentId, objectId),
-  })
-
-  if (isLoading) return <div className="text-[11px] text-text-tertiary">Loading dependencies…</div>
-  if (!data || data.total === 0) return null
-
-  return (
-    <div>
-      <div className="mb-1.5 text-[11px] font-medium text-text-secondary">Dependencies ({data.total})</div>
-      <div className="space-y-1">
-        {data.dependencies.map((dep) => (
-          <div key={dep.id} className="flex items-center gap-2 rounded bg-surface-elevated px-2 py-1 text-[11px]">
-            <span className={cn('w-28 shrink-0 font-mono text-[10px]', DEP_TYPE_COLOR[dep.dep_type] ?? 'text-text-tertiary')}>
-              {DEP_TYPE_LABEL[dep.dep_type] ?? dep.dep_type}
-            </span>
-            <span className="font-mono text-text-primary">{dep.target_name}</span>
-            {dep.source_line != null && (
-              <span className="ml-auto text-text-tertiary">:{dep.source_line}</span>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -341,6 +300,7 @@ function ObjectDetail({
         Lines {data.line_start}{data.line_end != null ? `–${data.line_end}` : '+'}
         {' · '}file #{data.source_file_id}
       </div>
+      <SourceViewer assessmentId={assessmentId} objectId={objectId} />
       <UnderstandingPanel understanding={data.understanding} />
       {Object.keys(data.attributes).length > 0 && (
         <div>
@@ -348,7 +308,7 @@ function ObjectDetail({
           <AttributeTable attrs={data.attributes} />
         </div>
       )}
-      <DependenciesPanel assessmentId={assessmentId} objectId={objectId} />
+      <DependencyGraph assessmentId={assessmentId} object={data} />
       <EvidencePanel assessmentId={assessmentId} objectId={objectId} />
       {data.application_id != null && (
         <RemediationPanel
@@ -372,7 +332,7 @@ export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate, onSelec
     }
   }, [focusObjectId])
 
-  const { data: objects = [], isLoading, refetch } = useQuery({
+  const { data: objects = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['sap-objects', assessmentId, typeFilter],
     queryFn: () => fetchSAPObjects(assessmentId, typeFilter || undefined),
   })
@@ -454,6 +414,8 @@ export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate, onSelec
             <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
               Loading objects…
             </div>
+          ) : isError ? (
+            <ErrorState message="Não foi possível carregar os objetos SAP." onRetry={refetch} />
           ) : displayObjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <Boxes className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />

@@ -40,6 +40,7 @@ interface SidebarProps {
   onSelect: (id: string) => void
   connectivity: Connectivity
   ctx: AssessmentContext
+  width: number
 }
 
 function GroupLabel({ label }: { label: string }) {
@@ -50,7 +51,7 @@ function GroupLabel({ label }: { label: string }) {
   )
 }
 
-export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps) {
+export function Sidebar({ activeId, onSelect, connectivity, ctx, width }: SidebarProps) {
   const { assessment, client } = ctx
 
   const cleanCoreItems = NAV_ITEMS.filter((i) => i.group === 'clean-core')
@@ -60,7 +61,8 @@ export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps)
   return (
     <aside
       data-region="sidebar"
-      className="flex w-[236px] shrink-0 flex-col border-r border-border-default bg-surface-sidebar"
+      style={{ width }}
+      className="flex shrink-0 flex-col overflow-hidden border-r border-border-default bg-surface-sidebar"
     >
       {/* Logo / title — click to go home */}
       <button

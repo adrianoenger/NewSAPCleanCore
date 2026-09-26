@@ -32,6 +32,7 @@ import {
   type PipelineRunRecord,
   type StageRunRecord,
 } from '@/lib/api'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -235,7 +236,14 @@ export function PipelineRunner({ assessmentId }: Props) {
           <p className="text-[13px] text-text-tertiary">Carregando status…</p>
         )}
 
-        {!statusQuery.isLoading && !hasIngestion && (
+        {statusQuery.isError && (
+          <ErrorState
+            message="Não foi possível carregar o status de processamento."
+            onRetry={() => statusQuery.refetch()}
+          />
+        )}
+
+        {!statusQuery.isLoading && !statusQuery.isError && !hasIngestion && (
           <section className="flex flex-col items-center gap-2 rounded-card border border-border-default bg-surface-card p-8 text-center">
             <Inbox className="h-6 w-6 text-text-tertiary" />
             <p className="text-[14px] font-medium text-text-secondary">Nenhuma ingestão concluída ainda</p>

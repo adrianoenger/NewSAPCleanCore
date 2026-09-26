@@ -41,3 +41,18 @@ class ObjectUnderstandingRead(BaseModel):
 class SAPObjectDetailRead(SAPObjectRead):
     attributes: dict[str, Any]
     understanding: ObjectUnderstandingRead | None = None
+
+
+class SourceSnippetRead(BaseModel):
+    """Bounded raw source text for Monaco (CAP-002, SPRINT-17). Read-only, never the full file
+    when it exceeds the size cap — large files are truncated rather than loaded wholesale
+    (Baseline core rule 10)."""
+
+    object_id: int
+    rel_path: str
+    language: str
+    content: str
+    line_start: int
+    line_end: int | None
+    truncated: bool
+    size_bytes: int

@@ -1,14 +1,86 @@
 # Session Handoff
 
 ## Current state
+SPRINT-17 (Demo Readiness) is **completed** — closed by `/clean-core-finish-sprint`.
+`docs/delivery/SPRINT-17-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
+`ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-17-RESULT.md`. The
+sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
+deleted (the remote copy is kept as the sprint record).
+
+**Next sprint:** none planned yet — `EXECUTION_STATE.yaml`'s `next_sprint` is `null`. Await a new
+sprint file under `docs/delivery/sprints/` before running `/clean-core-run-sprint` again.
+
+## What SPRINT-17 delivered
+Demo-hardening polish across the full PoC journey, no new domain capability, no schema change
+(alembic head unchanged).
+
+- **CAP-001 — Resizable three-panel shell**: `lib/useResizableWidth.ts` (drag + localStorage
+  persistence, no new dependency) + `components/shell/ResizeHandle.tsx`, wired into `App.tsx`
+  between Sidebar/Workspace and Workspace/Copilot. `Sidebar`/`CopilotPanel` take a `width` prop
+  instead of a fixed Tailwind width class.
+- **CAP-002 — Monaco source viewer** (`components/parsing/SourceViewer.tsx`): new bounded
+  backend endpoint `GET /assessments/{id}/objects/{object_id}/source`
+  (`api/routes/parsing.py::get_object_source`, `_MAX_SOURCE_BYTES=512_000`, truncates rather than
+  loading a large real file wholesale — Baseline core rule 10) reads straight from the scan's
+  source directory (same `scan.source_path`+`rel_path` lookup pipeline stages already use).
+  `lib/monacoSetup.ts` bundles Monaco locally (`loader.config({monaco})`, no CDN — ADR-002
+  offline desktop) and relies on monaco-editor's own built-in `abap` Monarch language (no custom
+  tokenizer needed). No worker wired up — see BL-024. An automated security review flagged the
+  source endpoint's `scan.source_path`+`rel_path` join as a path-traversal gap (no containment
+  check) — fixed with `realpath`+`commonpath` verification and an absolute-path rejection; BL-025
+  recorded for the same unguarded join pattern pre-existing elsewhere in the codebase (lower
+  severity there — none of those call sites return raw file content over HTTP).
+- **CAP-003 — React Flow dependency graph** (`components/parsing/DependencyGraph.tsx`, new
+  `@xyflow/react` dependency): replaces Technical View's flat dependency list with a small graph
+  centered on the selected object; target nodes stay plain labels (never navigable) since
+  `SAPObjectDependency.target_name` is unresolved free text (BL-022/BL-016, untouched).
+- **CAP-004 — Empty/loading/error state audit**: new `components/shared/ErrorState.tsx`, wired
+  into every primary list/summary query that previously only branched on `isLoading` (silently
+  rendering a misleading "empty" state on a real fetch error) — `DashboardGeral`, `ExecutiveView`,
+  `ApplicationBrowser`, `BusinessRuleBrowser`, `ObjectBrowser`, `ATCImport` (runs list),
+  `EvidenceDatasets`, `PipelineRunner`.
+- **CAP-005 — Reproducible demo seed extension**: extracted `atc.persistence.persist_atc_import`
+  out of `api/routes/atc.py::import_atc_file` (now shared by the route and the seed, no duplicated
+  ~150 lines) + `seed/registry.py` v6→v8 adds `_seed_demo_atc_import` (a compact 4-finding ATC
+  run against the demo-source objects) and `_seed_demo_evidence_dataset` (a compact real-format
+  HANA Sizing Report .txt, imported through the actual adapter/durable-pipeline path) for the
+  persistent Acme demo assessment. Applied live: 1 ATCRun (4 findings, all correlated), 4 derived
+  TechnicalFindings, 1 EvidenceDataset (`IMPORTED_FULL`, 4 EvidenceRecords).
+- **CAP-006 — Full live Playwright demo pass** against the electron-vite renderer over the
+  persistent Acme assessment (id 1074): Assessments Home → Ingestion (new evidence dataset
+  visible) → ATC (new correlated run) → Technical View (Monaco + dependency graph + AI
+  understanding + remediation panel) → Dashboard Geral (KPIs reflect new data) → Executive/
+  Functional/Architecture Views → Copilot (grounded answer + graceful insufficient-context
+  refusal) → resizable panel drag-and-persist. **One real blocking defect found and fixed**:
+  React Flow's internal worker was blocked by `index.html`'s CSP (`script-src 'self'`, no
+  `worker-src`) — added `worker-src 'self' blob:`.
+- Backend 229/229 pytest passing (224 pre-existing + 5 new in `test_source_snippet.py`, incl. 2
+  path-traversal contract tests added for the CAP-002 security fix above; CAP-005's extraction is
+  already covered by pre-existing `test_sprint05.py` ATC API tests). Frontend `tsc`/`build` clean
+  throughout. **BL-024 recorded** (Monaco's own editor worker cannot be wired up under
+  electron-vite's Rollup build — cosmetic console error only, editor fully functional via
+  main-thread fallback, not blocking). **BL-025 recorded** (same unguarded
+  `scan.source_path`+`rel_path` join pattern pre-exists in `dependencies.py`/`pipeline/stages.py`,
+  lower severity since neither returns raw content over HTTP).
+- **Demo-readiness note**: the persistent Acme assessment's existing Clean Core/Executive View AI
+  analysis predates this sprint's new ATC run + evidence dataset, so its risk narratives currently
+  read "no ATC findings/evidence reported" — re-run "3 - Processamento por IA" to let
+  `clean_core_analysis` pick up the new signals before a live demo. Not a defect (ADR-012: seeding
+  new evidence does not retroactively invalidate already-persisted AI output).
+
+## Restart instructions
+SPRINT-17 has no unfinished work — `docs/delivery/SPRINT-17-PROGRESS.yaml` is `status: completed`
+and all 6 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+checked out, `main` is the correct branch to be on. There is no next sprint file yet
+(`docs/delivery/sprints/` ends at `SPRINT-17-demo-readiness.md`) — a new sprint must be authored
+under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+
+## Previous sprint (SPRINT-16)
 SPRINT-16 (AI Copilot) is **completed** — closed by `/clean-core-finish-sprint`.
 `docs/delivery/SPRINT-16-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
 `ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-16-RESULT.md`. The
 sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
 deleted (the remote copy is kept as the sprint record).
-
-**Next sprint:** SPRINT-17 — Demo Readiness (`docs/delivery/sprints/SPRINT-17-demo-readiness.md`),
-not started.
 
 During `/clean-core-review-sprint`, one documentation gap was found and resolved before closure:
 the sprint's demonstrable outcome mentions following Copilot references back to
@@ -61,12 +133,6 @@ cross-view navigation, and the conversation survives view/focus switches.
   (prior conversation still visible, context label updated), selected a business rule, asked a
   second grounded question citing the rule's own evidence plus 2 semantic-search hits, followed
   its navigation reference. BL-023 recorded (see above).
-
-## Restart instructions
-SPRINT-16 has no unfinished work — `docs/delivery/SPRINT-16-PROGRESS.yaml` is `status: completed`
-and all 8 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
-checked out, `main` is the correct branch to be on; the next action is `/clean-core-run-sprint`
-for SPRINT-17, not a resume of SPRINT-16.
 
 ## Previous sprint (SPRINT-15)
 SPRINT-15 (Result Navigation Perspectives) is **completed** — closed by

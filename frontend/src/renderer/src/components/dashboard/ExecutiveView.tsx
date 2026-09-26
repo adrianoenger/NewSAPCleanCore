@@ -7,6 +7,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertOctagon, ChevronRight, Map, ShieldAlert, Sparkles } from 'lucide-react'
 import { LevelBadge, RECOMMENDATION_CONFIG, RecommendationChip, countByRecommendation } from '@/components/shared/cleanCoreDisplay'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { fetchApplications, type ApplicationRecord } from '@/lib/api'
 import type { ResultFocus } from '@/lib/resultNav'
 
@@ -38,13 +39,17 @@ function AppRow({ app, onNavigate }: { app: ApplicationRecord; onNavigate: (targ
 }
 
 export function ExecutiveView({ assessmentId, onNavigate }: Props) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['applications', assessmentId],
     queryFn: () => fetchApplications(assessmentId),
   })
 
   if (isLoading) {
     return <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">Carregando…</div>
+  }
+
+  if (isError) {
+    return <ErrorState message="Não foi possível carregar as aplicações." onRetry={refetch} />
   }
 
   const applications = data?.applications ?? []

@@ -1,0 +1,47 @@
+sprint: SPRINT-17
+branch: sprint/17-demo-readiness
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Resizable three-panel shell (Sidebar | Workspace | Copilot) with persisted widths
+    status: done
+    validation: "frontend tsc/build clean; drag handles + localStorage-persisted width via lib/useResizableWidth.ts, no new deps"
+  - id: CAP-002
+    description: Monaco Editor for source code viewing in Technical View (ObjectBrowser), backed by a new bounded source-snippet endpoint
+    status: done
+    validation: "backend 229/229 pytest (5 new in test_source_snippet.py, incl. 2 path-traversal contract tests, up from a 224 baseline); frontend tsc/build clean; monaco-editor ships a built-in 'abap' Monarch language, no custom tokenizer needed; local bundle via loader.config, no CDN dependency (ADR-002 offline desktop). Post-implementation: an automated security review flagged the new endpoint's scan.source_path+rel_path join had no containment check (path traversal, MEDIUM) — fixed with realpath+commonpath verification and an absolute-path rejection before any open(); BL-025 recorded for the same unguarded join pattern pre-existing elsewhere (lower severity, no raw content returned over HTTP there)."
+  - id: CAP-003
+    description: React Flow graph for object-level dependencies in Technical View (replaces flat DependenciesPanel list)
+    status: done
+    validation: "frontend tsc/build clean; @xyflow/react DependencyGraph.tsx replaces ObjectBrowser's flat DependenciesPanel; target nodes stay plain labels (BL-022/BL-016 target-resolution gap untouched, out of scope)"
+  - id: CAP-004
+    description: Audit and fill empty/loading/error state gaps across result views
+    status: done
+    validation: "frontend tsc/build clean; new shared ErrorState.tsx wired into DashboardGeral/ExecutiveView/ApplicationBrowser/BusinessRuleBrowser/ObjectBrowser/ATCImport(runs list)/EvidenceDatasets/PipelineRunner — all previously silently rendered a misleading empty-state on a real fetch error (isLoading-only branching, no isError check)"
+  - id: CAP-005
+    description: Extend reproducible demo seed with a compact ATC import and a compact supplemental-evidence fixture for the Acme assessment
+    status: done
+    validation: "backend 227/227 pytest; extracted atc.persistence.persist_atc_import out of api/routes/atc.py (now shared by the route and seed/registry.py::_seed_demo_atc_import, no duplicated logic); seed v6→v8 adds a 4-finding ATC run + a compact HANA Sizing evidence dataset for the persistent Acme demo assessment (id 1074), applied live: 1 ATCRun (4 findings, all MATCHED_HEURISTIC-correlated), 4 derived TechnicalFindings, 1 EvidenceDataset (IMPORTED_FULL, 4 EvidenceRecords) via the real adapter/durable-pipeline path"
+  - id: CAP-006
+    description: Run the full demo path end-to-end (Playwright) and fix blocking defects only
+    status: done
+    validation: "Live Playwright pass against the electron-vite renderer (localhost:5173) over the persistent Acme demo assessment (id 1074): Assessments Home -> open assessment -> Ingestion (scan + the new HANA Sizing evidence dataset) -> ATC (the new 4-finding correlated run) -> Technical View (Monaco source viewer with object-range highlight + React Flow dependency graph for ZPROGRAM_REPORT->MARA/MARC + AI understanding + remediation panel) -> Dashboard Geral (KPIs reflecting the new ATC/evidence data, critical_findings now 2) -> Executive View -> Functional View -> Architecture View -> Copilot (graceful INSUFFICIENT_CONTEXT on an unanswerable ATC-detail question, grounded answer citing SUMMARY-1 on a structured-summary question) -> resizable sidebar/Copilot drag-and-persist (localStorage). One real blocking defect found and fixed: React Flow's internal worker was blocked by the CSP `script-src 'self'` (no `worker-src`) in index.html — added `worker-src 'self' blob:`. BL-024 recorded (Monaco's own editor worker cannot be wired up under electron-vite's Rollup build — cosmetic console error only, editor fully functional main-thread fallback, not blocking)."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: ["BL-024", "BL-025"]
+notes:
+  - "Preflight: main was clean/synced, SPRINT-16 completed, branch sprint/17-demo-readiness created from main."
+  - "Scope grounded in docs/delivery/sprints/SPRINT-17-demo-readiness.md + ADR-002/009/010/011/014 + IMPLEMENTATION_BASELINE.md."
+  - "Gap survey before implementation: no react-resizable/monaco/reactflow deps in frontend/package.json; ObjectBrowser has no source-code viewer at all (no backend source-snippet endpoint exists); DependenciesPanel is a flat list; Architecture View has no dependency graph (blocked by BL-022 — SAPObjectDependency.target_name is unresolved free text — out of scope to fix here); demo seed (backend/src/seed/registry.py) covers Acme scan+parsed objects only, no ATC/no supplemental evidence."
+  - "CAP-003 scoped to Technical View's existing object-level DependenciesPanel only — a cross-application coupling graph in Architecture View is blocked by pre-existing BL-022 (dependency target resolution gap), not introduced or fixed by this sprint."
+  - "Backend: 224 (SPRINT-16 baseline) -> 227 after CAP-002's test_source_snippet.py (3 tests) -> 229 after the post-review path-traversal fix's 2 additional contract tests. All green at every checkpoint. CAP-005's atc.persistence extraction added no new tests of its own — already covered by the pre-existing test_sprint05.py ATC API tests, per ADR-011 lean testing. Frontend: tsc/build clean at every checkpoint. New frontend deps: @monaco-editor/react, monaco-editor, @xyflow/react (all three named in CLAUDE.md's target stack, first real integration this sprint)."
+  - "Demo-readiness note for whoever runs the live demo next: the persistent Acme assessment's existing Clean Core / Executive View AI analysis predates this sprint's new ATC run + HANA Sizing evidence dataset (seed v8), so its risk narratives currently read 'no ATC findings/evidence reported' — re-running '3 - Processamento por IA' will let clean_core_analysis pick up the new signals. Not a defect: seeding new evidence does not retroactively invalidate already-persisted AI output (by design, ADR-012)."
+  - "Post-live-validation cleanup: added monaco-editor as an explicit frontend dependency (was only present transitively as @monaco-editor/react's peer dependency, auto-installed by npm 7+ — our own code imports it directly in lib/monacoSetup.ts, so it belongs in package.json, not just node_modules by accident of peer-dep auto-install). tsc/build reverified clean after."
+  - "Pre-finish full-suite run hit BL-008's known pattern: an unrelated stray PipelineRun (Assessment01/Rodobens, stuck running on object_understanding from an earlier unrelated session) made test_recover_orphans_requeues_running_work fail (assert 2 == 1). Resolved by calling recover_orphans once directly (the app's own startup crash-recovery action) — not a regression from this sprint's code. Re-ran full suite clean: 229/229. BL-008 updated with this reproduction."
+  - "SPRINT-17 implementation complete. All 6 planned capabilities done — no deferrals. Closed via /clean-core-finish-sprint."

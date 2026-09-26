@@ -210,6 +210,23 @@ export const fetchSAPObject = (
   objectId: number,
 ): Promise<SAPObjectDetail> => api(`/assessments/${assessmentId}/objects/${objectId}`)
 
+/** Mirrors `SourceSnippetRead` (SPRINT-17 CAP-002). */
+export interface SourceSnippetRecord {
+  object_id: number
+  rel_path: string
+  language: string
+  content: string
+  line_start: number
+  line_end: number | null
+  truncated: boolean
+  size_bytes: number
+}
+
+export const fetchObjectSource = (
+  assessmentId: number,
+  objectId: number,
+): Promise<SourceSnippetRecord> => api(`/assessments/${assessmentId}/objects/${objectId}/source`)
+
 // ---------------------------------------------------------------------------
 // SPRINT-05: Dependencies, ATC runs/findings
 // ---------------------------------------------------------------------------

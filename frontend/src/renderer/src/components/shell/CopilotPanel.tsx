@@ -14,6 +14,7 @@ interface CopilotPanelProps {
   view: string
   selection: ResultFocus | null
   onNavigate: (target: ResultFocus) => void
+  width: number
 }
 
 interface CopilotMessage {
@@ -58,6 +59,7 @@ export function CopilotPanel({
   view,
   selection,
   onNavigate,
+  width,
 }: CopilotPanelProps) {
   const [messages, setMessages] = useState<CopilotMessage[]>([])
   const [input, setInput] = useState('')
@@ -119,7 +121,8 @@ export function CopilotPanel({
     <aside
       data-region="copilot"
       data-collapsed="false"
-      className="flex w-[30%] max-w-[560px] min-w-[340px] shrink-0 flex-col border-l border-border-default bg-surface-sidebar"
+      style={{ width }}
+      className="flex shrink-0 flex-col overflow-hidden border-l border-border-default bg-surface-sidebar"
     >
       <header className="flex h-14 items-center justify-between border-b border-border-soft px-4">
         <div className="flex items-center gap-2">

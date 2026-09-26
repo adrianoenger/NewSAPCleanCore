@@ -11,6 +11,7 @@ import { Boxes, ChevronRight, GitMerge, Pencil, Sparkles } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
 import { SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
 import { LevelBadge, RecommendationChip, countByRecommendation } from '@/components/shared/cleanCoreDisplay'
+import { ErrorState } from '@/components/shared/ErrorState'
 import {
   fetchApplication,
   fetchApplications,
@@ -512,7 +513,7 @@ export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigat
     if (focusApplicationId != null) setSelectedId(focusApplicationId)
   }, [focusApplicationId])
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['applications', assessmentId],
     queryFn: () => fetchApplications(assessmentId),
   })
@@ -544,6 +545,8 @@ export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigat
             <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
               Carregando aplicações…
             </div>
+          ) : isError ? (
+            <ErrorState message="Não foi possível carregar as aplicações." onRetry={refetch} />
           ) : applications.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <Boxes className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />

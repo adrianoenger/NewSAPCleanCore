@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ChevronRight, Scale, Sparkles } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
 import { EvidencePanel, SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
+import { ErrorState } from '@/components/shared/ErrorState'
 import {
   fetchBusinessRules,
   fetchSAPObject,
@@ -185,7 +186,7 @@ export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate, onS
     }
   }, [focusRuleId])
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['business-rules', assessmentId],
     queryFn: () => fetchBusinessRules(assessmentId),
   })
@@ -229,6 +230,8 @@ export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate, onS
             <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
               Carregando regras…
             </div>
+          ) : isError ? (
+            <ErrorState message="Não foi possível carregar as regras de negócio." onRetry={refetch} />
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <Scale className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />

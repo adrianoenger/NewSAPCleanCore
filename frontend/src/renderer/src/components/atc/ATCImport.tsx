@@ -23,6 +23,7 @@ import {
   type ATCDiagnostics,
   type ATCRunRecord,
 } from '@/lib/api'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -213,7 +214,7 @@ export function ATCImport({ assessmentId }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const { data: runsData, isLoading: runsLoading } = useQuery({
+  const { data: runsData, isLoading: runsLoading, isError: runsError, refetch: refetchRuns } = useQuery({
     queryKey: ['atc-runs', assessmentId],
     queryFn: () => fetchATCRuns(assessmentId),
   })
@@ -353,7 +354,8 @@ export function ATCImport({ assessmentId }: Props) {
           {runsData && <span className="ml-2 text-text-tertiary font-normal">({runsData.total})</span>}
         </h3>
         {runsLoading && <p className="text-[12px] text-text-tertiary">Carregando…</p>}
-        {runsData?.runs.length === 0 && !runsLoading && (
+        {runsError && <ErrorState message="Não foi possível carregar o histórico de importações." onRetry={refetchRuns} />}
+        {runsData?.runs.length === 0 && !runsLoading && !runsError && (
           <p className="text-[12px] text-text-tertiary">Nenhuma importação realizada ainda.</p>
         )}
         {runsData?.runs.map((run) => (

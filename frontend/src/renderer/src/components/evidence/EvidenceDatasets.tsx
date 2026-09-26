@@ -22,6 +22,7 @@ import {
   type EvidenceDatasetRecord,
   type EvidenceDatasetStatus,
 } from '@/lib/api'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -209,7 +210,7 @@ export function EvidenceDatasets({ assessmentId }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['evidence-datasets', assessmentId],
     queryFn: () => fetchEvidenceDatasets(assessmentId),
     refetchInterval: (query) => {
@@ -279,6 +280,8 @@ export function EvidenceDatasets({ assessmentId }: Props) {
 
       {isLoading ? (
         <div className="py-6 text-center text-[12px] text-text-tertiary">Carregando…</div>
+      ) : isError ? (
+        <ErrorState message="Não foi possível carregar as evidências complementares." onRetry={refetch} />
       ) : datasets.length === 0 ? (
         <div className="py-6 text-center text-[12px] text-text-tertiary">
           Nenhuma evidência complementar importada ainda.
