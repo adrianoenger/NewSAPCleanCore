@@ -6,9 +6,9 @@ active_sprint: null
 active_sprint_status: not_started
 active_branch: null
 active_checkpoint: null
-last_completed_sprint: SPRINT-08
-next_sprint: SPRINT-09
-next_sprint_slug: ai-object-understanding
+last_completed_sprint: SPRINT-09
+next_sprint: SPRINT-10
+next_sprint_slug: business-rule-discovery
 notes:
   - SPRINT-06 completed (Durable Pipeline Execution).
   - Alembic 0007 at head: pipeline_run, stage_run, work_item.
@@ -18,3 +18,4 @@ notes:
   - "No AI/LLM processing happens yet in Step 3. SPRINT-08 now establishes supplemental evidence ingestion/correlation; SPRINT-09 introduces the AIProvider abstraction and will require Bedrock/Azure Foundry credentials for end-to-end validation."
   - "BL-004 is promoted into SPRINT-08 architecture: SAPObject identity/correlation stability must be addressed before multiplying external evidence correlations."
   - "SPRINT-08 completed (2026-09-25). Final scope: 15 capabilities (CAP-001..CAP-015) — stable SAPObject identity (migrations 0008/0009/0010), EvidenceDataset/Artifact/Record/Correlation model, adapter contract + Panaya/Signavio/HANA Sizing/Readiness Check adapters (rewritten against real customer exports post-completion; FUE dropped after a real sample proved its .bin payloads an undecodable proprietary format), generalized durable pipeline engine (PipelineRunKind), full evidence API incl. dataset delete, Step-1 'Fontes Complementares' UI (collapsible file inventory/scan history, inline delete confirmation), and automatic evidence re-correlation on source reprocessing. 112/112 backend pytest, frontend typecheck/build clean, live Playwright E2E against the real Assessment01/Rodobens data plus a disposable throwaway assessment for the delete flow. See docs/delivery/results/SPRINT-08-RESULT.md."
+  - "SPRINT-09 completed (2026-09-26). Final scope: 12 capabilities (CAP-001..CAP-012). object_understanding registers as a 4th source_processing pipeline stage (BL-003) after detect_dependencies: builds a provider-agnostic evidence package (source excerpt + correlated ATC + correlated supplemental evidence), calls the configured AIProvider (Bedrock live-validated; Azure AI Foundry unit-tested only, no credentials this sprint) through the versioned object_understanding/v1 prompt+schema, validates schema/evidence-refs/domain rules before persistence (ADR-012 — a provider or domain-validation failure persists as ObjectUnderstandingStatus.FAILED, never a false COMPLETED), and upserts one ObjectUnderstanding row per SAPObject (migration 0011). Exposed via SAPObjectDetailRead.understanding and rendered in ObjectBrowser's detail panel. 138/138 backend pytest, frontend typecheck/build clean, a real live Bedrock run over demo-source/ABAP (all 4 demo objects reached COMPLETED with grounded, cited purposes), and a real live Playwright e2e of the full demonstrable flow (ingest -> process -> AI panel in Technical View). See docs/delivery/results/SPRINT-09-RESULT.md."

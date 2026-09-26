@@ -19,5 +19,24 @@ class SAPObjectRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ObjectUnderstandingRead(BaseModel):
+    status: str
+    functional_purpose: str
+    technical_purpose: str
+    concepts: list[str]
+    confidence: float | None
+    rationale: str
+    evidence_refs: list[dict[str, Any]]
+    provider: str
+    model_id: str
+    prompt_capability: str
+    prompt_version: str
+    error: str | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class SAPObjectDetailRead(SAPObjectRead):
     attributes: dict[str, Any]
+    understanding: ObjectUnderstandingRead | None = None

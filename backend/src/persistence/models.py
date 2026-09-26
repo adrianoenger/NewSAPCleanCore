@@ -235,6 +235,9 @@ class SAPObject(Base):
     atc_findings: Mapped[list["ATCFinding"]] = relationship(
         "ATCFinding", back_populates="correlated_object", foreign_keys="ATCFinding.correlated_object_id"
     )
+    understanding: Mapped["ObjectUnderstanding | None"] = relationship(
+        "ObjectUnderstanding", back_populates="sap_object", cascade="all, delete-orphan"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -722,3 +725,59 @@ class EvidenceCorrelation(Base):
     )
 
     evidence_record: Mapped["EvidenceRecord"] = relationship("EvidenceRecord", back_populates="correlations")
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-09 domain models — AI Object Understanding (ADR-006/ADR-012)
+# ---------------------------------------------------------------------------
+
+
+class ObjectUnderstandingStatus(str, Enum):
+    COMPLETED = "COMPLETED"
+    INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
+    FAILED = "FAILED"
+
+
+class ObjectUnderstanding(Base):
+    """The current AI-produced interpretation of one SAPObject (ADR-012 — structured,
+    validated, evidence-bound; provider/prompt/schema provenance always recorded).
+
+    One row per SAPObject: reprocessing upserts in place, mirroring `SAPObject.canonical_key`'s
+    own upsert-not-recreate pattern (ADR-017), so a stale result never survives untouched."""
+
+    __tablename__ = "object_understanding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sap_object_id: Mapped[int] = mapped_column(
+        ForeignKey("sap_object.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    functional_purpose: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    technical_purpose: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    concepts: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Resolved from the model's evidence_refs (ref_id strings) against the ObjectEvidencePackage
+    # used at generation time — [{"ref_id","source_type","entity_id"}, ...] so the API/UI can
+    # link straight to the cited SourceFile/ATCFinding/EvidenceRecord without reparsing ref_ids.
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_capability: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
+    sap_object: Mapped["SAPObject"] = relationship("SAPObject", back_populates="understanding")

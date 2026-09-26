@@ -15,9 +15,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ai.object_understanding import CAPABILITY as OBJECT_UNDERSTANDING_CAPABILITY
+from ai.object_understanding.evidence_package import ObjectEvidencePackage, build_evidence_package, render_prompt
+from ai.object_understanding.schema import ObjectUnderstandingResult, validate_result
+from ai.provider import AIProviderError, StructuredCompletionRequest
+from ai.providers import get_provider
+from ai.registry import get_version
 from evidence.adapters import get_adapter
 from evidence.adapters.base import ImportBatchPlan
 from evidence.correlation import correlate_dataset_records
@@ -28,6 +35,8 @@ from persistence.models import (
     EvidenceDataset,
     EvidenceDatasetStatus,
     EvidenceRecord,
+    ObjectUnderstanding,
+    ObjectUnderstandingStatus,
     PipelineRun,
     SAPObject,
     SAPObjectDependency,
@@ -38,6 +47,7 @@ from persistence.models import (
     WorkItem,
 )
 from pipeline.status import get_current_scan
+from settings import get_settings
 
 
 def _sha256(path: Path) -> str:
@@ -359,6 +369,162 @@ def _dependencies_process_item(
         )
 
 
+# ---------------------------------------------------------------------------
+# object_understanding — wraps ai.object_understanding; produces ObjectUnderstanding rows
+# (ADR-006/ADR-012, BL-003: a 4th stage of the same source_processing PipelineRun, not a
+# separate mechanism)
+# ---------------------------------------------------------------------------
+
+
+def _object_understanding_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    existing_keys = set(
+        session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
+    )
+    # Scoped to this run's scan, mirroring detect_dependencies — an unrelated prior scan's
+    # objects never enter this stage's WorkItem set.
+    objects = list(
+        session.scalars(
+            select(SAPObject)
+            .join(SourceFile, SAPObject.source_file_id == SourceFile.id)
+            .where(SourceFile.scan_id == run.source_scan_id)
+        )
+    )
+    created = 0
+    for obj in objects:
+        key = str(obj.id)
+        if key in existing_keys:
+            continue
+        session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"object_id": obj.id}))
+        created += 1
+
+    stage.total_items = created + (stage.total_items or 0)
+    session.commit()
+
+
+def _resolve_evidence_refs(ref_ids: list[str], package: ObjectEvidencePackage) -> list[dict]:
+    """Resolve the model's cited `ref_id` strings back to `{ref_id, source_type, entity_id}`
+    so the API/UI can link straight to the cited source/ATC/evidence entity without
+    reparsing ref_ids. Unknown ref_ids were already rejected by `validate_result`."""
+    by_ref = {item.ref_id: item for item in package.all_items()}
+    return [
+        {"ref_id": item.ref_id, "source_type": item.source_type, "entity_id": item.entity_id}
+        for ref_id in ref_ids
+        if (item := by_ref.get(ref_id)) is not None
+    ]
+
+
+def _upsert_understanding(
+    session: Session,
+    existing: ObjectUnderstanding | None,
+    *,
+    assessment_id: int,
+    sap_object_id: int,
+    stage_run_id: int,
+    status: str,
+    functional_purpose: str,
+    technical_purpose: str,
+    concepts: list[str],
+    confidence: float | None,
+    rationale: str,
+    evidence_refs: list[dict],
+    provider: str,
+    model_id: str,
+    prompt_capability: str,
+    prompt_version: str,
+    error: str | None,
+) -> None:
+    row = existing or ObjectUnderstanding(assessment_id=assessment_id, sap_object_id=sap_object_id)
+    row.status = status
+    row.functional_purpose = functional_purpose
+    row.technical_purpose = technical_purpose
+    row.concepts = concepts
+    row.confidence = confidence
+    row.rationale = rationale
+    row.evidence_refs = evidence_refs
+    row.provider = provider
+    row.model_id = model_id
+    row.prompt_capability = prompt_capability
+    row.prompt_version = prompt_version
+    row.error = error
+    row.stage_run_id = stage_run_id
+    if existing is None:
+        session.add(row)
+    session.flush()
+
+
+def _object_understanding_process_item(
+    item: WorkItem, stage: StageRun, run: PipelineRun, session: Session
+) -> None:
+    obj = session.get(SAPObject, item.payload["object_id"])
+    package = build_evidence_package(session, obj)
+    prompt_version = get_version(OBJECT_UNDERSTANDING_CAPABILITY)
+    provider = get_provider(get_settings())
+
+    existing = session.scalars(
+        select(ObjectUnderstanding).where(ObjectUnderstanding.sap_object_id == obj.id)
+    ).first()
+
+    # ADR-012: schema, evidence-reference and domain rules are validated before persistence.
+    # A provider/validation failure is a legitimate terminal outcome for one object, not a
+    # pipeline processing error — it is recorded as ObjectUnderstandingStatus.FAILED and the
+    # WorkItem completes normally, rather than being retried against the same non-recoverable
+    # response.
+    try:
+        completion = provider.complete_structured(
+            StructuredCompletionRequest(
+                system_prompt=prompt_version.system_prompt,
+                user_prompt=render_prompt(package),
+                json_schema=prompt_version.json_schema,
+                schema_name=prompt_version.schema_name,
+            )
+        )
+        result = ObjectUnderstandingResult.model_validate(completion.output)
+        domain_errors = validate_result(result, package)
+        if domain_errors:
+            raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
+    except (AIProviderError, ValidationError) as exc:
+        _upsert_understanding(
+            session,
+            existing,
+            assessment_id=run.assessment_id,
+            sap_object_id=obj.id,
+            stage_run_id=stage.id,
+            status=ObjectUnderstandingStatus.FAILED.value,
+            functional_purpose="",
+            technical_purpose="",
+            concepts=[],
+            confidence=None,
+            rationale="",
+            evidence_refs=[],
+            provider=provider.name,
+            model_id=provider.model_id,
+            prompt_capability=OBJECT_UNDERSTANDING_CAPABILITY,
+            prompt_version=prompt_version.version,
+            error=str(exc)[:2000],
+        )
+        return
+
+    _upsert_understanding(
+        session,
+        existing,
+        assessment_id=run.assessment_id,
+        sap_object_id=obj.id,
+        stage_run_id=stage.id,
+        status=result.status.value,
+        functional_purpose=result.functional_purpose,
+        technical_purpose=result.technical_purpose,
+        concepts=result.concepts,
+        confidence=result.confidence,
+        rationale=result.rationale,
+        evidence_refs=_resolve_evidence_refs(result.evidence_refs, package),
+        provider=completion.provider,
+        model_id=completion.model_id,
+        prompt_capability=OBJECT_UNDERSTANDING_CAPABILITY,
+        prompt_version=prompt_version.version,
+        error=None,
+    )
+
+
 SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
     StageDefinition(
         key="scan",
@@ -379,6 +545,12 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         depends_on=("parse",),
         prepare=_dependencies_prepare,
         process_item=_dependencies_process_item,
+    ),
+    StageDefinition(
+        key="object_understanding",
+        depends_on=("detect_dependencies",),
+        prepare=_object_understanding_prepare,
+        process_item=_object_understanding_process_item,
     ),
 ]
 

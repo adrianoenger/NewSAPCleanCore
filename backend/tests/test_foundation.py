@@ -15,7 +15,7 @@ def test_health_contract(client):
     assert body["database"] == {
         "status": "ok",
         "pgvector": True,
-        "migration_revision": "0010_pipeline_run_kind",
+        "migration_revision": "0011_object_understanding",
         "error": None,
     }
     assert {"service", "version", "environment"} <= body.keys()

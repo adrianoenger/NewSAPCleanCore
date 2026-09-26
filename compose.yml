@@ -29,6 +29,10 @@ services:
       - "${CCA_BACKEND_PORT:-8000}:8000"
     volumes:
       - .:/workspace
+      # Read-only host AWS profile/config (ADR-006) — lets boto3 resolve Bedrock credentials
+      # via AWS_PROFILE without ever storing a static secret in a tracked file. Requires
+      # `~/.aws` to exist on the host; remove this line if you have no AWS profile configured.
+      - ${HOME}/.aws:/root/.aws:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -310,8 +310,10 @@ def test_start_pipeline_run_endpoint(client) -> None:
             assert resp.status_code == 201
             data = resp.json()
             run_id = data["id"]
-            assert len(data["stages"]) == 3
-            assert {s["stage_key"] for s in data["stages"]} == {"scan", "parse", "detect_dependencies"}
+            assert len(data["stages"]) == 4
+            assert {s["stage_key"] for s in data["stages"]} == {
+                "scan", "parse", "detect_dependencies", "object_understanding",
+            }
 
             # The background task runs synchronously within the request lifecycle
             # under TestClient, but the response body was serialized before it ran —

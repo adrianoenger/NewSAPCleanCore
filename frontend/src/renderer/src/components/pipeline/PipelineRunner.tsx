@@ -42,6 +42,7 @@ const STAGE_LABELS: Record<string, string> = {
   scan: 'Scan de Arquivos',
   parse: 'Parsing de Objetos',
   detect_dependencies: 'Detecção de Dependências',
+  object_understanding: 'Entendimento por IA',
 }
 
 const RUN_LABELS: Record<PipelineRunRecord['status'], string> = {
@@ -222,8 +223,8 @@ export function PipelineRunner({ assessmentId }: Props) {
         <div>
           <h1 className="text-[22px] font-medium">3 - Processamento por IA</h1>
           <p className="mt-0.5 text-[13px] text-text-tertiary">
-            Execução durável (scan → parsing → dependências) sobre a ingestão atual, com pausa, retomada e
-            recuperação após reinício.
+            Execução durável (scan → parsing → dependências → entendimento por IA) sobre a ingestão atual, com
+            pausa, retomada e recuperação após reinício.
           </p>
         </div>
 

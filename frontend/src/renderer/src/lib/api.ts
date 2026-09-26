@@ -167,8 +167,31 @@ export interface SAPObjectRecord {
   parsed_at: string
 }
 
+export interface ObjectUnderstandingEvidenceRef {
+  ref_id: string
+  source_type: string
+  entity_id: number
+}
+
+export interface ObjectUnderstandingRecord {
+  status: 'COMPLETED' | 'INSUFFICIENT_CONTEXT' | 'FAILED'
+  functional_purpose: string
+  technical_purpose: string
+  concepts: string[]
+  confidence: number | null
+  rationale: string
+  evidence_refs: ObjectUnderstandingEvidenceRef[]
+  provider: string
+  model_id: string
+  prompt_capability: string
+  prompt_version: string
+  error: string | null
+  updated_at: string
+}
+
 export interface SAPObjectDetail extends SAPObjectRecord {
   attributes: Record<string, unknown>
+  understanding: ObjectUnderstandingRecord | null
 }
 
 export const fetchSAPObjects = (
@@ -311,7 +334,7 @@ export const fetchATCFindings = (
 
 export interface StageRunRecord {
   id: number
-  stage_key: 'scan' | 'parse' | 'detect_dependencies'
+  stage_key: 'scan' | 'parse' | 'detect_dependencies' | 'object_understanding'
   sequence: number
   depends_on: string[]
   status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'skipped'

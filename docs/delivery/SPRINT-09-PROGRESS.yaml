@@ -1,0 +1,68 @@
+sprint: SPRINT-09
+branch: sprint/09-ai-object-understanding
+status: completed
+progress_percent: 100
+started_at: "2026-09-25T21:00:00Z"
+completed_at: "2026-09-26T02:44:00Z"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: AIProvider abstraction (Protocol/dataclasses) — domain code depends only on the interface, never on boto3/Azure SDK details
+    status: done
+    validation: "backend/src/ai/provider.py + ai/providers/__init__.py registry"
+  - id: CAP-002
+    description: Bedrock adapter (boto3 Converse API, structured output via tool-use), live-validatable with configured AWS credentials
+    status: done
+    validation: "Live smoke test inside backend container against us.anthropic.claude-sonnet-4-5-20250929-v1:0 (cross-region inference profile — raw model id rejected with 'on-demand throughput isn't supported'): forced tool-use returned {'claim': 'the sky is blue', 'confidence': 0.95}, stop_reason=tool_use. Now also unit-tested against a mocked boto3 client in tests/test_ai_providers.py (forced tool-use extraction, missing-tool_use error, wrapped ClientError)."
+  - id: CAP-003
+    description: Azure AI Foundry adapter behind the same interface (unit-tested against a mocked HTTP layer; live validation deferred — no Azure credentials available this sprint)
+    status: done
+    validation: "tests/test_ai_providers.py: mocked httpx.post covering message-content parsing and the no-choices error path; ai.providers.get_provider dispatch (bedrock default, azure_foundry requires configuration, unknown name rejected). Live validation against a real Azure AI Foundry endpoint remains deferred — no credentials available this sprint."
+  - id: CAP-004
+    description: Versioned prompt/schema registry (capability -> version -> prompt template + JSON schema)
+    status: done
+    validation: "backend/src/ai/registry.py; object_understanding v1 registered in ai/object_understanding/__init__.py. Exercised live below. Unit-tested in tests/test_ai_providers.py (register/resolve latest, explicit version, unknown capability/version)."
+  - id: CAP-005
+    description: Object Understanding structured contract (Pydantic) + domain/evidence-reference validators, allowing an explicit insufficient-context result (ADR-012)
+    status: done
+    validation: "Live end-to-end smoke test (real Bedrock call, temp script, removed after use): a real ABAP class -> COMPLETED, confidence=0.9, evidence_refs=['SRC-1'], validate_result() -> []. A second run with an empty code excerpt correctly returned INSUFFICIENT_CONTEXT instead of guessing from the object name alone. Unit-tested in tests/test_ai_providers.py (COMPLETED requires evidence_refs/purpose text, INSUFFICIENT_CONTEXT must not assert a purpose, unknown evidence_refs rejected, valid COMPLETED passes)."
+  - id: CAP-006
+    description: Object evidence package builder — assembles canonical source facts + correlated ATC findings + correlated supplemental evidence into a provider-agnostic package
+    status: done
+    validation: "Exercised by the same live smoke test (render_prompt over a real ObjectEvidencePackage), and by every test in tests/test_object_understanding_pipeline.py."
+  - id: CAP-007
+    description: Structural ABAP chunking for large objects (METHOD/FORM-boundary aware, bounded chunk size)
+    status: done
+    validation: "ai/chunking.py::chunk_source. Unit-tested in tests/test_ai_providers.py: under-budget content returns a single chunk, over-budget content splits only at ENDMETHOD boundaries (chunks recombine to the original content), and boundary-less content falls back to one chunk."
+  - id: CAP-008
+    description: Persistence provenance — ObjectUnderstanding ORM model (provider/model/prompt/schema versions, evidence refs) + Alembic migration
+    status: done
+    validation: "persistence/models.py::ObjectUnderstanding + migration 0011_object_understanding (applied — `alembic current` reports 0011 at head; health check's migration_revision matches). One row per SAPObject (unique index on sap_object_id), upserted in place on reprocessing — confirmed by test_object_understanding_reprocessing_upserts_in_place."
+  - id: CAP-009
+    description: Durable pipeline integration — register object_understanding as an additional stage of the existing source_processing PipelineRun (BL-003), not a parallel mechanism
+    status: done
+    validation: "pipeline/stages.py: object_understanding registered in SOURCE_PROCESSING_STAGES, depends_on=('detect_dependencies',). tests/test_object_understanding_pipeline.py covers COMPLETED persistence, INSUFFICIENT_CONTEXT persistence, an AIProviderError persisted as ObjectUnderstandingStatus.FAILED without failing the WorkItem (ADR-012: a per-object AI failure is a legitimate terminal outcome, not a pipeline error), a domain-validation failure (unknown evidence_refs) also persisted as FAILED rather than as a false COMPLETED, and upsert-in-place on reprocessing. Live-validated end to end via the real HTTP API against demo-source/ABAP (see CAP-012)."
+  - id: CAP-010
+    description: API — expose persisted Object Understanding result + provenance per SAPObject
+    status: done
+    validation: "api/schemas/parsing.py::ObjectUnderstandingRead embedded as SAPObjectDetailRead.understanding (null until processed). Covered by test_get_object_api_includes_understanding and live-verified via curl against all 4 demo objects."
+  - id: CAP-011
+    description: Frontend — ObjectBrowser detail panel shows validated functional/technical purpose, concepts, confidence, provider/model provenance, and links to source/ATC/evidence used
+    status: done
+    validation: "components/parsing/ObjectBrowser.tsx::UnderstandingPanel — functional/technical purpose, concept tags, confidence %, rationale, evidence_refs badges (labelled by source type), provider/model/prompt provenance line; distinct states for not-yet-processed, INSUFFICIENT_CONTEXT, and FAILED. npm run typecheck / build both clean. Live-verified via Playwright against the real electron-vite renderer (see CAP-012)."
+  - id: CAP-012
+    description: Validation — backend pytest, frontend typecheck/build, live Bedrock smoke test against a real demo object, Playwright e2e of the demonstrable outcome
+    status: done
+    validation: "138/138 backend pytest (7 new AI unit tests + 6 new pipeline-integration tests; fixed one pre-existing test's stale 3-stage assertion and test_foundation.py's hardcoded migration_revision). Frontend typecheck and build both clean. Live smoke test: created a disposable client/assessment via the real HTTP API, ran the full durable pipeline over demo-source/ABAP with real AWS Bedrock (us.anthropic.claude-sonnet-4-5-20250929-v1:0) — all 4 demo objects (ZCL_CUSTOM_ORDER, ZCL_UTILITY_HELPER, ZFM_PROCESS_ORDER, ZPROGRAM_REPORT) reached ObjectUnderstandingStatus.COMPLETED with grounded, evidence-cited purposes and confidence 0.75-0.9; cleaned up afterward. Live Playwright e2e against the electron-vite renderer (localhost:5173): created a disposable client/assessment, ingested demo-source/ABAP, ran '3 - Processamento por IA' (now showing 4 stages incl. 'Entendimento por IA' 4/4 completed), opened ZCL_CUSTOM_ORDER in Technical View and confirmed the AI panel renders the real Bedrock result (functional/technical purpose, concept tags, confiança 85%, rationale, SRC-1 evidence badge, 'bedrock / us.anthropic.claude-sonnet-4-5-20250929-v1:0 · prompt object_understanding@v1' provenance line); cleaned up afterward."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-014: pre-existing SPRINT-06/07/08 tests now transitively make live Bedrock calls since object_understanding joined the same source_processing pipeline they exercise (intended per BL-003; recorded as a cost/runtime/reliability trade-off for future consideration, not a defect)."
+notes:
+  - "User confirmed real AWS Bedrock credentials are available (AWS CLI profile 'default', region us-east-1, models incl. anthropic.claude-sonnet-4-5-20250929-v1:0 confirmed reachable via `aws bedrock list-foundation-models`). No Azure AI Foundry credentials available this sprint — Azure adapter is implemented and unit-tested but its live validation is explicitly deferred."
+  - "Credential handling: read-only bind mount of the host's ~/.aws into the backend container plus AWS_PROFILE/AWS_REGION passed via the gitignored root .env — no static secret value is ever written into a tracked file or into this session's persisted state."
+  - "Design decision: object_understanding registers as a 4th stage of the existing source_processing PipelineRun/StageRun/WorkItem engine (depends_on detect_dependencies), per BL-003 — no parallel execution mechanism, no new PipelineRunKind. ATC/evidence correlation are read at process_item time and may be empty (independent PipelineRuns); an object with no supplemental evidence still gets object understanding, just with a narrower evidence package."
+  - "ADR-012 compliance: an AI provider failure or a schema-valid-but-domain-invalid response (unresolvable evidence_refs, INSUFFICIENT_CONTEXT asserting a purpose, COMPLETED with no evidence_refs/purpose text) is never persisted as a trustworthy result — it is persisted as ObjectUnderstandingStatus.FAILED with the error recorded, and the WorkItem still completes normally (a per-object AI outcome, not a pipeline processing error)."
+  - "All sprint capabilities implemented and validated, including a real live Bedrock run and a real live Playwright e2e of the demonstrable outcome. ready_for_review set to true; docs/delivery/SESSION_HANDOFF.md updated accordingly."

@@ -6,13 +6,14 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw, Sparkles } from 'lucide-react'
 import {
   fetchObjectDependencies,
   fetchObjectEvidenceCorrelations,
   fetchProcessingStatus,
   fetchSAPObject,
   fetchSAPObjects,
+  type ObjectUnderstandingRecord,
   type SAPObjectRecord,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -162,6 +163,96 @@ function EvidencePanel({ assessmentId, objectId }: { assessmentId: number; objec
   )
 }
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  SOURCE_CODE: 'Código-fonte',
+  ATC_FINDING: 'Achado ATC',
+  SUPPLEMENTAL_EVIDENCE: 'Evidência complementar',
+}
+
+function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstandingRecord | null }) {
+  if (understanding == null) {
+    return (
+      <div className="rounded border border-border-soft bg-surface-elevated px-3 py-2 text-[11px] text-text-tertiary">
+        Ainda não processado por IA. Execute &quot;3 - Processamento por IA&quot;.
+      </div>
+    )
+  }
+
+  if (understanding.status === 'FAILED') {
+    return (
+      <div className="rounded border border-risk/30 bg-risk/5 px-3 py-2 text-[11px] text-risk">
+        Falha ao gerar entendimento por IA: {understanding.error ?? 'erro desconhecido'}
+      </div>
+    )
+  }
+
+  if (understanding.status === 'INSUFFICIENT_CONTEXT') {
+    return (
+      <div className="rounded border border-attention/30 bg-attention/5 px-3 py-2 text-[11px] text-attention">
+        Evidência insuficiente para o provedor de IA determinar a finalidade deste objeto.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary">
+          <Sparkles className="h-3.5 w-3.5 text-brand" strokeWidth={2} />
+          Entendimento por IA
+        </div>
+        {understanding.confidence != null && (
+          <span className="rounded-full bg-surface-elevated px-2 py-0.5 text-[10px] font-mono text-text-tertiary">
+            confiança {Math.round(understanding.confidence * 100)}%
+          </span>
+        )}
+      </div>
+
+      {understanding.functional_purpose && (
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Propósito Funcional</div>
+          <div className="mt-0.5 text-[12px] text-text-primary">{understanding.functional_purpose}</div>
+        </div>
+      )}
+      {understanding.technical_purpose && (
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Propósito Técnico</div>
+          <div className="mt-0.5 text-[12px] text-text-primary">{understanding.technical_purpose}</div>
+        </div>
+      )}
+      {understanding.concepts.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {understanding.concepts.map((c) => (
+            <span key={c} className="rounded-full border border-border-soft px-2 py-0.5 text-[10px] text-text-secondary">
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+      {understanding.rationale && (
+        <div className="text-[11px] italic text-text-tertiary">{understanding.rationale}</div>
+      )}
+      {understanding.evidence_refs.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {understanding.evidence_refs.map((ref) => (
+            <span
+              key={ref.ref_id}
+              title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
+              className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+            >
+              {ref.ref_id}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="text-[10px] text-text-tertiary">
+        {understanding.provider} / {understanding.model_id} · prompt {understanding.prompt_capability}@
+        {understanding.prompt_version}
+      </div>
+    </div>
+  )
+}
+
 function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
   const { data, isLoading } = useQuery({
     queryKey: ['sap-object-detail', assessmentId, objectId],
@@ -184,6 +275,7 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
         Lines {data.line_start}{data.line_end != null ? `–${data.line_end}` : '+'}
         {' · '}file #{data.source_file_id}
       </div>
+      <UnderstandingPanel understanding={data.understanding} />
       {Object.keys(data.attributes).length > 0 && (
         <div>
           <div className="mb-1.5 text-[11px] font-medium text-text-secondary">Attributes</div>
