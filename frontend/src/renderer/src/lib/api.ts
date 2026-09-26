@@ -631,3 +631,117 @@ export const validateBusinessRule = (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_validated: userValidated, user_notes: userNotes ?? null }),
   })
+
+// ---------------------------------------------------------------------------
+// SPRINT-11: Application Discovery (ADR-008/ADR-012)
+// ---------------------------------------------------------------------------
+
+export interface ApplicationEvidenceRef {
+  ref_id: string
+  source_type: string
+  entity_id: number
+}
+
+export interface ApplicationClusteringSignal {
+  signal_type: string
+  description: string
+  dependency_id: number | null
+}
+
+export interface ApplicationMemberRecord {
+  id: number
+  object_type: string
+  object_name: string
+}
+
+export interface ApplicationRecord {
+  id: number
+  assessment_id: number
+  name: string
+  description: string
+  domain: string
+  confidence: number | null
+  rationale: string
+  evidence_refs: ApplicationEvidenceRef[]
+  clustering_signals: ApplicationClusteringSignal[]
+  status: 'CANDIDATE' | 'AI_NAMED' | 'USER_RENAMED' | 'MERGED'
+  consolidated_into_id: number | null
+  provider: string | null
+  model_id: string | null
+  prompt_capability: string | null
+  prompt_version: string | null
+  error: string | null
+  created_at: string
+  updated_at: string
+  member_count: number
+  members: ApplicationMemberRecord[]
+}
+
+export interface ApplicationFindingRecord {
+  id: number
+  object_id: number
+  object_name: string
+  check_title: string | null
+  check_message: string | null
+}
+
+export interface ApplicationDetailRecord extends ApplicationRecord {
+  business_rules: BusinessRuleRecord[]
+  findings: ApplicationFindingRecord[]
+}
+
+export interface ApplicationListResponse {
+  assessment_id: number
+  applications: ApplicationRecord[]
+  total: number
+}
+
+export const fetchApplications = (
+  assessmentId: number,
+  includeMerged = false,
+): Promise<ApplicationListResponse> => {
+  const qs = includeMerged ? '?include_merged=true' : ''
+  return api(`/assessments/${assessmentId}/applications${qs}`)
+}
+
+export const fetchApplication = (
+  assessmentId: number,
+  applicationId: number,
+): Promise<ApplicationDetailRecord> => api(`/assessments/${assessmentId}/applications/${applicationId}`)
+
+export const renameApplication = (
+  assessmentId: number,
+  applicationId: number,
+  name?: string | null,
+  description?: string | null,
+): Promise<ApplicationRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/applications/${applicationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name ?? null, description: description ?? null }),
+  })
+
+export const moveApplicationObject = (
+  assessmentId: number,
+  objectId: number,
+  targetApplicationId: number | null,
+): Promise<{ object_id: number; application: ApplicationRecord | null }> =>
+  apiOrDetail(`/assessments/${assessmentId}/applications/move-object`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ object_id: objectId, target_application_id: targetApplicationId }),
+  })
+
+export const mergeApplications = (
+  assessmentId: number,
+  sourceApplicationId: number,
+  targetApplicationId: number,
+): Promise<ApplicationRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/applications/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_application_id: sourceApplicationId,
+      target_application_id: targetApplicationId,
+    }),
+  })

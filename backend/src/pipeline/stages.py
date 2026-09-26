@@ -19,6 +19,12 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ai.application_discovery import CAPABILITY as APPLICATION_DISCOVERY_CAPABILITY
+from ai.application_discovery.clustering import CandidateCluster, ClusterSignal, build_candidate_clusters
+from ai.application_discovery.evidence_package import build_application_evidence_package
+from ai.application_discovery.evidence_package import render_prompt as render_application_prompt
+from ai.application_discovery.schema import ApplicationDiscoveryResult, ApplicationDiscoveryStatus
+from ai.application_discovery.schema import validate_result as validate_application_result
 from ai.business_rule_discovery import CAPABILITY as BUSINESS_RULE_DISCOVERY_CAPABILITY
 from ai.business_rule_discovery.evidence_package import (
     build_business_rule_evidence_package,
@@ -39,6 +45,8 @@ from ingestion.classifier import classify
 from parsing.dependency_detector import detect_dependencies
 from parsing.dispatcher import parse_file
 from persistence.models import (
+    Application,
+    ApplicationStatus,
     BusinessRule,
     BusinessRuleStatus,
     EvidenceDataset,
@@ -410,7 +418,7 @@ def _object_understanding_prepare(stage: StageRun, run: PipelineRun, session: Se
     session.commit()
 
 
-def _resolve_evidence_refs(ref_ids: list[str], package: ObjectEvidencePackage) -> list[dict]:
+def _resolve_evidence_refs(ref_ids: list[str], package) -> list[dict]:
     """Resolve the model's cited `ref_id` strings back to `{ref_id, source_type, entity_id}`
     so the API/UI can link straight to the cited source/ATC/evidence entity without
     reparsing ref_ids. Unknown ref_ids were already rejected by `validate_result`."""
@@ -701,6 +709,161 @@ def _business_rule_discovery_finalize(stage: StageRun, run: PipelineRun, session
     session.commit()
 
 
+# ---------------------------------------------------------------------------
+# application_discovery — wraps ai.application_discovery; produces Application rows and
+# SAPObject.application_id membership (ADR-008/ADR-012, Baseline "Application Discovery") — a
+# 6th source_processing stage. Unlike business_rule_discovery, consolidation here is a manual
+# user action (merge), not an automatic finalize step.
+# ---------------------------------------------------------------------------
+
+
+def _application_discovery_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    existing_apps = list(
+        session.scalars(select(Application).where(Application.assessment_id == run.assessment_id))
+    )
+    apps_by_id = {app.id: app for app in existing_apps}
+    # A USER_RENAMED application was manually curated; a MERGED one has already been folded into
+    # its survivor by the manual merge action. Reprocessing must never silently regroup either
+    # one's members — only CANDIDATE/AI_NAMED applications are eligible for automatic reconciliation.
+    preserved_ids = {
+        app.id for app in existing_apps if app.status in (ApplicationStatus.USER_RENAMED.value, ApplicationStatus.MERGED.value)
+    }
+
+    scan_objects = list(
+        session.scalars(
+            select(SAPObject)
+            .join(SourceFile, SAPObject.source_file_id == SourceFile.id)
+            .where(SourceFile.scan_id == run.source_scan_id)
+        )
+    )
+    prior_membership = {obj.id: obj.application_id for obj in scan_objects}
+
+    for obj in scan_objects:
+        if obj.application_id is not None and obj.application_id in preserved_ids:
+            continue
+        obj.application_id = None
+    session.flush()
+
+    clusters = build_candidate_clusters(session, run.assessment_id, run.source_scan_id)
+
+    existing_keys = set(
+        session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
+    )
+    created = 0
+
+    for cluster in clusters:
+        member_set = set(cluster.object_ids)
+        # A cluster that touches any preserved application's members is left alone entirely —
+        # the user must move objects manually rather than have them silently regrouped.
+        if any(prior_membership.get(oid) in preserved_ids for oid in member_set):
+            continue
+
+        overlap_counts: dict[int, int] = {}
+        for oid in member_set:
+            app_id = prior_membership.get(oid)
+            if app_id is not None and app_id not in preserved_ids:
+                overlap_counts[app_id] = overlap_counts.get(app_id, 0) + 1
+
+        reused_app: Application | None = None
+        if overlap_counts:
+            best_app_id, best_count = max(overlap_counts.items(), key=lambda kv: kv[1])
+            if best_count * 2 >= len(member_set):
+                reused_app = apps_by_id.get(best_app_id)
+
+        app = reused_app or Application(assessment_id=run.assessment_id, status=ApplicationStatus.CANDIDATE.value)
+        if reused_app is None:
+            session.add(app)
+        app.clustering_signals = [
+            {"signal_type": s.signal_type, "description": s.description, "dependency_id": s.dependency_id}
+            for s in cluster.signals
+        ]
+        session.flush()
+        apps_by_id[app.id] = app
+
+        for oid in member_set:
+            session.get(SAPObject, oid).application_id = app.id
+
+        key = f"app-{app.id}"
+        if key not in existing_keys:
+            session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"application_id": app.id}))
+            existing_keys.add(key)
+            created += 1
+
+    stage.total_items = created + (stage.total_items or 0)
+    session.commit()
+
+
+def _application_discovery_process_item(
+    item: WorkItem, stage: StageRun, run: PipelineRun, session: Session
+) -> None:
+    app = session.get(Application, item.payload["application_id"])
+    if app is None or app.status in (ApplicationStatus.USER_RENAMED.value, ApplicationStatus.MERGED.value):
+        # Eligibility may have changed since `prepare` scoped this WorkItem (e.g. a concurrent
+        # manual rename/merge) — never AI-overwrite a user-curated or merged-away application.
+        return
+
+    member_ids = [
+        obj.id for obj in session.scalars(select(SAPObject).where(SAPObject.application_id == app.id))
+    ]
+    if not member_ids:
+        return
+
+    signals = [
+        ClusterSignal(
+            signal_type=s["signal_type"], description=s["description"], dependency_id=s.get("dependency_id")
+        )
+        for s in (app.clustering_signals or [])
+    ]
+    cluster = CandidateCluster(object_ids=member_ids, signals=signals)
+    package = build_application_evidence_package(session, cluster)
+    prompt_version = get_version(APPLICATION_DISCOVERY_CAPABILITY)
+    provider = get_provider(get_settings())
+
+    # ADR-012: schema, evidence-reference and domain rules are validated before persistence. A
+    # provider/validation failure records the error on the Application row without changing its
+    # status away from CANDIDATE — never a false AI_NAMED — while its deterministic membership
+    # (already committed in `prepare`) is left untouched.
+    try:
+        completion = provider.complete_structured(
+            StructuredCompletionRequest(
+                system_prompt=prompt_version.system_prompt,
+                user_prompt=render_application_prompt(package),
+                json_schema=prompt_version.json_schema,
+                schema_name=prompt_version.schema_name,
+            )
+        )
+        result = ApplicationDiscoveryResult.model_validate(completion.output)
+        domain_errors = validate_application_result(result, package)
+        if domain_errors:
+            raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
+    except (AIProviderError, ValidationError) as exc:
+        app.error = str(exc)[:2000]
+        session.flush()
+        return
+
+    if result.status == ApplicationDiscoveryStatus.COMPLETED:
+        app.name = result.name
+        app.description = result.description
+        app.domain = result.domain
+        app.status = ApplicationStatus.AI_NAMED.value
+    else:
+        # INSUFFICIENT_CONTEXT — never a false AI_NAMED (ADR-012); stays CANDIDATE so it is
+        # still browsable/mergeable/renameable manually, without a fabricated name.
+        app.name = ""
+        app.description = ""
+        app.domain = ""
+    app.confidence = result.confidence
+    app.rationale = result.rationale
+    app.evidence_refs = _resolve_evidence_refs(result.evidence_refs, package)
+    app.provider = completion.provider
+    app.model_id = completion.model_id
+    app.prompt_capability = APPLICATION_DISCOVERY_CAPABILITY
+    app.prompt_version = prompt_version.version
+    app.error = None
+    app.stage_run_id = stage.id
+    session.flush()
+
+
 SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
     StageDefinition(
         key="scan",
@@ -734,6 +897,12 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         prepare=_business_rule_discovery_prepare,
         process_item=_business_rule_discovery_process_item,
         finalize=_business_rule_discovery_finalize,
+    ),
+    StageDefinition(
+        key="application_discovery",
+        depends_on=("business_rule_discovery",),
+        prepare=_application_discovery_prepare,
+        process_item=_application_discovery_process_item,
     ),
 ]
 

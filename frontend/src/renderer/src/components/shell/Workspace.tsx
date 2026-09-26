@@ -1,3 +1,4 @@
+import { ApplicationBrowser } from '@/components/architecture/ApplicationBrowser'
 import { ATCImport } from '@/components/atc/ATCImport'
 import { BusinessRuleBrowser } from '@/components/functional/BusinessRuleBrowser'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
@@ -55,7 +56,7 @@ export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
         {activeView === 'dashboard' && <PlaceholderView title="Dashboard Geral" />}
         {activeView === 'executive' && <PlaceholderView title="Executive View" />}
         {activeView === 'functional' && <BusinessRuleBrowser assessmentId={assessment.id} />}
-        {activeView === 'architecture' && <PlaceholderView title="Architecture View" />}
+        {activeView === 'architecture' && <ApplicationBrowser assessmentId={assessment.id} />}
       </div>
     </main>
   )

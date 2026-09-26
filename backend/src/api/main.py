@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import health
+from api.routes.applications import router as applications_router
 from api.routes.atc import router as atc_router
 from api.routes.business_rules import router as business_rules_router
 from api.routes.clients import router as clients_router
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(pipeline_router)
     app.include_router(evidence_router)
     app.include_router(business_rules_router)
+    app.include_router(applications_router)
     return app
 
 

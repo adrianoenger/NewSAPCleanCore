@@ -28,6 +28,20 @@ from settings import get_settings
 
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
+# This file exercises business_rule_discovery only; application_discovery now runs as the next
+# stage in the same pipeline (SPRINT-11) and needs *some* schema-valid response to let the run
+# reach "completed" — an INSUFFICIENT_CONTEXT stub (no evidence_refs required) is a safe default
+# regardless of which SAPObject ids these tests happen to create.
+_APPLICATION_DISCOVERY_SCHEMA = "application_discovery_result"
+_INSUFFICIENT_APPLICATION_OUTPUT = {
+    "status": "INSUFFICIENT_CONTEXT",
+    "name": "",
+    "description": "",
+    "domain": "",
+    "confidence": 0.2,
+    "rationale": "Not enough grouped evidence.",
+    "evidence_refs": [],
+}
 
 _COMPLETED_UNDERSTANDING_OUTPUT = {
     "status": "COMPLETED",
@@ -83,7 +97,7 @@ class _SequencedFakeProvider:
     model_id = "fake-model-1"
 
     def __init__(self, outputs: dict[str, dict] | None = None, errors: dict[str, Exception] | None = None):
-        self._outputs = outputs or {}
+        self._outputs = {_APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT, **(outputs or {})}
         self._errors = errors or {}
 
     def complete_structured(self, request):

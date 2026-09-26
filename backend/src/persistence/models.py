@@ -220,6 +220,11 @@ class SAPObject(Base):
     last_seen_stage_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Membership in a discovered custom Application (SPRINT-11) — at most one at a time;
+    # nullable because clustering/naming may not have run yet, or found no grouping evidence.
+    application_id: Mapped[int | None] = mapped_column(
+        ForeignKey("application.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     parsed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -241,6 +246,9 @@ class SAPObject(Base):
     business_rules: Mapped[list["BusinessRule"]] = relationship(
         "BusinessRule", back_populates="sap_object", cascade="all, delete-orphan",
         foreign_keys="BusinessRule.sap_object_id",
+    )
+    application: Mapped["Application | None"] = relationship(
+        "Application", back_populates="members", foreign_keys=[application_id]
     )
 
 
@@ -855,3 +863,73 @@ class BusinessRule(Base):
         "SAPObject", back_populates="business_rules", foreign_keys=[sap_object_id]
     )
     consolidated_into: Mapped["BusinessRule | None"] = relationship("BusinessRule", remote_side=[id])
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-11 domain models — Application Discovery (ADR-008/ADR-012)
+# ---------------------------------------------------------------------------
+
+
+class ApplicationStatus(str, Enum):
+    CANDIDATE = "CANDIDATE"
+    AI_NAMED = "AI_NAMED"
+    USER_RENAMED = "USER_RENAMED"
+    MERGED = "MERGED"
+
+
+class Application(Base):
+    """A discovered candidate custom application — a cluster of `SAPObject`s grouped by
+    deterministic clustering (`ai.application_discovery.clustering`) and named/described by AI
+    (ADR-008 — membership/rationale traceable to evidence; ADR-012 — structured, validated,
+    provenance recorded).
+
+    Membership is `SAPObject.application_id` (at most one application per object) rather than a
+    separate join table — related business rules/evidence are queried via member objects, which
+    are already evidence-bound at the object level, instead of duplicating that binding here.
+    Reprocessing never overwrites a `USER_RENAMED` name/description or a `MERGED` row; manual
+    merge sets `consolidated_into_id`, mirroring `BusinessRule.consolidated_into_id`.
+    """
+
+    __tablename__ = "application"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    domain: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Resolved from the model's evidence_refs against the ApplicationEvidencePackage used at
+    # generation time — [{"ref_id","source_type","entity_id"}, ...], same shape as
+    # ObjectUnderstanding/BusinessRule.evidence_refs.
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Provenance of the deterministic clustering signals that formed this candidate (dependency/
+    # shared_package/shared_concept) — kept even after AI naming, for the UI's confidence
+    # rationale display.
+    clustering_signals: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=ApplicationStatus.CANDIDATE.value)
+    consolidated_into_id: Mapped[int | None] = mapped_column(
+        ForeignKey("application.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    prompt_capability: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
+    members: Mapped[list["SAPObject"]] = relationship(
+        "SAPObject", back_populates="application", foreign_keys="SAPObject.application_id"
+    )
+    consolidated_into: Mapped["Application | None"] = relationship("Application", remote_side=[id])

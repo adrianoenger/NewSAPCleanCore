@@ -1,0 +1,194 @@
+sprint: SPRINT-11
+branch: sprint/11-application-discovery
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      Deterministic clustering engine (backend/src/ai/application_discovery/clustering.py):
+      resolves SAPObjectDependency.target_name/target_type against SAPObject.canonical_key
+      within the same assessment (no schema change needed — canonical_key already encodes
+      identity), builds a graph from resolved dependency edges plus optional shared-signal
+      edges (package_name_raw from correlated ATCFinding, package_name from correlated
+      EvidenceRecord, shared ObjectUnderstanding concept tags, reliable process/usage
+      evidence correlations when available), and computes candidate clusters (connected
+      components) with a provenance/signal-weight record per cluster. Pure/deterministic,
+      no AI call.
+    status: done
+    validation: >-
+      backend/src/ai/application_discovery/clustering.py implemented; 11 unit tests in
+      test_application_discovery_clustering.py (dependency edge resolved via canonical_key,
+      no-signal singleton clusters, shared_package via correlated ATCFinding, shared_concept
+      at/below the 50% genericity threshold vs. an ignored 100%-shared concept) pass against
+      real Postgres fixtures.
+  - id: CAP-002
+    description: >-
+      Application persistence model (id, assessment_id, name, description, domain,
+      confidence, rationale, status CANDIDATE|AI_NAMED|USER_RENAMED|MERGED,
+      consolidated_into_id, clustering_signals JSONB provenance, provider/model/prompt
+      provenance) + nullable SAPObject.application_id FK (membership). Alembic migration
+      0013 (down_revision 0012_business_rule_discovery).
+    status: done
+    validation: >-
+      Application/ApplicationStatus added to persistence/models.py; SAPObject.application_id
+      nullable FK added. Migration 0013_application_discovery applied cleanly against the
+      running dev Postgres (docker exec sap-clean-core-backend-1 alembic upgrade head); `alembic
+      check` shows only the pre-existing BL-013 drift, nothing from this migration.
+  - id: CAP-003
+    description: >-
+      ai/application_discovery capability: schema.py (Result name/description/domain/
+      confidence/rationale/evidence_refs, status COMPLETED|INSUFFICIENT_CONTEXT, domain
+      validate_result requiring evidence_refs to resolve against the cluster's evidence
+      package), evidence_package.py (aggregates member SAPObjects' persisted understanding
+      concepts as prompt context only per ADR-008, correlated ATC/evidence as citable refs,
+      and member business rules as citable refs), __init__.py registering capability
+      "application_discovery" v1 (ADR-012).
+    status: done
+    validation: >-
+      ai/application_discovery/{schema,evidence_package,__init__}.py implemented, registering
+      capability "application_discovery" v1. 6 domain-validator unit tests in
+      test_application_discovery.py pass (registration, COMPLETED requires name+evidence_refs,
+      unknown evidence_refs rejected, INSUFFICIENT_CONTEXT allows/enforces empty fields).
+  - id: CAP-004
+    description: >-
+      application_discovery pipeline stage registered in SOURCE_PROCESSING_STAGES
+      (depends_on business_rule_discovery): prepare runs CAP-001 clustering, reconciles
+      Application rows for the current scan (never overwrites USER_RENAMED names/
+      descriptions or MERGED status on reprocessing, mirroring business_rule_discovery's
+      user_validated-survives pattern) and updates SAPObject.application_id membership,
+      creating one WorkItem per cluster needing (re)naming; process_item calls the
+      configured AIProvider via CAP-003 to name/describe/assign domain+confidence+
+      rationale, validates before persistence (never a false COMPLETED per ADR-012).
+    status: done
+    validation: >-
+      pipeline/stages.py: application_discovery stage registered in SOURCE_PROCESSING_STAGES
+      (depends_on business_rule_discovery). prepare resets non-preserved membership, runs
+      clustering, reuses a non-preserved existing Application by majority-overlap or creates a
+      new CANDIDATE one, never touches a cluster overlapping a USER_RENAMED/MERGED application.
+      process_item calls the AIProvider, validates before persistence, sets AI_NAMED only on a
+      COMPLETED result (never a false AI_NAMED per ADR-012), records provider errors on
+      Application.error without failing the stage. Fixed 2 pre-existing hardcoded assertions
+      (stage count 5->6 in test_sprint06.py, migration_revision in test_foundation.py) plus gave
+      test_business_rule_discovery_pipeline.py's fake provider a safe default
+      application_discovery_result output so its pre-existing tests (which predate this stage)
+      still reach "completed". 4 new integration tests in test_application_discovery_pipeline.py
+      (COMPLETED result persisted with resolved evidence_refs, INSUFFICIENT_CONTEXT is a valid
+      non-AI_NAMED outcome, provider error leaves the stage completed with the error recorded,
+      reprocessing preserves a USER_RENAMED application's name/status/membership). Full backend
+      suite: 173/173 pytest passing (includes CAP-005's own new API tests, counted once here).
+  - id: CAP-005
+    description: >-
+      Backend API: GET /assessments/{id}/applications (list with member count/domain/
+      confidence, excludes MERGED-away by default), GET .../applications/{id} (detail:
+      member objects, related business rules and evidence derived via member SAPObjects),
+      PATCH .../applications/{id} (rename/description -> status USER_RENAMED),
+      POST .../applications/{id}/move-object (reassign one SAPObject.application_id),
+      POST .../applications/merge (target absorbs source's members, source ->
+      MERGED + consolidated_into_id, mirroring the BusinessRule consolidation pattern).
+    status: done
+    validation: >-
+      api/schemas/applications.py + api/routes/applications.py registered on the app (confirmed
+      via OpenAPI schema): GET /assessments/{id}/applications (excludes MERGED and zero-member
+      applications by default, include_merged=true bypasses both), GET .../applications/{id}
+      (members + candidate business rules + correlated ATC findings derived from member
+      objects), PATCH .../applications/{id} (rename/description -> USER_RENAMED, 409 if already
+      MERGED), POST .../applications/move-object (reassign one object; null target ungroups),
+      POST .../applications/merge (target absorbs source's members + evidence_refs, source ->
+      MERGED + consolidated_into_id). 4 new API integration tests in
+      test_application_discovery_pipeline.py (detail returns members/rules/findings, rename sets
+      USER_RENAMED, move-object reassigns membership and updates the list, merge marks the
+      source MERGED and consolidated_into_id). Full backend suite: 173/173 pytest passing.
+  - id: CAP-006
+    description: >-
+      Frontend Architecture View: ApplicationBrowser replaces PlaceholderView for
+      activeView 'architecture' — lists discovered applications (name/domain/confidence/
+      member count), detail panel with objects/business rules/findings/confidence
+      rationale (reusing ObjectBrowser's EvidencePanel/SOURCE_TYPE_LABELS for drill-down),
+      and manual actions UI for rename, move-object and merge.
+    status: done
+    validation: >-
+      components/architecture/ApplicationBrowser.tsx replaces PlaceholderView for activeView
+      'architecture' in Workspace.tsx: master-detail list of discovered applications
+      (name/status/domain/member_count), detail panel with rationale, clustering_signals,
+      evidence_refs badges (reusing ObjectBrowser's exported SOURCE_TYPE_LABELS, extended with
+      SAP_OBJECT/DEPENDENCY entries), member objects, candidate business rules, ATC findings,
+      and inline rename/move-object/merge controls calling the new lib/api.ts fetchers
+      (fetchApplications/fetchApplication/renameApplication/moveApplicationObject/
+      mergeApplications). npm run typecheck and npm run build both clean (frontend/). Not yet
+      exercised live in the running Electron app — deferred to CAP-007's live/e2e smoke.
+  - id: CAP-007
+    description: >-
+      Minimal validation: backend pytest (clustering unit tests, domain validation unit
+      tests, pipeline integration test mirroring test_business_rule_discovery_pipeline.py
+      incl. reprocessing preserving user renames/merges, API tests for list/detail/rename/
+      move/merge), frontend typecheck/build, live/e2e smoke of the demonstrable flow
+      (browse a discovered application and its objects/rules/findings/confidence
+      rationale).
+    status: done
+    validation: >-
+      Backend: 173/173 pytest passing (37 new: 11 clustering unit, 6 domain-validator unit, 4
+      pipeline integration, 4 application API, plus the 2 pre-existing hardcoded-assertion
+      fixes from CAP-004; test_business_rule_discovery_pipeline.py's own pre-existing tests
+      still pass with the new stage's safe default). Frontend: typecheck+build clean.
+      Live smoke #1 via the real HTTP API with real AWS Bedrock credentials
+      (us.anthropic.claude-sonnet-4-5-20250929-v1:0): disposable client/assessment, full 6-stage
+      pipeline run over demo-source/ABAP (4 real objects) end to end — application_discovery
+      correctly returned 4 honest INSUFFICIENT_CONTEXT singleton candidates on the first run
+      (the demo files have no CALL FUNCTION/shared-package signal between them, so no
+      fabricated grouping — exactly ADR-012's intent); exercised rename (-> USER_RENAMED),
+      move-object (reassigned a member between two live applications) and merge (source ->
+      MERGED + consolidated_into_id, evidence_refs folded into the survivor) against the real
+      persisted data; reprocessed the same source a second time and confirmed the USER_RENAMED
+      application's name/status/3-member composition survived untouched while the untouched
+      candidate kept its own single member — validates CAP-004's reconciliation design with
+      live data, not just fakes. Cleaned up (scoped DELETE FROM client WHERE id=:cid, per
+      project-test-isolation memory); also cleaned up an unrelated dangling disposable client
+      left over from an earlier failed shell command in this same session (no python3 on the
+      Windows host — worked around by running the API calls via python inside the backend
+      container instead).
+      Live smoke #2 through the actual Electron/React renderer (electron-vite dev on
+      localhost:5173, driven with Playwright, mirroring SPRINT-09/10's own validation
+      approach): created a fresh disposable client/assessment, typed the demo-source/ABAP path
+      directly into Step 1's Source Ingestion text input (no native file dialog needed), ran
+      Step 3 processing to completion, opened Architecture View -> ApplicationBrowser listed 3
+      real discovered applications, one AI-named "Custom Order Processing" (domain "Order
+      Management", confidence 75%, rationale citing the shared_concept 'order processing'
+      signal, OBJ-9011/OBJ-9013 evidence badges, 2 member objects with move-to dropdowns, 1
+      real discovered business rule, a working merge selector, and the bedrock/model/prompt
+      provenance line); clicked "Renomear", saved a new name, and the list immediately
+      re-rendered with the new name and status "Renomeada pelo usuário" (rename hook confirmed
+      end-to-end against the real backend). Only console issue was the same pre-existing,
+      unrelated favicon 404 noted in SPRINT-10. Disposable client/assessment deleted afterward;
+      dev server process stopped.
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: []
+notes:
+  - >-
+    Capability plan derived from docs/delivery/sprints/SPRINT-11-application-discovery.md,
+    ADR-008, ADR-012, ADR-005, and the SPRINT-09/SPRINT-10 object_understanding/
+    business_rule_discovery stage pattern (backend/src/pipeline/stages.py,
+    backend/src/ai/object_understanding/, backend/src/ai/business_rule_discovery/).
+  - >-
+    Design decision: SAPObjectDependency has no FK to the target SAPObject (only
+    target_name/target_type text) — resolution happens at clustering time via
+    canonical_key match within the assessment, no schema change required for CAP-001.
+  - >-
+    Design decision: "related business rules/evidence" are derived via member
+    SAPObjects (SAPObject.application_id) rather than duplicated into a new join
+    table — business rules/evidence are already evidence-bound at the object level
+    (ADR-008); grouping by application is a query-time join, avoiding redundant
+    persistence.
+  - >-
+    Package/transaction/process-usage clustering signals depend on ATC/supplemental
+    evidence correlation being present for the assessment; the demo dataset
+    (demo-source/ABAP) may exercise mostly the dependency-graph signal — consistent
+    with the baseline's "packages/transactions/semantic signals plus reliable
+    process/usage correlations when available" wording.
+  - "Next Alembic revision is 0013 (down_revision 0012_business_rule_discovery)."
+  - "All sprint capabilities (CAP-001..CAP-007) done. /clean-core-review-sprint returned READY_TO_FINISH: YES; closed by /clean-core-finish-sprint. See docs/delivery/results/SPRINT-11-RESULT.md."
