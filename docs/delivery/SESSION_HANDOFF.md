@@ -1,15 +1,87 @@
 # Session Handoff
 
 ## Current state
+SPRINT-15 (Result Navigation Perspectives) is **completed** — closed by
+`/clean-core-finish-sprint`. `docs/delivery/SPRINT-15-PROGRESS.yaml` is `status: completed`,
+`progress_percent: 100`, `ready_for_review: false`; the result record is
+`docs/delivery/results/SPRINT-15-RESULT.md`. The sprint branch was pushed and merged into `main`
+by fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint
+record).
+
+**Next sprint:** SPRINT-16 — AI Copilot (`docs/delivery/sprints/SPRINT-16-ai-copilot.md`), not
+started.
+
+## What SPRINT-15 delivered
+Result navigation now matches ADR-009/Baseline in full: Dashboard Geral and Executive View are
+real pages (previously `PlaceholderView` stubs); all five result views (Dashboard Geral,
+Executive, Technical, Functional, Architecture) support cross-view drill-down while preserving
+Assessment/Client context and the permanent right-side Copilot.
+
+- **`frontend/src/renderer/src/lib/resultNav.ts`**: `ResultFocus` union (`sap_object` |
+  `business_rule` | `application`) + `FOCUS_VIEW` mapping each focus kind to its nav item.
+  `App.tsx` lifts `activeView`/`focus` state; `selectView` (plain sidebar switch, clears focus) vs.
+  `navigateToFocus` (drill-down: sets focus + switches view) are the only two ways navigation
+  changes. `Workspace.tsx` threads `focus`/`onNavigate`/`onSelectView` to each view.
+- **Backend**: `GET /assessments/{id}/dashboard-summary` (`api/routes/dashboard.py` +
+  `api/schemas/dashboard.py`) aggregates the Baseline's Preliminary Processing Summary KPIs
+  server-side (objects analisados, customizações identificadas = discovered `Application` count,
+  findings críticos = `TechnicalFinding.severity=HIGH`, objetos com alto impacto = objects whose
+  owning Application has `technical_risk` HIGH/CRITICAL, regras de negócio identificadas =
+  `CANDIDATE` `BusinessRule` count) plus `is_stale`. `SAPObjectRead` gained `application_id` (the
+  ORM column already existed, just wasn't exposed) so the frontend can resolve an object's owning
+  Application. `backend/tests/test_dashboard.py` (2 tests).
+- **`components/dashboard/DashboardGeral.tsx`**: 5 KPI cards + 4 quick-nav cards (deliberately no
+  risk/roadmap detail — Baseline: "must not duplicate Executive View").
+- **`components/dashboard/ExecutiveView.tsx`**: top-5 technical risks, high-risk+high-importance
+  "critical applications", Clean Core distribution with macro-recommendation sentences, and a
+  roadmap grouped by recommendation (RETIRE/REPLATFORM/REMEDIATE/REVIEW/RETAIN order) — all sourced
+  from the existing `fetchApplications` (no new backend needed), every item drills into
+  Architecture View via `onNavigate({kind:'application', id})`.
+- **`components/shared/cleanCoreDisplay.tsx`**: `RecommendationChip`/`LevelBadge`/
+  `countByRecommendation` extracted out of `ApplicationBrowser.tsx` so `ObjectBrowser.tsx`
+  (Technical) doesn't need to import from `ApplicationBrowser.tsx` (Architecture) — would have been
+  a circular import.
+- **Technical View → remediation proposal** (`ObjectBrowser.tsx::RemediationPanel`): when an object
+  has `application_id`, fetches that Application and shows its Clean Core
+  `recommendation`/`recommendation_rationale` as the Baseline's "remediation proposal" — reuses the
+  existing AI-generated, evidence-bound field (Baseline rule 8) rather than adding a second
+  competing AI field/schema/migration.
+- **Architecture View drill-down** (`ApplicationBrowser.tsx`): the previously-static
+  `business_rules`/`findings` lists in `ApplicationDetail` are now buttons calling
+  `onNavigate({kind:'business_rule'|'sap_object', id})`.
+- **Functional View drill-down** (`BusinessRuleBrowser.tsx::RuleObjectContext`): the previously
+  static "Objeto de origem" block is now a button calling `onNavigate({kind:'sap_object', id})`.
+- **CAP-006 scope note**: Architecture View's "coupling patterns" (cross-application dependency
+  graph) was NOT implemented — `SAPObjectDependency.target_name` is free text, never resolved to a
+  target `SAPObject.id`, so there's no existing signal for whether a dependency edge crosses an
+  Application boundary (same root gap as BL-016). Recorded as **BL-022**. **BL-021** also recorded:
+  the Baseline's "customisation identification" AI step (distinct from `application_discovery`) has
+  no dedicated capability yet — Dashboard Geral's "Customizações identificadas" KPI maps to the
+  discovered-`Application` count instead.
+- Validation: 215/215 backend pytest (213 pre-existing + 2 new), frontend `tsc`/`build` clean.
+  **Live validation**: reprocessed the persistent Acme Industries demo assessment (id 1074, a real
+  live Bedrock pipeline run, id 3327 — its prior processing predated `application_discovery`/
+  `clean_core_analysis`) and drove the electron-vite renderer at `localhost:5173` with Playwright
+  through the full chain Dashboard Geral → Executive View → Architecture View (business-rule
+  click) → Functional View (source-object click) → Technical View (remediation-panel click) →
+  Architecture View again — Assessment/Client breadcrumb and Copilot panel/context label stayed
+  correct throughout, and direct sidebar navigation correctly cleared stale drill-down focus. Found
+  and fixed one live bug: a pluralization concatenation bug in `ExecutiveView.tsx`'s macro
+  recommendation sentence ("aplicaçãoões" → "aplicações").
+
+## Restart instructions
+SPRINT-15 has no unfinished work — `docs/delivery/SPRINT-15-PROGRESS.yaml` is `status: completed`
+and all 8 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+checked out, `main` is the correct branch to be on; the next action is `/clean-core-run-sprint`
+for SPRINT-16, not a resume of SPRINT-15.
+
+## Previous sprint (SPRINT-14)
 SPRINT-14 (Embeddings and Semantic Retrieval) is **completed** — closed by
 `/clean-core-finish-sprint`. `docs/delivery/SPRINT-14-PROGRESS.yaml` is `status: completed`,
 `progress_percent: 100`, `ready_for_review: false`; the result record is
 `docs/delivery/results/SPRINT-14-RESULT.md`. The sprint branch was pushed and merged into `main`
 by fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint
 record).
-
-**Next sprint:** SPRINT-15 — Result Navigation Perspectives
-(`docs/delivery/sprints/SPRINT-15-navigation-perspectives.md`), not started.
 
 ## What SPRINT-14 delivered
 `embeddings` registers as an 8th `source_processing` pipeline stage, after `clean_core_analysis`:

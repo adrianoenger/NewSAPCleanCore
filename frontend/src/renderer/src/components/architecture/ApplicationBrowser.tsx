@@ -5,11 +5,12 @@
  * interpretation, evidence, and user-corrected content).
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Boxes, ChevronRight, GitMerge, Pencil, Sparkles } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
 import { SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
+import { LevelBadge, RecommendationChip, countByRecommendation } from '@/components/shared/cleanCoreDisplay'
 import {
   fetchApplication,
   fetchApplications,
@@ -20,10 +21,13 @@ import {
   type ApplicationRecord,
   type CleanCoreAssessmentRecord,
 } from '@/lib/api'
+import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
 
 interface Props {
   assessmentId: number
+  focusApplicationId?: number | null
+  onNavigate?: (target: ResultFocus) => void
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -36,49 +40,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'text-text-tertiary' }
   return <span className={cn('text-[10px] font-medium', cfg.color)}>{cfg.label}</span>
-}
-
-// Baseline core rule 8: Technical Risk and Business Importance are separate dimensions, each
-// using the same 4-level severity palette from docs/design/design-system.md §3.4.
-const LEVEL_CONFIG: Record<string, { label: string; color: string }> = {
-  LOW: { label: 'Baixo', color: 'text-low' },
-  MEDIUM: { label: 'Médio', color: 'text-attention' },
-  HIGH: { label: 'Alto', color: 'text-legacy' },
-  CRITICAL: { label: 'Crítico', color: 'text-risk' },
-}
-
-const RECOMMENDATION_CONFIG: Record<string, { label: string; color: string }> = {
-  RETAIN: { label: 'Manter', color: 'text-success' },
-  REMEDIATE: { label: 'Remediar', color: 'text-attention' },
-  REPLATFORM: { label: 'Replataformar', color: 'text-info' },
-  RETIRE: { label: 'Aposentar', color: 'text-risk' },
-  REVIEW: { label: 'Revisão necessária', color: 'text-legacy' },
-}
-
-function LevelBadge({ level, title }: { level: string | null; title: string }) {
-  if (level == null) {
-    return <span className="text-[10px] text-text-tertiary">—</span>
-  }
-  const cfg = LEVEL_CONFIG[level] ?? { label: level, color: 'text-text-tertiary' }
-  return (
-    <span className={cn('text-[10px] font-medium', cfg.color)} title={title}>
-      {cfg.label}
-    </span>
-  )
-}
-
-function RecommendationChip({ recommendation }: { recommendation: string }) {
-  const cfg = RECOMMENDATION_CONFIG[recommendation] ?? { label: recommendation, color: 'text-text-tertiary' }
-  return (
-    <span
-      className={cn(
-        'rounded-full border border-border-soft bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium',
-        cfg.color,
-      )}
-    >
-      {cfg.label}
-    </span>
-  )
 }
 
 function CleanCorePanel({ cleanCore }: { cleanCore: CleanCoreAssessmentRecord | null }) {
@@ -200,13 +161,8 @@ function CleanCorePanel({ cleanCore }: { cleanCore: CleanCoreAssessmentRecord | 
 }
 
 function CleanCoreDistribution({ applications }: { applications: ApplicationRecord[] }) {
-  const counts: Record<string, number> = {}
-  let analyzed = 0
-  for (const app of applications) {
-    if (!app.clean_core || app.clean_core.status === 'FAILED') continue
-    analyzed += 1
-    counts[app.clean_core.recommendation] = (counts[app.clean_core.recommendation] ?? 0) + 1
-  }
+  const counts = countByRecommendation(applications)
+  const analyzed = Object.values(counts).reduce((sum, c) => sum + c, 0)
   if (analyzed === 0) return null
 
   return (
@@ -377,10 +333,12 @@ function ApplicationDetail({
   assessmentId,
   applicationId,
   candidates,
+  onNavigate,
 }: {
   assessmentId: number
   applicationId: number
   candidates: ApplicationRecord[]
+  onNavigate?: (target: ResultFocus) => void
 }) {
   const [editing, setEditing] = useState(false)
   const { data } = useQuery<ApplicationDetailRecord>({
@@ -482,10 +440,16 @@ function ApplicationDetail({
           </div>
           <div className="space-y-1">
             {data.business_rules.map((r) => (
-              <div key={r.id} className="rounded bg-surface-elevated px-2 py-1.5 text-[11px]">
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => onNavigate?.({ kind: 'business_rule', id: r.id })}
+                disabled={!onNavigate}
+                className="block w-full rounded bg-surface-elevated px-2 py-1.5 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+              >
                 <span className="text-text-primary">{r.condition}</span>
                 <span className="text-text-tertiary"> → {r.action}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -498,11 +462,17 @@ function ApplicationDetail({
           </div>
           <div className="space-y-1">
             {data.findings.map((f) => (
-              <div key={f.id} className="rounded bg-surface-elevated px-2 py-1.5 text-[11px]">
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => onNavigate?.({ kind: 'sap_object', id: f.object_id })}
+                disabled={!onNavigate}
+                className="block w-full rounded bg-surface-elevated px-2 py-1.5 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+              >
                 <span className="font-medium text-text-primary">{f.check_title ?? 'Achado ATC'}</span>
                 <span className="text-text-tertiary"> — {f.object_name}</span>
                 {f.check_message && <div className="mt-0.5 text-text-tertiary">{f.check_message}</div>}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -534,8 +504,12 @@ function ApplicationDetail({
   )
 }
 
-export function ApplicationBrowser({ assessmentId }: Props) {
+export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigate }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (focusApplicationId != null) setSelectedId(focusApplicationId)
+  }, [focusApplicationId])
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['applications', assessmentId],
@@ -621,7 +595,12 @@ export function ApplicationBrowser({ assessmentId }: Props) {
             Selecione uma aplicação para ver os detalhes
           </div>
         ) : (
-          <ApplicationDetail assessmentId={assessmentId} applicationId={selectedId} candidates={applications} />
+          <ApplicationDetail
+            assessmentId={assessmentId}
+            applicationId={selectedId}
+            candidates={applications}
+            onNavigate={onNavigate}
+          />
         )}
       </div>
     </div>

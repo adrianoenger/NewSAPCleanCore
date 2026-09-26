@@ -4,7 +4,7 @@
  * (Baseline: distinguish AI interpretation, evidence, and user-validated content).
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ChevronRight, Scale, Sparkles } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
@@ -15,10 +15,13 @@ import {
   validateBusinessRule,
   type BusinessRuleRecord,
 } from '@/lib/api'
+import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
 
 interface Props {
   assessmentId: number
+  focusRuleId?: number | null
+  onNavigate?: (target: ResultFocus) => void
 }
 
 const RULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -40,7 +43,15 @@ function RuleTypeBadge({ type }: { type: string }) {
   )
 }
 
-function RuleObjectContext({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
+function RuleObjectContext({
+  assessmentId,
+  objectId,
+  onNavigate,
+}: {
+  assessmentId: number
+  objectId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['sap-object-detail', assessmentId, objectId],
     queryFn: () => fetchSAPObject(assessmentId, objectId),
@@ -50,18 +61,31 @@ function RuleObjectContext({ assessmentId, objectId }: { assessmentId: number; o
   if (!data) return null
 
   return (
-    <div className="rounded border border-border-soft bg-surface-elevated px-3 py-2 text-[11px]">
+    <button
+      type="button"
+      onClick={() => onNavigate?.({ kind: 'sap_object', id: objectId })}
+      disabled={!onNavigate}
+      className="w-full rounded border border-border-soft bg-surface-elevated px-3 py-2 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+    >
       <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Objeto de origem</div>
       <div className="mt-0.5 font-mono text-[12px] text-text-primary">{data.object_name}</div>
       <div className="text-text-tertiary">
         {data.object_type} · linhas {data.line_start}
         {data.line_end != null ? `–${data.line_end}` : '+'}
       </div>
-    </div>
+    </button>
   )
 }
 
-function RuleDetail({ assessmentId, rule }: { assessmentId: number; rule: BusinessRuleRecord }) {
+function RuleDetail({
+  assessmentId,
+  rule,
+  onNavigate,
+}: {
+  assessmentId: number
+  rule: BusinessRuleRecord
+  onNavigate?: (target: ResultFocus) => void
+}) {
   const queryClient = useQueryClient()
   const [notes, setNotes] = useState(rule.user_notes ?? '')
 
@@ -104,7 +128,7 @@ function RuleDetail({ assessmentId, rule }: { assessmentId: number; rule: Busine
         </div>
       )}
 
-      <RuleObjectContext assessmentId={assessmentId} objectId={rule.sap_object_id} />
+      <RuleObjectContext assessmentId={assessmentId} objectId={rule.sap_object_id} onNavigate={onNavigate} />
       <EvidencePanel assessmentId={assessmentId} objectId={rule.sap_object_id} />
       <SapGuidancePanel assessmentId={assessmentId} targetKind="business-rules" targetId={rule.id} />
 
@@ -149,9 +173,16 @@ function RuleDetail({ assessmentId, rule }: { assessmentId: number; rule: Busine
   )
 }
 
-export function BusinessRuleBrowser({ assessmentId }: Props) {
+export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
+
+  useEffect(() => {
+    if (focusRuleId != null) {
+      setSelectedId(focusRuleId)
+      setTypeFilter('')
+    }
+  }, [focusRuleId])
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['business-rules', assessmentId],
@@ -249,7 +280,7 @@ export function BusinessRuleBrowser({ assessmentId }: Props) {
             Selecione uma regra para ver os detalhes
           </div>
         ) : (
-          <RuleDetail assessmentId={assessmentId} rule={selected} />
+          <RuleDetail assessmentId={assessmentId} rule={selected} onNavigate={onNavigate} />
         )}
       </div>
     </div>

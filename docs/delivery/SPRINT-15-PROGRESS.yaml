@@ -1,0 +1,79 @@
+sprint: SPRINT-15
+branch: sprint/15-navigation-perspectives
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      Shared cross-view navigation/drill-down state (active result view + optional
+      entity focus) lifted into App.tsx/Workspace.tsx so any result view can navigate
+      to another with a specific entity pre-selected, without losing Assessment/Copilot
+      context.
+    status: done
+    validation: "frontend/src/renderer/src/lib/resultNav.ts + App.tsx/Workspace.tsx; tsc/build clean"
+  - id: CAP-002
+    description: >-
+      Backend results-summary aggregation endpoint (objects analyzed, customizations
+      identified, critical findings, high-impact objects, business rules identified)
+      reused by Dashboard Geral (and the Baseline's Preliminary Processing Summary).
+    status: done
+    validation: "GET /assessments/{id}/dashboard-summary; backend/tests/test_dashboard.py (2 tests), full suite 215/215 passed"
+  - id: CAP-003
+    description: >-
+      Dashboard Geral as a real synthesis page (KPI cards + navigation entry points),
+      not duplicating Executive View content.
+    status: done
+    validation: "components/dashboard/DashboardGeral.tsx; tsc/build clean; live Playwright against reprocessed Acme Industries assessment (id 1074) confirmed real KPI values (6/4/0/0/6) and working nav cards"
+  - id: CAP-004
+    description: >-
+      Executive View with risks, critical applications, macro recommendations, Clean
+      Core distribution and a suggested roadmap grouped by recommendation, each
+      drilling into Architecture View.
+    status: done
+    validation: "components/dashboard/ExecutiveView.tsx; tsc/build clean; live Playwright confirmed risks/roadmap/distribution render with real Clean Core data and drill-down into Architecture View works (fixed a pluralization bug found live: 'aplicaçãoões' -> 'aplicações')"
+  - id: CAP-005
+    description: >-
+      Technical View surfaces the owning Application's Clean Core recommendation +
+      rationale as the object's remediation proposal; accepts drill-down focus from
+      other views.
+    status: done
+    validation: "ObjectBrowser.tsx RemediationPanel + focusObjectId; tsc/build clean; live Playwright confirmed the panel renders the owning Application's real recommendation/rationale and drills back into Architecture View"
+  - id: CAP-006
+    description: >-
+      Architecture View makes its business-rule/finding lists clickable drill-down
+      links into Functional/Technical views; accepts drill-down focus. Cross-application
+      coupling/dependency-graph visualization deferred — SAPObjectDependency has no
+      target-object resolution to detect application-crossing edges yet (BL-022).
+    status: done
+    validation: "ApplicationBrowser.tsx drill-down buttons + focusApplicationId; tsc/build clean; live Playwright confirmed a business-rule click drills into Functional View with the right rule pre-selected"
+  - id: CAP-007
+    description: >-
+      Functional View's business-rule source-object context becomes a clickable
+      drill-down link into Technical View with the object focused.
+    status: done
+    validation: "BusinessRuleBrowser.tsx RuleObjectContext click + focusRuleId; tsc/build clean; live Playwright confirmed the click drills into Technical View with the right SAPObject pre-selected"
+  - id: CAP-008
+    description: >-
+      Verify Assessment/Copilot context is preserved across all view changes; Copilot
+      contextLabel reflects the active result view.
+    status: done
+    validation: "live Playwright: Assessment/Client breadcrumb and Copilot panel stayed mounted across Dashboard->Executive->Architecture->Functional->Technical->Architecture drill-down chain; Copilot contextLabel updated per view each time; direct sidebar navigation to Technical View correctly cleared stale focus (showed 'Select an object')"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: [BL-021, BL-022]
+notes:
+  - "Preflight: main synced with origin (already up to date), working tree clean, SPRINT-14 completed. Branch sprint/15-navigation-perspectives created from main."
+  - "Scope note: SPRINT-16 (AI Copilot) owns chat/query routing and structured actions; this sprint only preserves Copilot mounting/context continuity across result views, per docs/delivery/sprints/SPRINT-16-ai-copilot.md."
+  - "Mapped current state before implementation: Sidebar/Workspace already list all 5 result nav items; dashboard/executive are PlaceholderView; technical/functional/architecture already map to ObjectBrowser/BusinessRuleBrowser/ApplicationBrowser respectively; no aggregation endpoint exists; no cross-view drill-down exists; user-validation PATCH exists only for BusinessRule."
+  - "Technical View's baseline 'remediation proposal' and Architecture View's 'modernization paths' are satisfied by surfacing the existing AI-generated CleanCoreAssessment.recommendation+rationale (already evidence-bound, Baseline rule 8) rather than adding a new AI schema field, to avoid unnecessary schema/prompt scope."
+  - "CAP-006 narrowed after investigation: SAPObjectDependency stores target_name as free text (never resolved to a target SAPObject.id), so there is no existing signal to detect an application-crossing dependency edge (same root gap as BL-016). Recorded as BL-022 rather than building new resolution logic outside this sprint's navigation scope."
+  - "Extracted shared Clean Core display primitives (RecommendationChip/LevelBadge/countByRecommendation) into components/shared/cleanCoreDisplay.tsx so ObjectBrowser (Technical) and ApplicationBrowser (Architecture) don't import from each other (would have been circular)."
+  - "Reprocessing Acme Industries demo assessment (id 1074, the project's existing demo client used by prior sprints for live validation) via a live Bedrock pipeline run (id 3327) to get real applications/business rules/clean core data for Playwright drill-down validation, since existing demo assessments predate the application_discovery/clean_core_analysis stages and show is_stale=true."
+  - "Live Playwright validation completed against the reprocessed Acme Industries assessment (4 applications, 1 named 'Custom Order Management' with 4 business rules): full drill-down chain Dashboard Geral -> Executive View -> Architecture View (business rule click) -> Functional View (source-object click) -> Technical View (remediation panel click) -> Architecture View again, all without losing the Assessment/Client breadcrumb or the Copilot panel/context label. Direct sidebar navigation correctly clears stale drill-down focus. All 8 capabilities validated; ready_for_review: true."
+  - "213/213+2 backend pytest (215/215 full suite), frontend tsc/build clean after all changes including the live-validation pluralization fix."
+  - "/clean-core-review-sprint found one hygiene blocker: an untracked bash.exe.stackdump crash artifact at repo root (same kind of leftover Bedrock/live-validation-session noise as SPRINT-14). Removed before closure; not part of the sprint diff."

@@ -4,10 +4,12 @@
  * only happens via "3 - Processamento por IA" (SPRINT-07 consolidation).
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw, Sparkles } from 'lucide-react'
+import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw, Sparkles, Wrench } from 'lucide-react'
+import { RecommendationChip } from '@/components/shared/cleanCoreDisplay'
 import {
+  fetchApplication,
   fetchObjectDependencies,
   fetchObjectEvidenceCorrelations,
   fetchProcessingStatus,
@@ -16,10 +18,13 @@ import {
   type ObjectUnderstandingRecord,
   type SAPObjectRecord,
 } from '@/lib/api'
+import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
 
 interface Props {
   assessmentId: number
+  focusObjectId?: number | null
+  onNavigate?: (target: ResultFocus) => void
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -258,7 +263,55 @@ function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstand
   )
 }
 
-function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; objectId: number }) {
+/** Technical View's "remediation proposal" (Baseline) — the owning Application's Clean Core
+ * recommendation/rationale, already AI-generated and evidence-bound (Baseline core rule 8), so
+ * this surfaces it rather than adding a second, competing AI-generated field. */
+function RemediationPanel({
+  assessmentId,
+  applicationId,
+  onNavigate,
+}: {
+  assessmentId: number
+  applicationId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['application-detail', assessmentId, applicationId],
+    queryFn: () => fetchApplication(assessmentId, applicationId),
+  })
+
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando proposta de remediação…</div>
+  const cleanCore = data?.clean_core
+  if (!cleanCore || cleanCore.status === 'FAILED') return null
+
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate?.({ kind: 'application', id: applicationId })}
+      disabled={!onNavigate}
+      className="w-full space-y-1.5 rounded border border-border-soft bg-surface-elevated px-3 py-2 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+    >
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+        <Wrench className="h-3 w-3" strokeWidth={2} />
+        Proposta de Remediação ({data?.name || `Aplicação #${applicationId}`})
+      </div>
+      <RecommendationChip recommendation={cleanCore.recommendation} />
+      {cleanCore.recommendation_rationale && (
+        <div className="text-text-secondary">{cleanCore.recommendation_rationale}</div>
+      )}
+    </button>
+  )
+}
+
+function ObjectDetail({
+  assessmentId,
+  objectId,
+  onNavigate,
+}: {
+  assessmentId: number
+  objectId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['sap-object-detail', assessmentId, objectId],
     queryFn: () => fetchSAPObject(assessmentId, objectId),
@@ -289,13 +342,27 @@ function ObjectDetail({ assessmentId, objectId }: { assessmentId: number; object
       )}
       <DependenciesPanel assessmentId={assessmentId} objectId={objectId} />
       <EvidencePanel assessmentId={assessmentId} objectId={objectId} />
+      {data.application_id != null && (
+        <RemediationPanel
+          assessmentId={assessmentId}
+          applicationId={data.application_id}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   )
 }
 
-export function ObjectBrowser({ assessmentId }: Props) {
+export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate }: Props) {
   const [typeFilter, setTypeFilter] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (focusObjectId != null) {
+      setSelectedId(focusObjectId)
+      setTypeFilter('')
+    }
+  }, [focusObjectId])
 
   const { data: objects = [], isLoading, refetch } = useQuery({
     queryKey: ['sap-objects', assessmentId, typeFilter],
@@ -429,7 +496,7 @@ export function ObjectBrowser({ assessmentId }: Props) {
             Select an object to view details
           </div>
         ) : (
-          <ObjectDetail assessmentId={assessmentId} objectId={selectedId} />
+          <ObjectDetail assessmentId={assessmentId} objectId={selectedId} onNavigate={onNavigate} />
         )}
       </div>
     </div>

@@ -164,6 +164,7 @@ export interface SAPObjectRecord {
   description: string
   line_start: number
   line_end: number | null
+  application_id: number | null
   parsed_at: string
 }
 
@@ -834,6 +835,23 @@ export interface SemanticSearchResponse {
   query: string
   results: SemanticSearchHitRecord[]
 }
+
+// ---------------------------------------------------------------------------
+// SPRINT-15: Results Navigation Perspectives — dashboard-summary aggregation
+// ---------------------------------------------------------------------------
+
+export interface DashboardSummaryRecord {
+  assessment_id: number
+  objects_analyzed: number
+  customizations_identified: number
+  critical_findings: number
+  high_impact_objects: number
+  business_rules_identified: number
+  is_stale: boolean
+}
+
+export const fetchDashboardSummary = (assessmentId: number): Promise<DashboardSummaryRecord> =>
+  api(`/assessments/${assessmentId}/dashboard-summary`)
 
 export const fetchSemanticSearch = (
   assessmentId: number,

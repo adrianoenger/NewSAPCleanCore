@@ -4,17 +4,31 @@ import { CopilotPanel } from '@/components/shell/CopilotPanel'
 import { NAV_ITEMS, Sidebar } from '@/components/shell/Sidebar'
 import { Workspace } from '@/components/shell/Workspace'
 import type { AssessmentListItem, ClientRecord } from '@/lib/api'
+import { FOCUS_VIEW, type ResultFocus } from '@/lib/resultNav'
 import type { AssessmentContext } from '@/lib/useClientContext'
 import { useHealth } from '@/lib/useHealth'
 
 /** Permanent two/three-region shell: [Sidebar?] | Main | Copilot. */
 export function App() {
   const [activeView, setActiveView] = useState(NAV_ITEMS[0].id)
+  const [focus, setFocus] = useState<ResultFocus | null>(null)
   const [copilotCollapsed, setCopilotCollapsed] = useState(false)
   const health = useHealth()
 
   const [client, setClientState] = useState<ClientRecord | null>(null)
   const [assessment, setAssessmentState] = useState<AssessmentListItem | null>(null)
+
+  // Sidebar navigation is a plain view switch (SPRINT-15/ADR-009); drill-down navigation
+  // (navigateToFocus) additionally carries which entity the target view should pre-select.
+  const selectView = (id: string) => {
+    setActiveView(id)
+    setFocus(null)
+  }
+
+  const navigateToFocus = (target: ResultFocus) => {
+    setFocus(target)
+    setActiveView(FOCUS_VIEW[target.kind])
+  }
 
   const ctx: AssessmentContext = {
     client,
@@ -25,12 +39,13 @@ export function App() {
     },
     setAssessment: (a) => {
       setAssessmentState(a)
+      setFocus(null)
       if (a) setActiveView(NAV_ITEMS[0].id)
     },
   }
 
   const copilotContext = assessment
-    ? `assessment: ${assessment.name}`
+    ? `assessment: ${assessment.name} · ${NAV_ITEMS.find((i) => i.id === activeView)?.label ?? activeView}`
     : `home`
 
   return (
@@ -39,7 +54,7 @@ export function App() {
       {assessment && (
         <Sidebar
           activeId={activeView}
-          onSelect={setActiveView}
+          onSelect={selectView}
           connectivity={health.connectivity}
           ctx={ctx}
         />
@@ -47,7 +62,14 @@ export function App() {
 
       {/* Center region */}
       {assessment ? (
-        <Workspace activeView={activeView} health={health} ctx={ctx} />
+        <Workspace
+          activeView={activeView}
+          focus={focus}
+          onNavigate={navigateToFocus}
+          onSelectView={selectView}
+          health={health}
+          ctx={ctx}
+        />
       ) : (
         <main
           data-region="workspace"

@@ -14,6 +14,7 @@ class SAPObjectRead(BaseModel):
     description: str
     line_start: int
     line_end: int | None
+    application_id: int | None
     parsed_at: datetime
 
     model_config = {"from_attributes": True}
