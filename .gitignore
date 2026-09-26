@@ -146,6 +146,7 @@ tmp/
 temp/
 *.pid
 *.pid.lock
+*.stackdump
 
 # ------------------------------------------------------------
 # Local databases / persistence

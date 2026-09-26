@@ -22,6 +22,7 @@ interface Props {
   assessmentId: number
   focusRuleId?: number | null
   onNavigate?: (target: ResultFocus) => void
+  onSelectEntity?: (target: ResultFocus | null) => void
 }
 
 const RULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -173,7 +174,7 @@ function RuleDetail({
   )
 }
 
-export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate }: Props) {
+export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate, onSelectEntity }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
 
@@ -242,7 +243,11 @@ export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate }: P
                 <button
                   key={rule.id}
                   type="button"
-                  onClick={() => setSelectedId(rule.id === selectedId ? null : rule.id)}
+                  onClick={() => {
+                    const next = rule.id === selectedId ? null : rule.id
+                    setSelectedId(next)
+                    onSelectEntity?.(next != null ? { kind: 'business_rule', id: next } : null)
+                  }}
                   className={cn(
                     'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
                     selectedId === rule.id ? 'bg-surface-elevated' : 'hover:bg-surface-hover',

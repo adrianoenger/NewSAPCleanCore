@@ -11,6 +11,7 @@ from api.routes.applications import router as applications_router
 from api.routes.atc import router as atc_router
 from api.routes.business_rules import router as business_rules_router
 from api.routes.clients import router as clients_router
+from api.routes.copilot import router as copilot_router
 from api.routes.dashboard import router as dashboard_router
 from api.routes.dependencies import router as dependencies_router
 from api.routes.evidence import router as evidence_router
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(sap_knowledge_router)
     app.include_router(semantic_search_router)
     app.include_router(dashboard_router)
+    app.include_router(copilot_router)
     return app
 
 

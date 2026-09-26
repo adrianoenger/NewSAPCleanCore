@@ -1,3 +1,5 @@
+import type { ResultFocus } from '@/lib/resultNav'
+
 export const BACKEND_URL: string = import.meta.env.VITE_CCA_BACKEND_URL ?? 'http://localhost:8000'
 
 /** Mirrors `HealthResponse` in backend/src/api/routes/health.py. */
@@ -862,3 +864,37 @@ export const fetchSemanticSearch = (
   for (const t of entityTypes ?? []) qs.append('entity_types', t)
   return apiOrDetail(`/assessments/${assessmentId}/semantic-search?${qs.toString()}`)
 }
+
+// ---------------------------------------------------------------------------
+// SPRINT-16: AI Copilot (ADR-010)
+// ---------------------------------------------------------------------------
+
+export interface CopilotMessageTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface CopilotReferenceRecord {
+  ref_id: string
+  source_type: string
+  entity_id: number | null
+  summary: string
+}
+
+export interface CopilotAskResponse {
+  status: 'ANSWERED' | 'INSUFFICIENT_CONTEXT' | 'FAILED'
+  answer: string
+  references: CopilotReferenceRecord[]
+  navigation: ResultFocus | null
+  error: string | null
+}
+
+export const askCopilot = (
+  assessmentId: number,
+  body: { question: string; view: string; selection: ResultFocus | null; history: CopilotMessageTurn[] },
+): Promise<CopilotAskResponse> =>
+  apiOrDetail(`/assessments/${assessmentId}/copilot/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })

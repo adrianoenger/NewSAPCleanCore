@@ -1,0 +1,106 @@
+sprint: SPRINT-16
+branch: sprint/16-ai-copilot
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      New `copilot` AI capability (ai/copilot/schema.py + __init__.py) registered in
+      ai.registry as copilot/v1 (ADR-012) — CopilotAnswer schema (status/answer/
+      evidence_refs/navigation) + validate_result enforcing evidence-binding and that
+      any suggested navigation target is one of the entities actually present in
+      context.
+    status: done
+    validation: "ai/copilot/schema.py + __init__.py; test_copilot.py::test_copilot_registers_v1 + 5 validate_result unit tests pass"
+  - id: CAP-002
+    description: >-
+      Extract dashboard-summary aggregation (api/routes/dashboard.py) into a reusable
+      service function so the Copilot's "structured query" channel and the existing
+      route share one definition.
+    status: done
+    validation: "pipeline/dashboard_summary.py::compute_dashboard_summary; api/routes/dashboard.py now a thin wrapper; existing test_dashboard.py (2 tests) still pass unmodified"
+  - id: CAP-003
+    description: >-
+      ai/copilot/context.py — assembles the Copilot's context package per question:
+      structured dashboard summary, selection detail (SAPObject+understanding,
+      BusinessRule, or Application+CleanCoreAssessment) when a selection is given,
+      semantic_search hits for the question text, and already-retrieved
+      SapKnowledgeReference rows for the selection (read-only reuse, never triggers a
+      new MCP query from chat, per ADR-007's "never a background/bulk job").
+    status: done
+    validation: "ai/copilot/context.py; covered indirectly by test_copilot.py::test_ask_answers_grounded_in_selected_object (asserts SEL-1/SEL-1-UNDERSTANDING actually reach the rendered prompt)"
+  - id: CAP-004
+    description: >-
+      POST /assessments/{id}/copilot/ask (api/routes/copilot.py + api/schemas/copilot.py)
+      — builds context, calls the configured AIProvider through copilot/v1, validates
+      before returning; never persists the conversation (stateless, mirrors
+      semantic_search's read-only precedent) and never mutates assessment state
+      (ADR-010).
+    status: done
+    validation: "api/routes/copilot.py registered in api/main.py; test_copilot.py route tests (404, grounded ANSWERED, FAILED-on-bad-evidence) pass"
+  - id: CAP-005
+    description: >-
+      Backend tests for schema validation, context assembly and the route (mocked
+      provider), mirroring existing AI-capability test patterns.
+    status: done
+    validation: "backend/tests/test_copilot.py (9 tests); full backend suite 224/224 passed (215 pre-existing + 9 new), alembic check shows only the pre-existing BL-013 drift, no new drift"
+  - id: CAP-006
+    description: >-
+      Frontend: lift a selection concept (reusing the existing ResultFocus type) from
+      ObjectBrowser/BusinessRuleBrowser/ApplicationBrowser up to App.tsx so a plain
+      in-view selection (not just cross-view drill-down) is published as Copilot
+      context; askCopilot fetcher + types in lib/api.ts.
+    status: done
+    validation: "App.tsx selection state + onSelectEntity threaded through Workspace.tsx into the 3 browsers; lib/api.ts askCopilot/CopilotAskResponse; tsc/build clean"
+  - id: CAP-007
+    description: >-
+      Frontend: CopilotPanel becomes a real chat UI — message list persisted in
+      component state (never unmounted across view switches, ADR-010), reference
+      chips, a navigation chip reusing onNavigate/ResultFocus, loading/error states.
+    status: done
+    validation: "components/shell/CopilotPanel.tsx rewritten as a real chat (useMutation, reference chips via SOURCE_TYPE_LABELS, navigation button); tsc/build clean"
+  - id: CAP-008
+    description: >-
+      Validation: backend pytest, frontend tsc/build, live Playwright + real Bedrock
+      smoke of the demonstrable outcome (ask from different views, follow a reference
+      back to source/findings, continue the same conversation while navigating).
+    status: done
+    validation: >-
+      224/224 backend pytest (215 pre-existing + 9 new), frontend tsc/build clean,
+      alembic check shows only the pre-existing BL-013 drift (no new drift). Live
+      Playwright against the persisted Acme Industries assessment (id 1074) with real
+      Bedrock calls: selected ZCL_CUSTOM_ORDER in Technical View, asked "O que este
+      objeto faz?" -> grounded ANSWERED citing SEL-1/SEL-1-UNDERSTANDING with a
+      working "Ver objeto SAP" navigation button; switched to Functional View (the
+      prior Technical-view Q&A stayed visible in the same Copilot panel, contextLabel
+      updated to "Functional View"), selected a business rule, asked "Por que essa
+      regra existe? Qual a evidência?" -> grounded ANSWERED citing the rule's own
+      resolved evidence_refs (SEL-1/SRC-1) plus 2 semantic-search hits (SEM-1/SEM-2)
+      with a working "Ver regra de negócio" navigation button. The live run surfaced
+      and fixed one real bug before this passed (see notes: navigation_ref format
+      ambiguity).
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: ["BL-023"]
+notes:
+  - "Scope narrowing (found during /clean-core-review-sprint, resolved before finish): the sprint's
+    demonstrable outcome describes following Copilot references 'back to source/findings/datasets/
+    guidance'. Only references that resolve to a `sap_object`/`business_rule`/`application` (the
+    three kinds `resultNav.ts::ResultFocus` supports) are click-through navigable via
+    `navigation_ref`; citations of `TECHNICAL_FINDING`/`SUPPLEMENTAL_EVIDENCE`/`SAP_KNOWLEDGE` are
+    shown as reference chips (ref_id + source_type tooltip) but have no navigable destination today.
+    Extending `ResultFocus` to those kinds is a larger architecture change than this sprint's
+    planned capability (CAP-004's 'return answer references and navigation actions', which this
+    sprint delivers for every entity kind that already has a navigable destination). Recorded as
+    BL-023 rather than expanding scope silently."
+  - "Preflight: main synced with origin (already up to date), working tree clean except unrelated bash.exe.stackdump (pre-existing crash artifact, left untouched), SPRINT-15 completed. Branch sprint/16-ai-copilot created from main."
+  - "Design mapped before implementation: no Monaco/source-code viewer exists yet in the frontend (Target stack lists Monaco but it is not wired into any view) — 'select code' from the sprint's demonstrable outcome is interpreted as selecting a SAPObject in Technical View (the closest existing selection primitive), not a literal code-range highlight. Local implementation detail, not an architecture change."
+  - "Design decision: Copilot's conversation is not persisted to the database — it lives in CopilotPanel's component state, which already survives view switches because the panel is permanently mounted outside Workspace's conditional render (App.tsx). Mirrors semantic_search's stateless/read-only precedent; avoids a migration for a PoC chat history that ADR-010 does not require to survive an app restart."
+  - "Design decision: Copilot's MCP routing only reads already-retrieved SapKnowledgeReference rows (ai.knowledge_service.list_guidance) for the current selection — it never calls fetch_guidance itself. ADR-007's own service docstring restricts triggering a new MCP query to 'a finding/application detail view, never a background/bulk job'; a chat answer is closer to a background trigger than an explicit user detail-view visit, so avoiding it here keeps ADR-007 intact without needing a conflict note."
+  - "Live bug found and fixed during CAP-008 validation: the first live Bedrock call against a real selection (ZCL_CUSTOM_ORDER) returned status=FAILED — the model had copied the '[navigable: sap_object#7760]' annotation text itself into navigation_ref instead of the item's real ref_id ('SEL-1'), so ai.copilot.schema.validate_result correctly rejected it as an unknown ref. Root cause: ai/copilot/context.py::render_prompt's bracket annotation looked enough like a value to cite. Fixed by rewording the annotation to '(navigable — cite this exact ref_id in navigation_ref if relevant)' and tightening the copilot/v1 system prompt (ai/copilot/__init__.py) to state evidence_refs/navigation_ref may only ever be a ref_id copied verbatim. Reverified live immediately after: grounded ANSWERED with a correct navigation_ref on the same object/question."
+  - "SPRINT-16 implementation complete: all 8 planned capabilities done, demonstrable outcome reproduced live end-to-end (multi-view Copilot Q&A with evidence citation + navigation + conversation continuity across view switches), 224/224 backend pytest, frontend tsc/build clean. ready_for_review: true. No backlog items created — nothing discovered was judged out of scope for this sprint's planned capabilities."

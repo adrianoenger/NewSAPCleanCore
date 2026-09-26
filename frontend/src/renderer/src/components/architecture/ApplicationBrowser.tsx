@@ -28,6 +28,7 @@ interface Props {
   assessmentId: number
   focusApplicationId?: number | null
   onNavigate?: (target: ResultFocus) => void
+  onSelectEntity?: (target: ResultFocus | null) => void
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -504,7 +505,7 @@ function ApplicationDetail({
   )
 }
 
-export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigate }: Props) {
+export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigate, onSelectEntity }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -556,7 +557,11 @@ export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigat
                 <button
                   key={app.id}
                   type="button"
-                  onClick={() => setSelectedId(app.id === selectedId ? null : app.id)}
+                  onClick={() => {
+                    const next = app.id === selectedId ? null : app.id
+                    setSelectedId(next)
+                    onSelectEntity?.(next != null ? { kind: 'application', id: next } : null)
+                  }}
                   className={cn(
                     'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
                     selectedId === app.id ? 'bg-surface-elevated' : 'hover:bg-surface-hover',

@@ -25,6 +25,7 @@ interface Props {
   assessmentId: number
   focusObjectId?: number | null
   onNavigate?: (target: ResultFocus) => void
+  onSelectEntity?: (target: ResultFocus | null) => void
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -177,6 +178,13 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
   TECHNICAL_FINDING: 'Finding técnico',
   PROCESS_USAGE_EVIDENCE: 'Evidência de processo/uso',
   SAP_KNOWLEDGE: 'Referência SAP',
+  // SPRINT-16: AI Copilot context item source types (ai/copilot/context.py)
+  OBJECT_UNDERSTANDING: 'Entendimento por IA',
+  BUSINESS_RULE: 'Regra de negócio',
+  APPLICATION: 'Aplicação',
+  CLEAN_CORE_ASSESSMENT: 'Avaliação Clean Core',
+  STRUCTURED_SUMMARY: 'Resumo estruturado',
+  EVIDENCE_RECORD: 'Registro de evidência',
 }
 
 function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstandingRecord | null }) {
@@ -353,7 +361,7 @@ function ObjectDetail({
   )
 }
 
-export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate }: Props) {
+export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate, onSelectEntity }: Props) {
   const [typeFilter, setTypeFilter] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
@@ -461,7 +469,11 @@ export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate }: Props
                 <button
                   key={obj.id}
                   type="button"
-                  onClick={() => setSelectedId(obj.id === selectedId ? null : obj.id)}
+                  onClick={() => {
+                    const next = obj.id === selectedId ? null : obj.id
+                    setSelectedId(next)
+                    onSelectEntity?.(next != null ? { kind: 'sap_object', id: next } : null)
+                  }}
                   className={cn(
                     'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
                     selectedId === obj.id

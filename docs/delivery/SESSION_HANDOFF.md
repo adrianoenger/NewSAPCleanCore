@@ -1,15 +1,80 @@
 # Session Handoff
 
 ## Current state
+SPRINT-16 (AI Copilot) is **completed** — closed by `/clean-core-finish-sprint`.
+`docs/delivery/SPRINT-16-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
+`ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-16-RESULT.md`. The
+sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
+deleted (the remote copy is kept as the sprint record).
+
+**Next sprint:** SPRINT-17 — Demo Readiness (`docs/delivery/sprints/SPRINT-17-demo-readiness.md`),
+not started.
+
+During `/clean-core-review-sprint`, one documentation gap was found and resolved before closure:
+the sprint's demonstrable outcome mentions following Copilot references back to
+source/findings/datasets/guidance, but only `sap_object`/`business_rule`/`application` references
+are actually click-through navigable (`resultNav.ts::ResultFocus` doesn't support the other
+kinds) — this was an undocumented scope narrowing, now recorded as **BL-023** with rationale in
+`SPRINT-16-PROGRESS.yaml`'s notes before finishing.
+
+## What SPRINT-16 delivered
+The permanent right-side Copilot (previously a disabled placeholder, ADR-010) is now a real
+chat: it answers questions about the open Assessment, grounded in evidence, with working
+cross-view navigation, and the conversation survives view/focus switches.
+
+- **Backend — new `copilot` AI capability** (`backend/src/ai/copilot/`): `schema.py`
+  (`CopilotAnswerResult` — status ANSWERED/INSUFFICIENT_CONTEXT, `answer`, `evidence_refs`,
+  `navigation_ref`; `validate_result` rejects any ref_id not actually present in context) +
+  `__init__.py` (registers `copilot/v1` in `ai.registry`, mirroring every other AI capability).
+  `context.py` assembles a bounded, citable context package per question — a structured
+  summary (`pipeline/dashboard_summary.py`, extracted from `api/routes/dashboard.py` so both
+  share one definition — the "structured query" channel), the current UI selection's own
+  already-persisted evidence-bound detail (`ObjectUnderstanding`/`BusinessRule`/
+  `CleanCoreAssessment`, reusing their existing `evidence_refs` rather than rebuilding a parallel
+  evidence package — "source retrieval"/"supplemental evidence retrieval"), `semantic_search`
+  hits for the question text ("semantic retrieval"), and already-retrieved
+  `SapKnowledgeReference` rows for the selection via `ai.knowledge_service.list_guidance`,
+  read-only — the Copilot never itself triggers a new MCP query ("MCP" channel, deliberately
+  scoped to avoid contradicting ADR-007's "never a background/bulk job").
+- **API**: `POST /assessments/{id}/copilot/ask` (`api/routes/copilot.py` +
+  `api/schemas/copilot.py`) — read-only, never mutates assessment state, never persists the
+  conversation (stateless, mirrors `semantic_search`'s precedent). A provider/domain-validation
+  failure returns `status: "FAILED"` with a message, never a 500.
+- **Frontend**: a plain in-view "selection" concept (reusing `ResultFocus`) is lifted from
+  ObjectBrowser/BusinessRuleBrowser/ApplicationBrowser up to `App.tsx` via a new
+  `onSelectEntity` prop threaded through `Workspace.tsx`, distinct from drill-down `focus`.
+  `components/shell/CopilotPanel.tsx` is now a real chat (message list, reference chips via the
+  existing `SOURCE_TYPE_LABELS`, a navigation button reusing `onNavigate`/`ResultFocus`) — its
+  message state lives in the component itself, which is never unmounted while an assessment is
+  open, so the conversation naturally survives every view/focus change without any new
+  persistence.
+- **Live bug found and fixed**: the first live Bedrock call returned `status: FAILED` because
+  the model copied the prompt's `[navigable: kind#id]` annotation text into `navigation_ref`
+  instead of the item's real `ref_id`. Fixed by rewording the annotation and tightening the
+  system prompt to state `evidence_refs`/`navigation_ref` may only ever be a `ref_id` copied
+  verbatim — reverified live immediately after.
+- 224/224 backend pytest (215 pre-existing + 9 new in `backend/tests/test_copilot.py`), frontend
+  `tsc`/`build` clean, `alembic check` shows only the pre-existing BL-013 drift (no new drift —
+  no migration needed this sprint, by design). Live Playwright + real Bedrock validation against
+  the persisted Acme Industries assessment (id 1074): asked a grounded question about a selected
+  SAPObject in Technical View, followed its navigation reference, switched to Functional View
+  (prior conversation still visible, context label updated), selected a business rule, asked a
+  second grounded question citing the rule's own evidence plus 2 semantic-search hits, followed
+  its navigation reference. BL-023 recorded (see above).
+
+## Restart instructions
+SPRINT-16 has no unfinished work — `docs/delivery/SPRINT-16-PROGRESS.yaml` is `status: completed`
+and all 8 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+checked out, `main` is the correct branch to be on; the next action is `/clean-core-run-sprint`
+for SPRINT-17, not a resume of SPRINT-16.
+
+## Previous sprint (SPRINT-15)
 SPRINT-15 (Result Navigation Perspectives) is **completed** — closed by
 `/clean-core-finish-sprint`. `docs/delivery/SPRINT-15-PROGRESS.yaml` is `status: completed`,
 `progress_percent: 100`, `ready_for_review: false`; the result record is
 `docs/delivery/results/SPRINT-15-RESULT.md`. The sprint branch was pushed and merged into `main`
 by fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint
 record).
-
-**Next sprint:** SPRINT-16 — AI Copilot (`docs/delivery/sprints/SPRINT-16-ai-copilot.md`), not
-started.
 
 ## What SPRINT-15 delivered
 Result navigation now matches ADR-009/Baseline in full: Dashboard Geral and Executive View are

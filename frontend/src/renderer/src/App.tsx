@@ -12,6 +12,10 @@ import { useHealth } from '@/lib/useHealth'
 export function App() {
   const [activeView, setActiveView] = useState(NAV_ITEMS[0].id)
   const [focus, setFocus] = useState<ResultFocus | null>(null)
+  // Plain in-view selection (SPRINT-16/ADR-010) — distinct from `focus`: clicking an object/rule/
+  // application in its own browser publishes Copilot context without triggering a cross-view
+  // drill-down or clearing on a manual sidebar switch's own focus reset.
+  const [selection, setSelection] = useState<ResultFocus | null>(null)
   const [copilotCollapsed, setCopilotCollapsed] = useState(false)
   const health = useHealth()
 
@@ -23,10 +27,12 @@ export function App() {
   const selectView = (id: string) => {
     setActiveView(id)
     setFocus(null)
+    setSelection(null)
   }
 
   const navigateToFocus = (target: ResultFocus) => {
     setFocus(target)
+    setSelection(target)
     setActiveView(FOCUS_VIEW[target.kind])
   }
 
@@ -40,6 +46,7 @@ export function App() {
     setAssessment: (a) => {
       setAssessmentState(a)
       setFocus(null)
+      setSelection(null)
       if (a) setActiveView(NAV_ITEMS[0].id)
     },
   }
@@ -67,6 +74,7 @@ export function App() {
           focus={focus}
           onNavigate={navigateToFocus}
           onSelectView={selectView}
+          onSelectEntity={setSelection}
           health={health}
           ctx={ctx}
         />
@@ -83,6 +91,10 @@ export function App() {
         collapsed={copilotCollapsed}
         onToggle={() => setCopilotCollapsed((v) => !v)}
         contextLabel={copilotContext}
+        assessmentId={assessment?.id ?? null}
+        view={activeView}
+        selection={selection}
+        onNavigate={navigateToFocus}
       />
     </div>
   )

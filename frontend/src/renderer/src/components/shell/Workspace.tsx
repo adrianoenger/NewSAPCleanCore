@@ -18,12 +18,21 @@ interface WorkspaceProps {
   focus: ResultFocus | null
   onNavigate: (target: ResultFocus) => void
   onSelectView: (viewId: string) => void
+  onSelectEntity: (target: ResultFocus | null) => void
   health: ReturnType<typeof useHealth>
   ctx: AssessmentContext
 }
 
 /** Center workspace — rendered only when an assessment is open. */
-export function Workspace({ activeView, focus, onNavigate, onSelectView, health, ctx }: WorkspaceProps) {
+export function Workspace({
+  activeView,
+  focus,
+  onNavigate,
+  onSelectView,
+  onSelectEntity,
+  health,
+  ctx,
+}: WorkspaceProps) {
   const { connectivity } = health
   const assessment = ctx.assessment!
 
@@ -52,6 +61,7 @@ export function Workspace({ activeView, focus, onNavigate, onSelectView, health,
             assessmentId={assessment.id}
             focusObjectId={focus?.kind === 'sap_object' ? focus.id : null}
             onNavigate={onNavigate}
+            onSelectEntity={onSelectEntity}
           />
         )}
         {activeView === 'atc' && <ATCImport assessmentId={assessment.id} />}
@@ -67,6 +77,7 @@ export function Workspace({ activeView, focus, onNavigate, onSelectView, health,
             assessmentId={assessment.id}
             focusRuleId={focus?.kind === 'business_rule' ? focus.id : null}
             onNavigate={onNavigate}
+            onSelectEntity={onSelectEntity}
           />
         )}
         {activeView === 'architecture' && (
@@ -74,6 +85,7 @@ export function Workspace({ activeView, focus, onNavigate, onSelectView, health,
             assessmentId={assessment.id}
             focusApplicationId={focus?.kind === 'application' ? focus.id : null}
             onNavigate={onNavigate}
+            onSelectEntity={onSelectEntity}
           />
         )}
         {activeView === 'semantic-search' && <SemanticSearchPanel assessmentId={assessment.id} />}
