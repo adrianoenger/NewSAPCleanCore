@@ -37,6 +37,9 @@ from ai.clean_core_analysis.evidence_package import build_clean_core_evidence_pa
 from ai.clean_core_analysis.evidence_package import render_prompt as render_clean_core_prompt
 from ai.clean_core_analysis.schema import CleanCoreAnalysisResult, CleanCoreAnalysisStatus
 from ai.clean_core_analysis.schema import validate_result as validate_clean_core_result
+from ai.embedding_provider import EmbeddingRequest
+from ai.embedding_providers import get_embedding_provider
+from ai.embeddings.source_builder import collect_embeddable_entities
 from ai.object_understanding import CAPABILITY as OBJECT_UNDERSTANDING_CAPABILITY
 from ai.object_understanding.evidence_package import ObjectEvidencePackage, build_evidence_package, render_prompt
 from ai.object_understanding.schema import ObjectUnderstandingResult, validate_result
@@ -56,6 +59,7 @@ from persistence.models import (
     BusinessRuleStatus,
     CleanCoreAssessment,
     CleanCoreStatus,
+    Embedding,
     EvidenceDataset,
     EvidenceDatasetStatus,
     EvidenceRecord,
@@ -1049,6 +1053,79 @@ def _clean_core_analysis_process_item(
     )
 
 
+# ---------------------------------------------------------------------------
+# embeddings — wraps ai.embeddings; produces Embedding rows for pgvector semantic search
+# (ADR-004, Baseline core rule 14) — an 8th source_processing stage, after clean_core_analysis.
+# ---------------------------------------------------------------------------
+
+
+def _embeddings_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    existing_keys = set(
+        session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
+    )
+    created = 0
+    for entity in collect_embeddable_entities(session, run.assessment_id):
+        key = f"emb-{entity.entity_type}-{entity.entity_id}"
+        if key in existing_keys:
+            continue
+        session.add(
+            WorkItem(
+                stage_run_id=stage.id,
+                item_key=key,
+                payload={
+                    "entity_type": entity.entity_type,
+                    "entity_id": entity.entity_id,
+                    "content_text": entity.content_text,
+                    "metadata": entity.metadata,
+                },
+            )
+        )
+        existing_keys.add(key)
+        created += 1
+
+    stage.total_items = created + (stage.total_items or 0)
+    session.commit()
+
+
+def _embeddings_process_item(item: WorkItem, stage: StageRun, run: PipelineRun, session: Session) -> None:
+    entity_type = item.payload["entity_type"]
+    entity_id = item.payload["entity_id"]
+    content_text = item.payload["content_text"]
+    metadata = item.payload.get("metadata", {})
+    content_hash = hashlib.sha256(content_text.encode("utf-8")).hexdigest()
+
+    existing = session.scalars(
+        select(Embedding).where(
+            Embedding.assessment_id == run.assessment_id,
+            Embedding.entity_type == entity_type,
+            Embedding.entity_id == entity_id,
+        )
+    ).first()
+    if existing is not None and existing.content_hash == content_hash:
+        # Incrementality (pipeline-architecture.md): the rebuilt text is unchanged since the last
+        # successful embedding — never re-call the provider for the same content.
+        return
+
+    # A provider failure (`EmbeddingProviderError`) propagates uncaught: the durable engine's own
+    # retry/attempts tracking (ADR-005) already records this WorkItem's failure — embeddings are
+    # a best-effort semantic index, not an interpretive conclusion, so no bespoke per-row FAILED
+    # status is needed here (contrast `_upsert_clean_core_assessment`).
+    provider = get_embedding_provider(get_settings())
+    result = provider.embed(EmbeddingRequest(texts=[content_text]))
+
+    row = existing or Embedding(assessment_id=run.assessment_id, entity_type=entity_type, entity_id=entity_id)
+    row.content_text = content_text
+    row.content_hash = content_hash
+    row.entity_metadata = metadata
+    row.vector = result.vectors[0]
+    row.provider = result.provider
+    row.model_id = result.model_id
+    row.stage_run_id = stage.id
+    if existing is None:
+        session.add(row)
+    session.flush()
+
+
 SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
     StageDefinition(
         key="scan",
@@ -1094,6 +1171,12 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         depends_on=("application_discovery",),
         prepare=_clean_core_analysis_prepare,
         process_item=_clean_core_analysis_process_item,
+    ),
+    StageDefinition(
+        key="embeddings",
+        depends_on=("clean_core_analysis",),
+        prepare=_embeddings_prepare,
+        process_item=_embeddings_process_item,
     ),
 ]
 

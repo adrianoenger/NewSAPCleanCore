@@ -184,8 +184,9 @@ output/
 exports/
 reports/generated/
 
-# Embeddings / vector indexes / local model cache
-embeddings/
+# Embeddings / vector indexes / local model cache — root-anchored so it never shadows
+# backend/src/ai/embeddings/ (source code; vectors themselves live in pgvector, ADR-004).
+/embeddings/
 vector-store/
 vector_store/
 indexes/

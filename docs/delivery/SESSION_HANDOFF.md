@@ -1,16 +1,76 @@
 # Session Handoff
 
 ## Current state
+SPRINT-14 (Embeddings and Semantic Retrieval) is **completed** — closed by
+`/clean-core-finish-sprint`. `docs/delivery/SPRINT-14-PROGRESS.yaml` is `status: completed`,
+`progress_percent: 100`, `ready_for_review: false`; the result record is
+`docs/delivery/results/SPRINT-14-RESULT.md`. The sprint branch was pushed and merged into `main`
+by fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint
+record).
+
+**Next sprint:** SPRINT-15 — Result Navigation Perspectives
+(`docs/delivery/sprints/SPRINT-15-navigation-perspectives.md`), not started.
+
+## What SPRINT-14 delivered
+`embeddings` registers as an 8th `source_processing` pipeline stage, after `clean_core_analysis`:
+for every Assessment, it builds embeddable text/metadata for meaningful semantic entities —
+`SAP_OBJECT` (only objects with a `COMPLETED` `ObjectUnderstanding`; the AI-understood purpose,
+never raw ABAP source), `APPLICATION`, `BUSINESS_RULE` (`CANDIDATE` only), and quality-gated
+process/usage `EVIDENCE_RECORD` signals (same `MATCHED_*`-correlated, business-capability-tagged
+pool `ai.clean_core_analysis.evidence_package` already trusts) — calls the configured
+`EmbeddingProvider` (new ADR-006-style abstraction mirroring `AIProvider`, since embedding is a
+different API shape from structured completion) and upserts one `Embedding` row per
+`(assessment_id, entity_type, entity_id)` (migration `0016_embeddings`, pgvector `Vector(1024)` +
+HNSW cosine index). `content_hash` skips re-calling the provider when an entity's rebuilt text is
+unchanged (pipeline-architecture.md's Incrementality principle) — verified live: `BUSINESS_RULE`
+still re-embeds every run because `business_rule_discovery` deletes+reinserts its rows rather than
+upserting (BL-020, pre-existing, not this sprint's stage's own gap).
+
+- **`backend/src/ai/embedding_provider.py`** + **`ai/embedding_providers/{bedrock,azure_foundry}.py`**
+  + **`ai/embedding_providers/__init__.py::get_embedding_provider`**: Bedrock (Amazon Titan Text
+  Embeddings V2, live-validated) + Azure AI Foundry (unit-tested only, no credentials — mirrors
+  the ADR-006 Azure precedent since SPRINT-09/12). New `settings.py` fields:
+  `embedding_provider`/`bedrock_embedding_model_id`/`embedding_dimensions`/
+  `azure_foundry_embedding_deployment`.
+- **`backend/src/persistence/models.py::Embedding`** (+ `SemanticEntityType`) — migration
+  `0016_embeddings`. Polymorphic `entity_type`/`entity_id` (no FK, mirrors
+  `EvidenceCorrelation.target_type`/`target_id`); `pgvector.sqlalchemy.Vector(1024)` column with
+  an HNSW cosine-ops index declared in `__table_args__` (so `alembic check` sees zero new drift —
+  the index must be declared in the ORM model, not just raw SQL in the migration, or autogenerate
+  will propose removing it every time).
+- **`backend/src/ai/embeddings/`**: `source_builder.py` (`collect_embeddable_entities`),
+  `search.py` (`semantic_search` — pgvector cosine-distance ranking, always `assessment_id`-
+  filtered).
+- **`backend/src/pipeline/stages.py`**: `_embeddings_prepare`/`_embeddings_process_item` + the 8th
+  `StageDefinition`.
+- **API**: `api/routes/semantic_search.py` — `GET /assessments/{id}/semantic-search?q=...&entity_types=...`
+  (debug endpoint, read-only, never exposes raw vectors).
+- **Frontend**: `components/debug/SemanticSearchPanel.tsx` + a new sidebar "Debug" nav group
+  (`Sidebar.tsx`/`Workspace.tsx`) — deliberately separate from the canonical Dashboard Geral +
+  4-perspective result views (Baseline core rule 15), since this is the sprint's own "simple
+  semantic search UI/debug endpoint" capability, not a 5th perspective.
+- **`.gitignore` fix**: the pre-existing blanket `embeddings/` ignore pattern (meant for a
+  file-based vector-index cache from before pgvector was decided) shadowed the new
+  `backend/src/ai/embeddings/` source directory — re-anchored to `/embeddings/` (root-only).
+- 213/213 backend pytest (fresh rebuilt Docker image with `pgvector` baked into
+  `backend/pyproject.toml`), frontend `tsc`/`build` clean. Live-validated twice: a real Bedrock
+  HTTP run (structured completion + Titan embeddings) over demo-source/ABAP completing the full
+  8-stage pipeline with 0 failures, and a real Playwright pass against the electron-vite renderer
+  confirming the demonstrable outcome (search ranked order-validation rules/objects highest for a
+  Portuguese business-concept query; the entity-type filter chips reactively narrow results).
+  Disposable demo clients deleted after both runs.
+- **BL-020 recorded** (pre-existing `business_rule_discovery` recreate-not-upsert semantics leave
+  orphaned `Embedding` rows on reprocessing — see BACKLOG.md).
+
+## Previous sprint (SPRINT-13)
+
 SPRINT-13 (Clean Core Intelligence) is **completed** — closed by `/clean-core-finish-sprint`.
 `docs/delivery/SPRINT-13-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
 `ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-13-RESULT.md`. The
 sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
 deleted (the remote copy is kept as the sprint record).
 
-**Next sprint:** SPRINT-14 — Embeddings and Semantic Retrieval
-(`docs/delivery/sprints/SPRINT-14-embeddings-and-semantic-retrieval.md`), not started.
-
-## What was delivered
+## What SPRINT-13 delivered
 `clean_core_analysis` registers as a 7th `source_processing` pipeline stage, after
 `application_discovery`: for every non-`MERGED` `Application`, it assembles a Clean Core evidence
 package spanning source/dependency/ATC/`TechnicalFinding` (technical pool), quality-gated
@@ -75,7 +135,12 @@ blanket-status design.
   pytest and a live demo concurrently against the shared dev database in future sessions.
 
 ## Restart instructions
-SPRINT-13 has no unfinished work — `docs/delivery/SPRINT-13-PROGRESS.yaml` is `status: completed`
-and all 6 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+SPRINT-14 has no unfinished work — `docs/delivery/SPRINT-14-PROGRESS.yaml` is `status: completed`
+and all 7 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
 checked out, `main` is the correct branch to be on; the next action is `/clean-core-run-sprint`
-for SPRINT-14, not a resume of SPRINT-13.
+for SPRINT-15, not a resume of SPRINT-14.
+
+Note for SPRINT-15 (or whichever sprint next touches the backend Docker image): SPRINT-14 rebuilt
+the backend image (`docker compose build backend`) to bake the new `pgvector` Python dependency
+into `backend/pyproject.toml`. If a fresh environment/CI ever builds from a cached pre-SPRINT-14
+image, `pgvector` will be missing — rebuild rather than reuse a stale cached layer.

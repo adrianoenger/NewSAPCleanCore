@@ -18,10 +18,13 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from persistence.database import Base
+
+EMBEDDING_DIMENSIONS = 1024
 
 
 # ---------------------------------------------------------------------------
@@ -1083,3 +1086,64 @@ class CleanCoreAssessment(Base):
 
     assessment: Mapped["Assessment"] = relationship("Assessment")
     application: Mapped["Application"] = relationship("Application", back_populates="clean_core_assessment")
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-14 domain model — Embeddings and Semantic Retrieval (ADR-004, Baseline core rule 14)
+# ---------------------------------------------------------------------------
+
+
+class SemanticEntityType(str, Enum):
+    SAP_OBJECT = "SAP_OBJECT"
+    APPLICATION = "APPLICATION"
+    BUSINESS_RULE = "BUSINESS_RULE"
+    EVIDENCE_RECORD = "EVIDENCE_RECORD"
+
+
+class Embedding(Base):
+    """A pgvector embedding for one meaningful semantic entity (Baseline core rule 14), scoped to
+    its Assessment.
+
+    `entity_type`/`entity_id` is a polymorphic reference (no FK — the target table varies by
+    type), mirroring `EvidenceCorrelation.target_type`/`target_id`'s own established pattern.
+    One row per `(assessment_id, entity_type, entity_id)`: reprocessing upserts in place.
+    `content_hash` records the sha256 of `content_text` at the time it was embedded — the
+    `embeddings` pipeline stage skips calling the provider again when an entity's rebuilt text is
+    unchanged (pipeline-architecture.md's Incrementality principle), rather than re-embedding
+    every run regardless of change.
+    """
+
+    __tablename__ = "embedding"
+    __table_args__ = (
+        UniqueConstraint("assessment_id", "entity_type", "entity_id", name="ux_embedding_assessment_entity"),
+        Index(
+            "ix_embedding_vector_cosine",
+            "vector",
+            postgresql_using="hnsw",
+            postgresql_ops={"vector": "vector_cosine_ops"},
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    vector: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")

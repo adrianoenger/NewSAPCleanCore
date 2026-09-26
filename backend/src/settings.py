@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     azure_foundry_api_key: str | None = None
     azure_foundry_deployment: str | None = None
 
+    # Embedding provider abstraction (ADR-006/ADR-004, SPRINT-14). `embedding_dimensions` is the
+    # pgvector column width (migration 0016) — changing it requires a new migration, not just a
+    # settings change.
+    embedding_provider: str = "bedrock"
+    bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
+    embedding_dimensions: int = 1024
+    azure_foundry_embedding_deployment: str | None = None
+
     # SAP knowledge via MCP (ADR-007): configurable local/dev endpoints for `mcp-sap-docs` and
     # `mcp-abap`. Left unset, each provider is simply skipped (contextual enrichment is optional,
     # never a hard dependency of the demonstrable flow).

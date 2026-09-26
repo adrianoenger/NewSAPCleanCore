@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Network,
   ScrollText,
+  Search,
   type LucideIcon,
   UploadCloud,
   Cpu,
@@ -19,7 +20,7 @@ export interface NavItem {
   id: string
   label: string
   icon: LucideIcon
-  group: 'clean-core' | 'resultado'
+  group: 'clean-core' | 'resultado' | 'debug'
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'technical', label: 'Technical View', icon: Code2, group: 'resultado' },
   { id: 'functional', label: 'Functional View', icon: BarChart3, group: 'resultado' },
   { id: 'architecture', label: 'Architecture View', icon: Network, group: 'resultado' },
+  { id: 'semantic-search', label: 'Busca Semântica', icon: Search, group: 'debug' },
 ]
 
 interface SidebarProps {
@@ -53,6 +55,7 @@ export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps)
 
   const cleanCoreItems = NAV_ITEMS.filter((i) => i.group === 'clean-core')
   const resultadoItems = NAV_ITEMS.filter((i) => i.group === 'resultado')
+  const debugItems = NAV_ITEMS.filter((i) => i.group === 'debug')
 
   return (
     <aside
@@ -123,6 +126,31 @@ export function Sidebar({ activeId, onSelect, connectivity, ctx }: SidebarProps)
 
         <GroupLabel label="Resultado" />
         {resultadoItems.map(({ id, label, icon: Icon }) => {
+          const active = id === activeId
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onSelect(id)}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
+                active
+                  ? 'bg-surface-elevated text-text-primary'
+                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+              )}
+            >
+              {active && (
+                <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-brand" />
+              )}
+              <Icon className={cn('h-4 w-4 shrink-0', active && 'text-brand-text')} strokeWidth={1.75} />
+              <span className="truncate">{label}</span>
+            </button>
+          )
+        })}
+
+        <GroupLabel label="Debug" />
+        {debugItems.map(({ id, label, icon: Icon }) => {
           const active = id === activeId
           return (
             <button

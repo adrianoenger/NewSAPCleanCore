@@ -1,0 +1,89 @@
+sprint: SPRINT-14
+branch: sprint/14-embeddings-and-semantic-retrieval
+status: completed
+progress_percent: 100
+started_at: "2026-09-26"
+completed_at: "2026-09-26"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: >-
+      EmbeddingProvider abstraction (ADR-006 mirror of AIProvider): protocol + Bedrock
+      (Titan Text Embeddings v2, live-validated) + Azure Foundry (unit-tested only, no
+      credentials, mirrors ADR-006 precedent) adapters + get_embedding_provider registry +
+      settings fields.
+    status: done
+    validation: >-
+      Live Bedrock call inside the backend container (amazon.titan-embed-text-v2:0) returned a
+      1024-dim vector for a sample text; get_embedding_provider resolves bedrock by default.
+  - id: CAP-002
+    description: >-
+      Embedding persistence: pgvector python dependency, Embedding model (assessment-scoped,
+      polymorphic entity_type/entity_id, content_hash for incrementality), migration 0016.
+    status: done
+    validation: >-
+      `alembic upgrade head` applies 0016 cleanly inside the backend container; `alembic check`
+      shows zero new drift for `embedding` (HNSW cosine index declared in __table_args__ matches
+      the migration exactly) — the only remaining drift is the pre-existing BL-013
+      sap_object/technical_finding noise, unrelated to this sprint.
+  - id: CAP-003
+    description: >-
+      ai.embeddings capability: source-text/metadata builder for SAP_OBJECT (via completed
+      ObjectUnderstanding), APPLICATION, BUSINESS_RULE and quality-gated process/usage
+      EVIDENCE_RECORD signals; registers as the 8th source_processing pipeline stage
+      (depends_on clean_core_analysis), upserting by content_hash so unchanged inputs are
+      never re-embedded (pipeline-architecture.md Incrementality principle).
+    status: done
+    validation: "pipeline.stages imports cleanly; SOURCE_PROCESSING_STAGES now ends with 'embeddings'."
+  - id: CAP-004
+    description: >-
+      Assessment-scoped semantic search service: embeds the query text and ranks Embedding
+      rows by pgvector cosine distance, filtered by assessment_id (+ optional entity_type).
+    status: done
+    validation: "Implemented in ai/embeddings/search.py; exercised via CAP-005's API smoke check."
+  - id: CAP-005
+    description: >-
+      Debug API endpoint GET /assessments/{id}/semantic-search?q=...&entity_types=...
+      returning ranked hits (entity_type/entity_id/content snippet/metadata/score) — never
+      exposes raw vectors.
+    status: done
+    validation: "app.openapi() lists /assessments/{assessment_id}/semantic-search after router registration."
+  - id: CAP-006
+    description: >-
+      Minimal semantic search debug UI wired into the shell (distinct "Debug" nav group —
+      does not alter or replace the canonical Dashboard Geral + 4-perspective result views,
+      Baseline core rule 15) calling the debug endpoint and rendering ranked results.
+    status: done
+    validation: "frontend tsc (node+web) and vite build both clean with SemanticSearchPanel wired in."
+  - id: CAP-007
+    description: >-
+      Minimal validation: source-text/incrementality unit tests, pipeline stage integration
+      test with a fake embedding provider, semantic-search API test; update pre-existing
+      tests (test_foundation migration revision, test_sprint06 stage count/set, mock
+      get_embedding_provider in the 4 pipeline-integration test files that already mock
+      get_provider).
+    status: done
+    validation: >-
+      213/213 backend pytest (fresh rebuilt Docker image, pgvector baked into pyproject.toml),
+      frontend tsc/build clean. Live validation: real Bedrock structured-completion + real
+      Bedrock Titan Text Embeddings V2 run over demo-source/ABAP (8-stage pipeline incl.
+      embeddings completed with 0 failures, 12/12 embedding work items); GET
+      /assessments/{id}/semantic-search returns assessment-scoped, entity_types-filterable
+      ranked hits; real Playwright pass against the electron-vite renderer confirming the
+      demonstrable outcome (query "validação de pedido" ranked order-validation rules/objects
+      highest; the entity-type filter chips reactively narrow results). Disposable demo
+      clients deleted after (none left in /clients).
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created:
+  - "BL-020: reprocessing leaves orphaned Embedding rows for entities business_rule_discovery
+     recreates (delete+reinsert, not upsert) — see BACKLOG.md."
+notes:
+  - "Scope: rules/applications/objects/process-evidence semantic search only (matches the
+     sprint file's stated demonstrable outcome exactly) — CleanCoreAssessment conclusions are
+     NOT embedded (not named in the demonstrable outcome; avoids scope creep)."
+  - "Embedding dimension fixed at 1024 (Titan Text Embeddings v2 default) for the pgvector
+     column; Azure Foundry embedding adapter ships unit-tested only (no credentials in this
+     environment), mirroring the ADR-006 Azure AI Foundry precedent from SPRINT-09/12."

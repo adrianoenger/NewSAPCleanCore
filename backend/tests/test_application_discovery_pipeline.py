@@ -13,6 +13,7 @@ from pathlib import Path
 
 from sqlalchemy import select, text
 
+from ai.embedding_provider import EmbeddingResult
 from ai.provider import AIProviderError, StructuredCompletionResult
 from persistence.database import get_session_factory
 from persistence.models import (
@@ -121,9 +122,27 @@ class _SequencedFakeProvider:
         )
 
 
+class _FakeEmbeddingProvider:
+    """Every test file that runs the full pipeline through `run_pipeline` now also reaches the
+    8th `embeddings` stage (SPRINT-14) — this avoids an unmocked live Bedrock embedding call."""
+
+    name = "fake"
+    model_id = "fake-embed-1"
+    dimensions = 1024  # must match the `embedding.vector` pgvector column width (migration 0016)
+
+    def embed(self, request):
+        return EmbeddingResult(
+            vectors=[[0.0] * self.dimensions for _ in request.texts],
+            provider=self.name,
+            model_id=self.model_id,
+            dimensions=self.dimensions,
+        )
+
+
 def _run_full_pipeline(monkeypatch, asmnt_id: int, tmp: str, fake_provider: _SequencedFakeProvider) -> int:
     settings = get_settings()
     monkeypatch.setattr("pipeline.stages.get_provider", lambda settings: fake_provider)
+    monkeypatch.setattr("pipeline.stages.get_embedding_provider", lambda settings: _FakeEmbeddingProvider())
     with get_session_factory()() as session:
         run = create_pipeline_run(session, asmnt_id, tmp)
         run_id = run.id

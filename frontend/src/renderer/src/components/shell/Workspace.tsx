@@ -1,5 +1,6 @@
 import { ApplicationBrowser } from '@/components/architecture/ApplicationBrowser'
 import { ATCImport } from '@/components/atc/ATCImport'
+import { SemanticSearchPanel } from '@/components/debug/SemanticSearchPanel'
 import { BusinessRuleBrowser } from '@/components/functional/BusinessRuleBrowser'
 import { SourceIngestion } from '@/components/ingestion/SourceIngestion'
 import { ObjectBrowser } from '@/components/parsing/ObjectBrowser'
@@ -57,6 +58,7 @@ export function Workspace({ activeView, health, ctx }: WorkspaceProps) {
         {activeView === 'executive' && <PlaceholderView title="Executive View" />}
         {activeView === 'functional' && <BusinessRuleBrowser assessmentId={assessment.id} />}
         {activeView === 'architecture' && <ApplicationBrowser assessmentId={assessment.id} />}
+        {activeView === 'semantic-search' && <SemanticSearchPanel assessmentId={assessment.id} />}
       </div>
     </main>
   )

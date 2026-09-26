@@ -814,3 +814,33 @@ export const requestSapGuidance = (
   apiOrDetail(`/assessments/${assessmentId}/sap-knowledge/${targetKind}/${targetId}`, {
     method: 'POST',
   })
+
+// ---------------------------------------------------------------------------
+// SPRINT-14: Embeddings and Semantic Retrieval (ADR-004, Baseline core rule 14)
+// ---------------------------------------------------------------------------
+
+export type SemanticEntityType = 'SAP_OBJECT' | 'APPLICATION' | 'BUSINESS_RULE' | 'EVIDENCE_RECORD'
+
+export interface SemanticSearchHitRecord {
+  entity_type: SemanticEntityType
+  entity_id: number
+  content_text: string
+  metadata: Record<string, unknown>
+  score: number
+}
+
+export interface SemanticSearchResponse {
+  assessment_id: number
+  query: string
+  results: SemanticSearchHitRecord[]
+}
+
+export const fetchSemanticSearch = (
+  assessmentId: number,
+  query: string,
+  entityTypes?: SemanticEntityType[],
+): Promise<SemanticSearchResponse> => {
+  const qs = new URLSearchParams({ q: query })
+  for (const t of entityTypes ?? []) qs.append('entity_types', t)
+  return apiOrDetail(`/assessments/${assessmentId}/semantic-search?${qs.toString()}`)
+}
