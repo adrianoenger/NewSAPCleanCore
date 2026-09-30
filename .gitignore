@@ -269,3 +269,6 @@ SAP_Files/
 
 # Local tooling state
 .serena/
+
+# Database dumps (contain customer assessment data) — never committed
+db-dumps/

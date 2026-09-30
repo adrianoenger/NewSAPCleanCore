@@ -2,8 +2,14 @@
 
 ## Current state
 No sprint is currently active. SPRINT-18 (Final Adjustments) is **completed** — closed by
-`/clean-core-finish-sprint`. `EXECUTION_STATE.yaml`'s `next_sprint` is `null` — a new sprint file
-must be authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+`/clean-core-finish-sprint`. A new sprint has been **planned but not started**:
+`docs/delivery/sprints/SPRINT-19-panaya-evidence-signals.md`, `EXECUTION_STATE.yaml`'s
+`next_sprint: SPRINT-19` / `next_sprint_slug: panaya-evidence-signals`. It curates two more real,
+verified Panaya sections (`SCI_HANA_ISSUES(_DETAILS)`, `WHERE_USED_TABLE`) into
+`evidence/adapters/panaya.py`, closing `BL-009` and the actionable part of `BL-026` — see the sprint
+file's "Confirmed findings" section for what was verified against the real T-Systems/Panaya export
+ABAP program and the customer's `Z_MASS_ABAP_DOWNLOAD` program (both reviewed outside this repo,
+2026-09-30). Run `/clean-core-run-sprint` to start it.
 
 ## Previous sprint (SPRINT-18)
 SPRINT-18 (Final Adjustments) is **completed** — closed by `/clean-core-finish-sprint`.
