@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, Loader2, PanelRightClose, PanelRightOpen, Send, Sparkles } from 'lucide-react'
+import { AlertTriangle, Info, Loader2, PanelRightClose, PanelRightOpen, Send, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
+import { Markdown } from '@/components/shared/Markdown'
+import { SOURCE_TYPE_LABELS } from '@/components/shared/evidenceLabels'
 import { askCopilot, type CopilotAskResponse, type CopilotMessageTurn, type CopilotReferenceRecord } from '@/lib/api'
 import type { ResultFocus } from '@/lib/resultNav'
 
@@ -29,6 +30,16 @@ const NAVIGATION_LABEL: Record<ResultFocus['kind'], string> = {
   sap_object: 'Ver objeto SAP',
   business_rule: 'Ver regra de negócio',
   application: 'Ver aplicação',
+  atc_finding: 'Ver finding ATC',
+}
+
+const FAILED_MESSAGE = 'Falha ao consultar a IA — tente novamente ou reformule a pergunta.'
+const INSUFFICIENT_FALLBACK = 'Não encontrei evidência suficiente no assessment para responder a isso.'
+
+/** Models sometimes emit "•" bullets on consecutive lines; turn them into markdown list items so
+ * they don't collapse into a single paragraph. */
+function normalizeAnswer(text: string): string {
+  return text.replace(/^[ \t]*[•·][ \t]*/gm, '- ').replace(/([^\n])\n(- )/g, '$1\n\n$2')
 }
 
 function ReferenceChips({ references }: { references: CopilotReferenceRecord[] }) {
@@ -76,10 +87,7 @@ export function CopilotPanel({
         ...prev,
         {
           role: 'assistant',
-          content:
-            resp.status === 'FAILED'
-              ? 'Não consegui responder com evidência suficiente agora — tente reformular a pergunta.'
-              : resp.answer || 'Não encontrei evidência suficiente para responder a isso.',
+          content: resp.status === 'FAILED' ? FAILED_MESSAGE : resp.answer || INSUFFICIENT_FALLBACK,
           references: resp.references,
           navigation: resp.navigation,
           status: resp.status,
@@ -89,7 +97,7 @@ export function CopilotPanel({
     onError: () => {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Erro ao consultar o Copilot. Tente novamente.', status: 'FAILED' },
+        { role: 'assistant', content: 'Erro de comunicação com o backend. Tente novamente.', status: 'FAILED' },
       ])
     },
   })
@@ -109,7 +117,7 @@ export function CopilotPanel({
         data-collapsed="true"
         className="flex w-12 shrink-0 flex-col items-center gap-3 border-l border-border-default bg-surface-sidebar py-3"
       >
-        <Button variant="ghost" size="icon" onClick={onToggle} aria-label="Open AI Copilot">
+        <Button variant="ghost" size="icon" onClick={onToggle} aria-label="Abrir AIDA">
           <PanelRightOpen className="h-4 w-4" />
         </Button>
         <Sparkles className="h-4 w-4 text-brand-text" aria-hidden />
@@ -127,15 +135,15 @@ export function CopilotPanel({
       <header className="flex h-14 items-center justify-between border-b border-border-soft px-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand-text" aria-hidden />
-          <span className="text-[14px] font-medium">AI Copilot</span>
+          <span className="text-[14px] font-medium">AIDA</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onToggle} aria-label="Collapse AI Copilot">
+        <Button variant="ghost" size="icon" onClick={onToggle} aria-label="Recolher AIDA">
           <PanelRightClose className="h-4 w-4" />
         </Button>
       </header>
 
       <div className="border-b border-border-soft px-4 py-2.5">
-        <div className="mb-1.5 text-[10.5px] tracking-wide text-text-tertiary uppercase">Context</div>
+        <div className="mb-1.5 text-[10.5px] tracking-wide text-text-tertiary uppercase">Contexto</div>
         <span className="inline-flex items-center rounded-chip border border-brand-border bg-brand-tint px-2 py-0.5 font-mono text-[11.5px] text-brand-text-soft">
           {contextLabel}
         </span>
@@ -152,8 +160,9 @@ export function CopilotPanel({
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center">
             <p className="text-[13px] leading-relaxed text-text-secondary">
-              Pergunte sobre esta assessment — selecione um objeto, regra ou aplicação em outra
-              view para dar mais contexto ao Copilot.
+              Converse com a AIDA sobre esta assessment. Explore resultados, riscos, dependências,
+              regras de negócio e recomendações de Clean Core. Para uma análise mais contextual,
+              abra um item no Dashboard e faça sua pergunta.
             </p>
           </div>
         ) : (
@@ -173,10 +182,16 @@ export function CopilotPanel({
                   {m.status === 'FAILED' && m.role === 'assistant' && (
                     <div className="mb-1 flex items-center gap-1 text-[10px] text-risk">
                       <AlertTriangle className="h-3 w-3" strokeWidth={2} />
+                      Falha ao consultar a IA
+                    </div>
+                  )}
+                  {m.status === 'INSUFFICIENT_CONTEXT' && m.role === 'assistant' && (
+                    <div className="mb-1 flex items-center gap-1 text-[10px] text-text-tertiary">
+                      <Info className="h-3 w-3" strokeWidth={2} />
                       Sem evidência suficiente
                     </div>
                   )}
-                  <div>{m.content}</div>
+                  {m.role === 'assistant' ? <Markdown>{normalizeAnswer(m.content)}</Markdown> : <div>{m.content}</div>}
                   {m.references && <ReferenceChips references={m.references} />}
                   {m.navigation && (
                     <button
@@ -214,7 +229,7 @@ export function CopilotPanel({
                 handleSend()
               }
             }}
-            placeholder="Ask about this assessment…"
+            placeholder="Pergunte sobre esta assessment…"
             className="flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none disabled:cursor-not-allowed"
           />
           <Button
@@ -222,7 +237,7 @@ export function CopilotPanel({
             size="icon"
             disabled={assessmentId == null || !input.trim() || mutation.isPending}
             onClick={handleSend}
-            aria-label="Send"
+            aria-label="Enviar"
           >
             <Send className="h-3.5 w-3.5" />
           </Button>

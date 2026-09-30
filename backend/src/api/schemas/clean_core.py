@@ -18,7 +18,7 @@ class CleanCoreAssessmentRead(BaseModel):
     business_importance_rationale: str
     business_importance_evidence_refs: list[dict[str, Any]]
     business_importance_uses_process_usage_evidence: bool
-    recommendation: str
+    recommendation: str | None
     recommendation_rationale: str
     recommendation_evidence_refs: list[dict[str, Any]]
     confidence: float | None

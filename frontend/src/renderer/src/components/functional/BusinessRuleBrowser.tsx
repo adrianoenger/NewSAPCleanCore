@@ -1,14 +1,15 @@
 /**
- * BusinessRuleBrowser — Functional View: browse business rules discovered by the durable
- * pipeline's `business_rule_discovery` stage, with evidence drill-down and the validation hook
- * (Baseline: distinguish AI interpretation, evidence, and user-validated content).
+ * Business rule detail page (Dashboard drill-down, ADR-019): one rule discovered by the
+ * `business_rule_discovery` stage, with evidence drill-down and the validation hook (Baseline:
+ * distinguish AI interpretation, evidence, and user-validated content).
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, ChevronRight, Scale, Sparkles } from 'lucide-react'
+import { CheckCircle2, Scale } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
-import { EvidencePanel, SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
+import { EvidencePanel } from '@/components/parsing/ObjectBrowser'
+import { SOURCE_TYPE_LABELS } from '@/components/shared/evidenceLabels'
 import { ErrorState } from '@/components/shared/ErrorState'
 import {
   fetchBusinessRules,
@@ -19,14 +20,7 @@ import {
 import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
 
-interface Props {
-  assessmentId: number
-  focusRuleId?: number | null
-  onNavigate?: (target: ResultFocus) => void
-  onSelectEntity?: (target: ResultFocus | null) => void
-}
-
-const RULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+export const RULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   VALIDATION: { label: 'Validação', color: 'text-brand' },
   CALCULATION: { label: 'Cálculo', color: 'text-purple-400' },
   AUTHORIZATION: { label: 'Autorização', color: 'text-amber-400' },
@@ -35,7 +29,7 @@ const RULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   OTHER: { label: 'Outro', color: 'text-text-tertiary' },
 }
 
-function RuleTypeBadge({ type }: { type: string }) {
+export function RuleTypeBadge({ type }: { type: string }) {
   const cfg = RULE_TYPE_CONFIG[type] ?? RULE_TYPE_CONFIG.OTHER
   return (
     <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium', cfg.color)}>
@@ -98,7 +92,7 @@ function RuleDetail({
   })
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="flex items-center justify-between">
         <RuleTypeBadge type={rule.rule_type} />
         <span className="rounded-full bg-surface-elevated px-2 py-0.5 text-[10px] font-mono text-text-tertiary">
@@ -175,122 +169,22 @@ function RuleDetail({
   )
 }
 
-export function BusinessRuleBrowser({ assessmentId, focusRuleId, onNavigate, onSelectEntity }: Props) {
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [typeFilter, setTypeFilter] = useState('')
-
-  useEffect(() => {
-    if (focusRuleId != null) {
-      setSelectedId(focusRuleId)
-      setTypeFilter('')
-    }
-  }, [focusRuleId])
-
+export function RuleDetailPage({
+  assessmentId,
+  ruleId,
+  onNavigate,
+}: {
+  assessmentId: number
+  ruleId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['business-rules', assessmentId],
     queryFn: () => fetchBusinessRules(assessmentId),
   })
-
-  const rules = data?.rules ?? []
-  const filtered = typeFilter ? rules.filter((r) => r.rule_type === typeFilter) : rules
-  const selected = filtered.find((r) => r.id === selectedId) ?? null
-
-  return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left: filter + list */}
-      <div className="flex w-[420px] shrink-0 flex-col border-r border-border-default">
-        <div className="flex items-center gap-2 border-b border-border-soft px-4 py-3">
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value)
-              setSelectedId(null)
-            }}
-            className="flex-1 rounded-control border border-border-default bg-surface-sidebar px-2 py-1 text-[12px] text-text-primary outline-none focus:border-brand"
-          >
-            <option value="">Todos os tipos</option>
-            {Object.entries(RULE_TYPE_CONFIG).map(([value, { label }]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            title="Atualizar"
-            onClick={() => refetch()}
-            className="rounded-control p-1.5 text-text-tertiary hover:bg-surface-hover hover:text-text-primary"
-          >
-            <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
-              Carregando regras…
-            </div>
-          ) : isError ? (
-            <ErrorState message="Não foi possível carregar as regras de negócio." onRetry={refetch} />
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <Scale className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />
-              <div className="text-[12px] text-text-tertiary">
-                Nenhuma regra de negócio descoberta ainda. Execute &quot;3 - Processamento por
-                IA&quot;.
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-border-soft">
-              {filtered.map((rule) => (
-                <button
-                  key={rule.id}
-                  type="button"
-                  onClick={() => {
-                    const next = rule.id === selectedId ? null : rule.id
-                    setSelectedId(next)
-                    onSelectEntity?.(next != null ? { kind: 'business_rule', id: next } : null)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                    selectedId === rule.id ? 'bg-surface-elevated' : 'hover:bg-surface-hover',
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-text-primary">
-                      {rule.condition}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RuleTypeBadge type={rule.rule_type} />
-                      {rule.user_validated && (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-400" strokeWidth={2} />
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight
-                    className={cn(
-                      'h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform',
-                      selectedId === rule.id && 'rotate-90',
-                    )}
-                    strokeWidth={2}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right: detail panel */}
-      <div className="flex min-w-0 flex-1 flex-col bg-surface-background">
-        {selected == null ? (
-          <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
-            Selecione uma regra para ver os detalhes
-          </div>
-        ) : (
-          <RuleDetail assessmentId={assessmentId} rule={selected} onNavigate={onNavigate} />
-        )}
-      </div>
-    </div>
-  )
+  if (isLoading) return <div className="p-6 text-[12px] text-text-tertiary">Carregando…</div>
+  if (isError) return <ErrorState message="Não foi possível carregar a regra de negócio." onRetry={refetch} />
+  const rule = data?.rules.find((r) => r.id === ruleId)
+  if (!rule) return <div className="p-6 text-[12px] text-text-tertiary">Regra não encontrada (pode ter sido consolidada).</div>
+  return <RuleDetail key={rule.id} assessmentId={assessmentId} rule={rule} onNavigate={onNavigate} />
 }

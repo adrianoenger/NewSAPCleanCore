@@ -1,49 +1,37 @@
 /**
- * ObjectBrowser — browse SAP objects parsed from the current ingestion (read-only).
- * Shows object type filter, table of objects, and a side detail panel. Parsing itself
- * only happens via "3 - Processamento por IA" (SPRINT-07 consolidation).
+ * SAP object detail page (Dashboard drill-down, ADR-019): source, AI understanding, dependencies,
+ * supplemental evidence, the owning Application's Clean Core conclusion (objects inherit it,
+ * ADR-018), the object's ATC findings from the current run and its business rules.
  */
 
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, BookOpen, Box, Boxes, ChevronRight, Code2, Database, RefreshCw, Sparkles, Wrench } from 'lucide-react'
-import { RecommendationChip } from '@/components/shared/cleanCoreDisplay'
+import { BookOpen, Box, Boxes, Code2, Database, Layers, Sparkles } from 'lucide-react'
+import { RuleTypeBadge } from '@/components/functional/BusinessRuleBrowser'
+import { CleanCorePanel, RecommendationChip } from '@/components/shared/cleanCoreDisplay'
+import { SOURCE_TYPE_LABELS } from '@/components/shared/evidenceLabels'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DependencyGraph } from '@/components/parsing/DependencyGraph'
 import { SourceViewer } from '@/components/parsing/SourceViewer'
 import {
   fetchApplication,
+  fetchBusinessRules,
+  fetchCurrentATCFindings,
   fetchObjectEvidenceCorrelations,
-  fetchProcessingStatus,
   fetchSAPObject,
-  fetchSAPObjects,
   type ObjectUnderstandingRecord,
-  type SAPObjectRecord,
 } from '@/lib/api'
 import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
 
-interface Props {
-  assessmentId: number
-  focusObjectId?: number | null
-  onNavigate?: (target: ResultFocus) => void
-  onSelectEntity?: (target: ResultFocus | null) => void
+export const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  class:            { label: 'Classe',          color: 'text-brand',         icon: Box },
+  function_module:  { label: 'Módulo de função', color: 'text-purple-400',    icon: Code2 },
+  report:           { label: 'Programa',        color: 'text-amber-400',     icon: BookOpen },
+  ddic_table:       { label: 'Tabela DDIC',     color: 'text-emerald-400',   icon: Database },
+  ddic_domain:      { label: 'Domínio DDIC',    color: 'text-cyan-400',      icon: Boxes },
 }
 
-const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  class:            { label: 'Class',           color: 'text-brand',         icon: Box },
-  function_module:  { label: 'Function Module', color: 'text-purple-400',    icon: Code2 },
-  report:           { label: 'Report',          color: 'text-amber-400',     icon: BookOpen },
-  ddic_table:       { label: 'DDIC Table',      color: 'text-emerald-400',   icon: Database },
-  ddic_domain:      { label: 'DDIC Domain',     color: 'text-cyan-400',      icon: Boxes },
-}
-
-const TYPE_FILTER_OPTIONS = [
-  { value: '', label: 'All Types' },
-  ...Object.entries(TYPE_CONFIG).map(([value, { label }]) => ({ value, label })),
-]
-
-function TypeBadge({ type }: { type: string }) {
+export function TypeBadge({ type }: { type: string }) {
   const cfg = TYPE_CONFIG[type]
   const Icon = cfg?.icon ?? Box
   return (
@@ -101,7 +89,7 @@ export function EvidencePanel({ assessmentId, objectId }: { assessmentId: number
     queryFn: () => fetchObjectEvidenceCorrelations(assessmentId, objectId),
   })
 
-  if (isLoading) return <div className="text-[11px] text-text-tertiary">Loading evidence…</div>
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando evidências…</div>
   if (!data || data.total === 0) return null
 
   return (
@@ -128,23 +116,6 @@ export function EvidencePanel({ assessmentId, objectId }: { assessmentId: number
   )
 }
 
-export const SOURCE_TYPE_LABELS: Record<string, string> = {
-  SOURCE_CODE: 'Código-fonte',
-  ATC_FINDING: 'Achado ATC',
-  SUPPLEMENTAL_EVIDENCE: 'Evidência complementar',
-  SAP_OBJECT: 'Objeto SAP',
-  DEPENDENCY: 'Dependência detectada',
-  TECHNICAL_FINDING: 'Finding técnico',
-  PROCESS_USAGE_EVIDENCE: 'Evidência de processo/uso',
-  SAP_KNOWLEDGE: 'Referência SAP',
-  // SPRINT-16: AI Copilot context item source types (ai/copilot/context.py)
-  OBJECT_UNDERSTANDING: 'Entendimento por IA',
-  BUSINESS_RULE: 'Regra de negócio',
-  APPLICATION: 'Aplicação',
-  CLEAN_CORE_ASSESSMENT: 'Avaliação Clean Core',
-  STRUCTURED_SUMMARY: 'Resumo estruturado',
-  EVIDENCE_RECORD: 'Registro de evidência',
-}
 
 function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstandingRecord | null }) {
   if (understanding == null) {
@@ -230,10 +201,33 @@ function UnderstandingPanel({ understanding }: { understanding: ObjectUnderstand
   )
 }
 
-/** Technical View's "remediation proposal" (Baseline) — the owning Application's Clean Core
- * recommendation/rationale, already AI-generated and evidence-bound (Baseline core rule 8), so
- * this surfaces it rather than adding a second, competing AI-generated field. */
-function RemediationPanel({
+const PRIORITY_CONFIG: Record<number, { label: string; color: string }> = {
+  1: { label: 'P1', color: 'bg-[#c0392b]/15 text-[#e74c3c]' },
+  2: { label: 'P2', color: 'bg-[#d68910]/15 text-[#f39c12]' },
+  3: { label: 'P3', color: 'bg-[#7f8c8d]/15 text-[#95a5a6]' },
+}
+
+export function PriorityBadge({ priority }: { priority: number | null }) {
+  const cfg = priority != null ? PRIORITY_CONFIG[priority] : undefined
+  return (
+    <span
+      className={cn(
+        'inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold',
+        cfg?.color ?? 'bg-surface-elevated text-text-tertiary',
+      )}
+    >
+      {cfg?.label ?? 'P?'}
+    </span>
+  )
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div className="mb-1.5 text-[11px] font-medium text-text-secondary">{children}</div>
+}
+
+/** The owning Application's Clean Core conclusion — objects inherit it (ADR-018), so this surfaces
+ * the application's evidence-bound assessment rather than a second, competing AI field. */
+function ApplicationCleanCore({
   assessmentId,
   applicationId,
   onNavigate,
@@ -246,31 +240,30 @@ function RemediationPanel({
     queryKey: ['application-detail', assessmentId, applicationId],
     queryFn: () => fetchApplication(assessmentId, applicationId),
   })
-
-  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando proposta de remediação…</div>
-  const cleanCore = data?.clean_core
-  if (!cleanCore || cleanCore.status === 'FAILED') return null
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando aplicação…</div>
+  if (!data) return null
 
   return (
-    <button
-      type="button"
-      onClick={() => onNavigate?.({ kind: 'application', id: applicationId })}
-      disabled={!onNavigate}
-      className="w-full space-y-1.5 rounded border border-border-soft bg-surface-elevated px-3 py-2 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
-    >
-      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-        <Wrench className="h-3 w-3" strokeWidth={2} />
-        Proposta de Remediação ({data?.name || `Aplicação #${applicationId}`})
-      </div>
-      <RecommendationChip recommendation={cleanCore.recommendation} />
-      {cleanCore.recommendation_rationale && (
-        <div className="text-text-secondary">{cleanCore.recommendation_rationale}</div>
-      )}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => onNavigate?.({ kind: 'application', id: applicationId })}
+        disabled={!onNavigate}
+        className="flex w-full items-center justify-between gap-2 rounded border border-border-soft bg-surface-elevated px-3 py-2 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Layers className="h-3.5 w-3.5 shrink-0 text-brand" strokeWidth={2} />
+          <span className="text-text-tertiary">Aplicação:</span>
+          <span className="truncate font-medium text-text-primary">{data.name || `Aplicação #${applicationId}`}</span>
+        </span>
+        <RecommendationChip recommendation={data.clean_core?.recommendation ?? null} />
+      </button>
+      <CleanCorePanel cleanCore={data.clean_core} />
+    </div>
   )
 }
 
-function ObjectDetail({
+function ObjectATCFindings({
   assessmentId,
   objectId,
   onNavigate,
@@ -280,199 +273,148 @@ function ObjectDetail({
   onNavigate?: (target: ResultFocus) => void
 }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['sap-object-detail', assessmentId, objectId],
-    queryFn: () => fetchSAPObject(assessmentId, objectId),
+    queryKey: ['atc-findings', assessmentId, { object_id: objectId }],
+    queryFn: () => fetchCurrentATCFindings(assessmentId, { object_id: objectId, limit: 200 }),
   })
-
-  if (isLoading)
-    return <div className="p-4 text-[12px] text-text-tertiary">Loading…</div>
-  if (!data)
-    return null
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando findings ATC…</div>
+  if (!data || data.total === 0)
+    return (
+      <div>
+        <SectionTitle>Findings ATC</SectionTitle>
+        <div className="text-[11px] text-text-tertiary">Nenhum finding ATC correlacionado a este objeto.</div>
+      </div>
+    )
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
-      <div>
-        <div className="text-[11px] text-text-tertiary uppercase tracking-wide">Object Name</div>
-        <div className="mt-0.5 font-mono text-[14px] font-semibold text-text-primary">{data.object_name}</div>
+    <div>
+      <SectionTitle>
+        Findings ATC ({data.total}
+        {data.total > data.items.length ? `, exibindo ${data.items.length}` : ''})
+      </SectionTitle>
+      <div className="max-h-[360px] space-y-1 overflow-y-auto">
+        {data.items.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => onNavigate?.({ kind: 'atc_finding', id: f.id })}
+            disabled={!onNavigate}
+            className="flex w-full items-start gap-2 rounded bg-surface-elevated px-2 py-1.5 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
+          >
+            <PriorityBadge priority={f.priority} />
+            <span className="min-w-0">
+              <span className="font-medium text-text-primary">{f.check_title ?? 'Finding ATC'}</span>
+              {f.check_message && <span className="block truncate text-text-tertiary">{f.check_message}</span>}
+            </span>
+          </button>
+        ))}
       </div>
-      <TypeBadge type={data.object_type} />
-      <div className="text-[11px] text-text-tertiary">
-        Lines {data.line_start}{data.line_end != null ? `–${data.line_end}` : '+'}
-        {' · '}file #{data.source_file_id}
-      </div>
-      <SourceViewer assessmentId={assessmentId} objectId={objectId} />
-      <UnderstandingPanel understanding={data.understanding} />
-      {Object.keys(data.attributes).length > 0 && (
-        <div>
-          <div className="mb-1.5 text-[11px] font-medium text-text-secondary">Attributes</div>
-          <AttributeTable attrs={data.attributes} />
-        </div>
-      )}
-      <DependencyGraph assessmentId={assessmentId} object={data} />
-      <EvidencePanel assessmentId={assessmentId} objectId={objectId} />
-      {data.application_id != null && (
-        <RemediationPanel
-          assessmentId={assessmentId}
-          applicationId={data.application_id}
-          onNavigate={onNavigate}
-        />
-      )}
     </div>
   )
 }
 
-export function ObjectBrowser({ assessmentId, focusObjectId, onNavigate, onSelectEntity }: Props) {
-  const [typeFilter, setTypeFilter] = useState('')
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (focusObjectId != null) {
-      setSelectedId(focusObjectId)
-      setTypeFilter('')
-    }
-  }, [focusObjectId])
-
-  const { data: objects = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['sap-objects', assessmentId, typeFilter],
-    queryFn: () => fetchSAPObjects(assessmentId, typeFilter || undefined),
+function ObjectBusinessRules({
+  assessmentId,
+  objectId,
+  onNavigate,
+}: {
+  assessmentId: number
+  objectId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['business-rules', assessmentId, objectId],
+    queryFn: () => fetchBusinessRules(assessmentId, objectId),
   })
-
-  const { data: processingStatus } = useQuery({
-    queryKey: ['processingStatus', assessmentId],
-    queryFn: () => fetchProcessingStatus(assessmentId),
-  })
-
-  const hasIngestion = processingStatus?.current_scan_id != null
-
-  const grouped = TYPE_FILTER_OPTIONS.slice(1).reduce<Record<string, SAPObjectRecord[]>>((acc, { value }) => {
-    acc[value] = objects.filter((o) => o.object_type === value)
-    return acc
-  }, {})
-
-  const displayObjects = typeFilter ? objects : objects
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando regras de negócio…</div>
+  if (!data || data.rules.length === 0) return null
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left: filter + list */}
-      <div className="flex w-[420px] shrink-0 flex-col border-r border-border-default">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 border-b border-border-soft px-4 py-3">
-          <select
-            value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value); setSelectedId(null) }}
-            className="flex-1 rounded-control border border-border-default bg-surface-sidebar px-2 py-1 text-[12px] text-text-primary outline-none focus:border-brand"
-          >
-            {TYPE_FILTER_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-
+    <div>
+      <SectionTitle>Regras de negócio ({data.rules.length})</SectionTitle>
+      <div className="space-y-1">
+        {data.rules.map((r) => (
           <button
+            key={r.id}
             type="button"
-            title="Refresh"
-            onClick={() => refetch()}
-            className="rounded-control p-1.5 text-text-tertiary hover:bg-surface-hover hover:text-text-primary"
+            onClick={() => onNavigate?.({ kind: 'business_rule', id: r.id })}
+            disabled={!onNavigate}
+            className="block w-full rounded bg-surface-elevated px-2 py-1.5 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
           >
-            <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
+            <RuleTypeBadge type={r.rule_type} />
+            <div className="mt-0.5">
+              <span className="text-text-primary">{r.condition}</span>
+              <span className="text-text-tertiary"> → {r.action}</span>
+            </div>
           </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function ObjectDetail({
+  assessmentId,
+  objectId,
+  onNavigate,
+}: {
+  assessmentId: number
+  objectId: number
+  onNavigate?: (target: ResultFocus) => void
+}) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['sap-object-detail', assessmentId, objectId],
+    queryFn: () => fetchSAPObject(assessmentId, objectId),
+  })
+
+  if (isLoading) return <div className="p-6 text-[12px] text-text-tertiary">Carregando…</div>
+  if (isError) return <ErrorState message="Não foi possível carregar o objeto SAP." onRetry={refetch} />
+  if (!data) return null
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-5 p-6">
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-text-tertiary">Nome do objeto</div>
+        <div className="mt-0.5 font-mono text-[16px] font-semibold text-text-primary">{data.object_name}</div>
+        <div className="mt-1 flex items-center gap-3">
+          <TypeBadge type={data.object_type} />
+          <span className="text-[11px] text-text-tertiary">
+            Linhas {data.line_start}
+            {data.line_end != null ? `–${data.line_end}` : '+'}
+            {' · '}arquivo #{data.source_file_id}
+          </span>
         </div>
+      </div>
 
-        {processingStatus?.is_stale && (
-          <div className="flex items-start gap-2 border-b border-border-soft bg-attention/5 px-4 py-2 text-[11px] text-attention">
-            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-            Dados desatualizados — reprocesse em &quot;3 - Processamento por IA&quot;.
-          </div>
-        )}
-
-        {/* Stats */}
-        {objects.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-b border-border-soft px-4 py-2">
-            {Object.entries(grouped)
-              .filter(([, items]) => items.length > 0)
-              .map(([type, items]) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setTypeFilter(typeFilter === type ? '' : type)}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors',
-                    typeFilter === type
-                      ? 'border-brand bg-brand/10 text-brand'
-                      : 'border-border-soft text-text-tertiary hover:border-brand/50',
-                  )}
-                >
-                  {TYPE_CONFIG[type]?.label ?? type}
-                  <span className="font-mono">{items.length}</span>
-                </button>
-              ))}
-          </div>
-        )}
-
-        {/* List */}
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
-              Loading objects…
-            </div>
-          ) : isError ? (
-            <ErrorState message="Não foi possível carregar os objetos SAP." onRetry={refetch} />
-          ) : displayObjects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <Boxes className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />
-              <div className="text-[12px] text-text-tertiary">
-                {hasIngestion
-                  ? 'Nenhum objeto processado ainda. Execute "3 - Processamento por IA".'
-                  : 'Execute a ingestão (Passo 1) e o processamento (Passo 3) primeiro.'}
-              </div>
-            </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="space-y-5">
+          <UnderstandingPanel understanding={data.understanding} />
+          {data.application_id != null ? (
+            <ApplicationCleanCore
+              assessmentId={assessmentId}
+              applicationId={data.application_id}
+              onNavigate={onNavigate}
+            />
           ) : (
-            <div className="divide-y divide-border-soft">
-              {displayObjects.map((obj) => (
-                <button
-                  key={obj.id}
-                  type="button"
-                  onClick={() => {
-                    const next = obj.id === selectedId ? null : obj.id
-                    setSelectedId(next)
-                    onSelectEntity?.(next != null ? { kind: 'sap_object', id: next } : null)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                    selectedId === obj.id
-                      ? 'bg-surface-elevated'
-                      : 'hover:bg-surface-hover',
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-[12px] font-medium text-text-primary">
-                      {obj.object_name}
-                    </div>
-                    <TypeBadge type={obj.object_type} />
-                  </div>
-                  <ChevronRight
-                    className={cn(
-                      'h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform',
-                      selectedId === obj.id && 'rotate-90',
-                    )}
-                    strokeWidth={2}
-                  />
-                </button>
-              ))}
+            <div className="rounded border border-border-soft bg-surface-elevated px-3 py-2 text-[11px] text-text-tertiary">
+              Objeto não agrupado em uma aplicação — sem classificação Clean Core.
+            </div>
+          )}
+        </div>
+        <div className="space-y-5">
+          <ObjectATCFindings assessmentId={assessmentId} objectId={objectId} onNavigate={onNavigate} />
+          <ObjectBusinessRules assessmentId={assessmentId} objectId={objectId} onNavigate={onNavigate} />
+          <EvidencePanel assessmentId={assessmentId} objectId={objectId} />
+          {Object.keys(data.attributes).length > 0 && (
+            <div>
+              <SectionTitle>Atributos</SectionTitle>
+              <AttributeTable attrs={data.attributes} />
             </div>
           )}
         </div>
       </div>
 
-      {/* Right: detail panel */}
-      <div className="flex min-w-0 flex-1 flex-col bg-surface-background">
-        {selectedId == null ? (
-          <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
-            Select an object to view details
-          </div>
-        ) : (
-          <ObjectDetail assessmentId={assessmentId} objectId={selectedId} onNavigate={onNavigate} />
-        )}
-      </div>
+      <SourceViewer assessmentId={assessmentId} objectId={objectId} />
+      <DependencyGraph assessmentId={assessmentId} object={data} />
     </div>
   )
 }

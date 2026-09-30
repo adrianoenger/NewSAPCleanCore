@@ -30,17 +30,19 @@ from persistence.models import (
 from pipeline.engine import create_pipeline_run, run_pipeline
 from settings import get_settings
 
+from fake_outputs import EXECUTIVE_SUMMARY_SCHEMA, INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT
+
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
 _APPLICATION_DISCOVERY_SCHEMA = "application_discovery_result"
 # This file exercises application_discovery only; clean_core_analysis now runs as the next stage
 # in the same pipeline (SPRINT-13) and needs *some* schema-valid response to let the run reach
-# "completed" — an INSUFFICIENT_CONTEXT/REVIEW stub is a safe default regardless of which
+# "completed" — an INSUFFICIENT_CONTEXT stub (null recommendation) is a safe default regardless of which
 # Application ids these tests happen to create.
 _CLEAN_CORE_ANALYSIS_SCHEMA = "clean_core_analysis_result"
 _INSUFFICIENT_CLEAN_CORE_OUTPUT = {
     "status": "INSUFFICIENT_CONTEXT",
-    "recommendation": "REVIEW",
+    "recommendation": None,
     "recommendation_rationale": "Not enough grouped evidence.",
     "confidence": 0.2,
 }
@@ -114,7 +116,7 @@ class _SequencedFakeProvider:
     def complete_structured(self, request):
         if request.schema_name in self._errors:
             raise self._errors[request.schema_name]
-        output = self._outputs[request.schema_name]
+        output = {EXECUTIVE_SUMMARY_SCHEMA: INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT, **self._outputs}[request.schema_name]
         if callable(output):
             output = output(request)
         return StructuredCompletionResult(
@@ -306,6 +308,88 @@ def test_application_discovery_reprocessing_preserves_user_renamed(monkeypatch) 
                 app = session.get(Application, app_id)
                 assert app.status == ApplicationStatus.USER_RENAMED.value
                 assert app.name == "Custom Name Chosen By The User"
+    finally:
+        with get_session_factory()() as session:
+            _cleanup(session, asmnt_id)
+
+
+def test_application_discovery_reprocessing_drops_empty_ai_applications(monkeypatch) -> None:
+    """SPRINT-18: an AI application left without members after reclustering is obsolete and is
+    removed (with its Clean Core row); an empty USER_RENAMED application is kept."""
+    settings = get_settings()
+    with get_session_factory()() as session:
+        asmnt_id = _make_assessment(session)
+
+    scan_root = Path(settings.scan_root)
+    try:
+        with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
+            (Path(tmp) / "a.abap").write_text("REPORT za.")
+            fake = _SequencedFakeProvider(
+                outputs={
+                    _OBJECT_UNDERSTANDING_SCHEMA: _COMPLETED_UNDERSTANDING_OUTPUT,
+                    _BUSINESS_RULE_SCHEMA: _ZERO_RULES_OUTPUT,
+                    _APPLICATION_DISCOVERY_SCHEMA: _completed_application_output_citing_first_object,
+                }
+            )
+            _run_full_pipeline(monkeypatch, asmnt_id, tmp, fake)
+
+            with get_session_factory()() as session:
+                stale = Application(assessment_id=asmnt_id, status=ApplicationStatus.AI_NAMED.value, name="Stale")
+                curated = Application(
+                    assessment_id=asmnt_id, status=ApplicationStatus.USER_RENAMED.value, name="Curated"
+                )
+                session.add_all([stale, curated])
+                session.commit()
+                stale_id, curated_id = stale.id, curated.id
+
+            _run_full_pipeline(monkeypatch, asmnt_id, tmp, fake)
+
+            with get_session_factory()() as session:
+                assert session.get(Application, stale_id) is None
+                assert session.get(Application, curated_id) is not None
+                obj = session.scalars(select(SAPObject).where(SAPObject.assessment_id == asmnt_id)).one()
+                assert obj.application_id is not None
+    finally:
+        with get_session_factory()() as session:
+            _cleanup(session, asmnt_id)
+
+
+def test_application_discovery_reprocessing_split_cluster_does_not_reuse_one_app_twice(monkeypatch) -> None:
+    """SPRINT-18: when a prior application's members now form two clusters, only one cluster
+    reuses it — the other gets a fresh application instead of being re-absorbed."""
+    settings = get_settings()
+    with get_session_factory()() as session:
+        asmnt_id = _make_assessment(session)
+
+    scan_root = Path(settings.scan_root)
+    try:
+        with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
+            (Path(tmp) / "a.abap").write_text("REPORT za.")
+            (Path(tmp) / "b.abap").write_text("REPORT zb.")
+            fake = _SequencedFakeProvider(
+                outputs={
+                    _OBJECT_UNDERSTANDING_SCHEMA: _COMPLETED_UNDERSTANDING_OUTPUT,
+                    _BUSINESS_RULE_SCHEMA: _ZERO_RULES_OUTPUT,
+                    _APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT,
+                }
+            )
+            _run_full_pipeline(monkeypatch, asmnt_id, tmp, fake)
+
+            with get_session_factory()() as session:
+                objs = session.scalars(select(SAPObject).where(SAPObject.assessment_id == asmnt_id)).all()
+                assert len(objs) == 2
+                shared_app_id = objs[0].application_id
+                objs[1].application_id = shared_app_id  # simulate an earlier, broader cluster
+                session.commit()
+
+            _run_full_pipeline(monkeypatch, asmnt_id, tmp, fake)
+
+            with get_session_factory()() as session:
+                objs = session.scalars(select(SAPObject).where(SAPObject.assessment_id == asmnt_id)).all()
+                app_ids = {o.application_id for o in objs}
+                assert None not in app_ids
+                assert len(app_ids) == 2
+                assert shared_app_id in app_ids
     finally:
         with get_session_factory()() as session:
             _cleanup(session, asmnt_id)

@@ -1,16 +1,16 @@
 /**
- * ApplicationBrowser — Architecture View: browse custom applications discovered by the durable
- * pipeline's `application_discovery` stage (objects, business rules, findings, confidence
- * rationale), plus manual rename/move-object/merge actions (Baseline: distinguish AI
- * interpretation, evidence, and user-corrected content).
+ * Application detail page (Dashboard drill-down, ADR-019): one custom application discovered by
+ * the `application_discovery` stage — Clean Core conclusion, clustering rationale, member objects,
+ * business rules and ATC findings — plus manual rename/move-object/merge actions (Baseline:
+ * distinguish AI interpretation, evidence, and user-corrected content).
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Boxes, ChevronRight, GitMerge, Pencil, Sparkles } from 'lucide-react'
+import { GitMerge, Pencil } from 'lucide-react'
 import { SapGuidancePanel } from '@/components/knowledge/SapGuidancePanel'
-import { SOURCE_TYPE_LABELS } from '@/components/parsing/ObjectBrowser'
-import { LevelBadge, RecommendationChip, countByRecommendation } from '@/components/shared/cleanCoreDisplay'
+import { SOURCE_TYPE_LABELS } from '@/components/shared/evidenceLabels'
+import { CleanCorePanel } from '@/components/shared/cleanCoreDisplay'
 import { ErrorState } from '@/components/shared/ErrorState'
 import {
   fetchApplication,
@@ -20,17 +20,9 @@ import {
   renameApplication,
   type ApplicationDetailRecord,
   type ApplicationRecord,
-  type CleanCoreAssessmentRecord,
 } from '@/lib/api'
 import type { ResultFocus } from '@/lib/resultNav'
 import { cn } from '@/lib/utils'
-
-interface Props {
-  assessmentId: number
-  focusApplicationId?: number | null
-  onNavigate?: (target: ResultFocus) => void
-  onSelectEntity?: (target: ResultFocus | null) => void
-}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   CANDIDATE: { label: 'Candidata', color: 'text-text-tertiary' },
@@ -44,139 +36,14 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={cn('text-[10px] font-medium', cfg.color)}>{cfg.label}</span>
 }
 
-function CleanCorePanel({ cleanCore }: { cleanCore: CleanCoreAssessmentRecord | null }) {
-  if (cleanCore == null) {
-    return (
-      <div className="rounded border border-border-soft bg-surface-elevated px-3 py-2 text-[11px] text-text-tertiary">
-        Ainda não analisado pelo Clean Core. Execute &quot;3 - Processamento por IA&quot;.
-      </div>
-    )
-  }
+const MAX_FINDINGS_SHOWN = 100
 
-  if (cleanCore.status === 'FAILED') {
-    return (
-      <div className="rounded border border-risk/30 bg-risk/5 px-3 py-2 text-[11px] text-risk">
-        Falha ao gerar a análise Clean Core: {cleanCore.error ?? 'erro desconhecido'}
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3 rounded border border-border-soft bg-surface-elevated p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary">
-          <Sparkles className="h-3.5 w-3.5 text-brand" strokeWidth={2} />
-          Clean Core
-        </div>
-        {cleanCore.confidence != null && (
-          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-[10px] font-mono text-text-tertiary">
-            confiança {Math.round(cleanCore.confidence * 100)}%
-          </span>
-        )}
-      </div>
-
-      {cleanCore.status === 'INSUFFICIENT_CONTEXT' && (
-        <div className="rounded border border-attention/30 bg-attention/5 px-2 py-1.5 text-[11px] text-attention">
-          Evidência insuficiente para determinar risco/importância.
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Risco Técnico</div>
-          <div className="mt-0.5">
-            <LevelBadge level={cleanCore.technical_risk} title="Risco Técnico" />
-          </div>
-          {cleanCore.technical_risk_rationale && (
-            <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.technical_risk_rationale}</div>
-          )}
-          {cleanCore.technical_risk_evidence_refs.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {cleanCore.technical_risk_evidence_refs.map((ref) => (
-                <span
-                  key={ref.ref_id}
-                  title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
-                  className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-                >
-                  {ref.ref_id}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-            Importância de Negócio
-          </div>
-          <div className="mt-0.5">
-            <LevelBadge level={cleanCore.business_importance} title="Importância de Negócio" />
-          </div>
-          {cleanCore.business_importance_rationale && (
-            <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.business_importance_rationale}</div>
-          )}
-          {cleanCore.business_importance_evidence_refs.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {cleanCore.business_importance_evidence_refs.map((ref) => (
-                <span
-                  key={ref.ref_id}
-                  title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
-                  className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-                >
-                  {ref.ref_id}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="mt-1 text-[10px] text-text-tertiary">
-            {cleanCore.business_importance_uses_process_usage_evidence
-              ? '✓ considera sinais de processo/uso/perfil correlacionados'
-              : 'baseada apenas na identidade dos objetos — sem sinais de processo/uso correlacionados'}
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-border-soft pt-2">
-        <div className="flex items-center gap-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">Recomendação</div>
-          <RecommendationChip recommendation={cleanCore.recommendation} />
-        </div>
-        {cleanCore.recommendation_rationale && (
-          <div className="mt-1 text-[11px] text-text-secondary">{cleanCore.recommendation_rationale}</div>
-        )}
-        {cleanCore.recommendation_evidence_refs.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {cleanCore.recommendation_evidence_refs.map((ref) => (
-              <span
-                key={ref.ref_id}
-                title={SOURCE_TYPE_LABELS[ref.source_type] ?? ref.source_type}
-                className="rounded bg-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-              >
-                {ref.ref_id}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function CleanCoreDistribution({ applications }: { applications: ApplicationRecord[] }) {
-  const counts = countByRecommendation(applications)
-  const analyzed = Object.values(counts).reduce((sum, c) => sum + c, 0)
-  if (analyzed === 0) return null
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b border-border-soft px-4 py-2">
-      {Object.entries(counts).map(([recommendation, count]) => (
-        <span key={recommendation} className="flex items-center gap-1">
-          <RecommendationChip recommendation={recommendation} />
-          <span className="text-[10px] text-text-tertiary">{count}</span>
-        </span>
-      ))}
-    </div>
-  )
+const SIGNAL_LABELS: Record<string, string> = {
+  dependency: 'dependência',
+  shared_package: 'pacote comum',
+  // shared_concept is no longer produced by clustering (SPRINT-18: AI concepts collapsed the
+  // Rodobens cluster into one 421-object application) — kept only to render pre-existing rows.
+  shared_concept: 'conceito comum',
 }
 
 function RenameForm({
@@ -196,6 +63,7 @@ function RenameForm({
     mutationFn: () => renameApplication(assessmentId, application.id, name, description),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications', assessmentId] })
+      queryClient.invalidateQueries({ queryKey: ['application-detail', assessmentId] })
       onDone()
     },
   })
@@ -251,6 +119,7 @@ function MergeControl({
     mutationFn: (targetApplicationId: number) => mergeApplications(assessmentId, application.id, targetApplicationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications', assessmentId] })
+      queryClient.invalidateQueries({ queryKey: ['application-detail', assessmentId] })
       setTargetId('')
     },
   })
@@ -290,25 +159,35 @@ function MemberRow({
   member,
   currentApplicationId,
   candidates,
+  onNavigate,
 }: {
   assessmentId: number
   member: { id: number; object_type: string; object_name: string }
   currentApplicationId: number
   candidates: ApplicationRecord[]
+  onNavigate?: (target: ResultFocus) => void
 }) {
   const queryClient = useQueryClient()
   const moveMutation = useMutation({
     mutationFn: (targetApplicationId: number | null) =>
       moveApplicationObject(assessmentId, member.id, targetApplicationId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applications', assessmentId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications', assessmentId] })
+      queryClient.invalidateQueries({ queryKey: ['application-detail', assessmentId] })
+    },
   })
 
   return (
     <div className="flex items-center justify-between gap-2 rounded bg-surface-elevated px-2 py-1.5 text-[11px]">
-      <div>
+      <button
+        type="button"
+        onClick={() => onNavigate?.({ kind: 'sap_object', id: member.id })}
+        disabled={!onNavigate}
+        className="min-w-0 truncate text-left hover:underline disabled:hover:no-underline"
+      >
         <span className="font-mono text-text-primary">{member.object_name}</span>
         <span className="ml-1.5 text-text-tertiary">{member.object_type}</span>
-      </div>
+      </button>
       <select
         value=""
         onChange={(e) => {
@@ -331,27 +210,31 @@ function MemberRow({
   )
 }
 
-function ApplicationDetail({
+export function ApplicationDetail({
   assessmentId,
   applicationId,
-  candidates,
   onNavigate,
 }: {
   assessmentId: number
   applicationId: number
-  candidates: ApplicationRecord[]
   onNavigate?: (target: ResultFocus) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const { data } = useQuery<ApplicationDetailRecord>({
+  const { data, isError, refetch } = useQuery<ApplicationDetailRecord>({
     queryKey: ['application-detail', assessmentId, applicationId],
     queryFn: () => fetchApplication(assessmentId, applicationId),
   })
+  const { data: list } = useQuery({
+    queryKey: ['applications', assessmentId],
+    queryFn: () => fetchApplications(assessmentId),
+  })
+  const candidates = (list?.applications ?? []).filter((c) => c.status !== 'MERGED')
 
+  if (isError) return <ErrorState message="Não foi possível carregar a aplicação." onRetry={refetch} />
   if (!data) return <div className="p-4 text-[12px] text-text-tertiary">Carregando…</div>
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="flex items-center justify-between">
         <StatusBadge status={data.status} />
         {data.confidence != null && (
@@ -397,7 +280,7 @@ function ApplicationDetail({
           <ul className="space-y-0.5 text-[11px] text-text-secondary">
             {data.clustering_signals.map((s, idx) => (
               <li key={idx}>
-                <span className="text-text-tertiary">[{s.signal_type}]</span> {s.description}
+                <span className="text-text-tertiary">[{SIGNAL_LABELS[s.signal_type] ?? s.signal_type}]</span> {s.description}
               </li>
             ))}
           </ul>
@@ -430,6 +313,7 @@ function ApplicationDetail({
               member={m}
               currentApplicationId={data.id}
               candidates={candidates}
+              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -460,18 +344,19 @@ function ApplicationDetail({
       {data.findings.length > 0 && (
         <div>
           <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-            Findings ({data.findings.length})
+            Findings ATC ({data.findings.length}
+            {data.findings.length > MAX_FINDINGS_SHOWN ? `, exibindo ${MAX_FINDINGS_SHOWN}` : ''})
           </div>
-          <div className="space-y-1">
-            {data.findings.map((f) => (
+          <div className="max-h-[420px] space-y-1 overflow-y-auto">
+            {data.findings.slice(0, MAX_FINDINGS_SHOWN).map((f) => (
               <button
                 key={f.id}
                 type="button"
-                onClick={() => onNavigate?.({ kind: 'sap_object', id: f.object_id })}
+                onClick={() => onNavigate?.({ kind: 'atc_finding', id: f.id })}
                 disabled={!onNavigate}
                 className="block w-full rounded bg-surface-elevated px-2 py-1.5 text-left text-[11px] hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface-elevated"
               >
-                <span className="font-medium text-text-primary">{f.check_title ?? 'Achado ATC'}</span>
+                <span className="font-medium text-text-primary">{f.check_title ?? 'Finding ATC'}</span>
                 <span className="text-text-tertiary"> — {f.object_name}</span>
                 {f.check_message && <div className="mt-0.5 text-text-tertiary">{f.check_message}</div>}
               </button>
@@ -502,115 +387,6 @@ function ApplicationDetail({
           {data.provider} / {data.model_id} · prompt {data.prompt_capability}@{data.prompt_version}
         </div>
       )}
-    </div>
-  )
-}
-
-export function ApplicationBrowser({ assessmentId, focusApplicationId, onNavigate, onSelectEntity }: Props) {
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (focusApplicationId != null) setSelectedId(focusApplicationId)
-  }, [focusApplicationId])
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['applications', assessmentId],
-    queryFn: () => fetchApplications(assessmentId),
-  })
-
-  const applications = data?.applications ?? []
-
-  return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left: list */}
-      <div className="flex w-[420px] shrink-0 flex-col border-r border-border-default">
-        <div className="flex items-center justify-between border-b border-border-soft px-4 py-3">
-          <span className="text-[12px] font-medium text-text-secondary">
-            Aplicações descobertas ({applications.length})
-          </span>
-          <button
-            type="button"
-            title="Atualizar"
-            onClick={() => refetch()}
-            className="rounded-control p-1.5 text-text-tertiary hover:bg-surface-hover hover:text-text-primary"
-          >
-            <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-          </button>
-        </div>
-
-        <CleanCoreDistribution applications={applications} />
-
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-[12px] text-text-tertiary">
-              Carregando aplicações…
-            </div>
-          ) : isError ? (
-            <ErrorState message="Não foi possível carregar as aplicações." onRetry={refetch} />
-          ) : applications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <Boxes className="h-8 w-8 text-text-tertiary/40" strokeWidth={1.25} />
-              <div className="text-[12px] text-text-tertiary">
-                Nenhuma aplicação descoberta ainda. Execute &quot;3 - Processamento por IA&quot;.
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-border-soft">
-              {applications.map((app) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => {
-                    const next = app.id === selectedId ? null : app.id
-                    setSelectedId(next)
-                    onSelectEntity?.(next != null ? { kind: 'application', id: next } : null)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                    selectedId === app.id ? 'bg-surface-elevated' : 'hover:bg-surface-hover',
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-text-primary">
-                      {app.name || `Aplicação #${app.id} (sem nome)`}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={app.status} />
-                      <span className="text-[10px] text-text-tertiary">{app.member_count} objeto(s)</span>
-                      {app.clean_core && app.clean_core.status !== 'FAILED' && (
-                        <RecommendationChip recommendation={app.clean_core.recommendation} />
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight
-                    className={cn(
-                      'h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform',
-                      selectedId === app.id && 'rotate-90',
-                    )}
-                    strokeWidth={2}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right: detail panel */}
-      <div className="flex min-w-0 flex-1 flex-col bg-surface-background">
-        {selectedId == null ? (
-          <div className="flex flex-1 items-center justify-center text-[12px] text-text-tertiary">
-            Selecione uma aplicação para ver os detalhes
-          </div>
-        ) : (
-          <ApplicationDetail
-            assessmentId={assessmentId}
-            applicationId={selectedId}
-            candidates={applications}
-            onNavigate={onNavigate}
-          />
-        )}
-      </div>
     </div>
   )
 }

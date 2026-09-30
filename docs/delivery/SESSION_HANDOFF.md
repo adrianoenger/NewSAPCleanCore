@@ -1,6 +1,96 @@
 # Session Handoff
 
 ## Current state
+No sprint is currently active. SPRINT-18 (Final Adjustments) is **completed** — closed by
+`/clean-core-finish-sprint`. `EXECUTION_STATE.yaml`'s `next_sprint` is `null` — a new sprint file
+must be authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+
+## Previous sprint (SPRINT-18)
+SPRINT-18 (Final Adjustments) is **completed** — closed by `/clean-core-finish-sprint`.
+`docs/delivery/SPRINT-18-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
+`ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-18-RESULT.md`. The
+sprint branch was pushed and merged into `main` by fast-forward; the local sprint branch was
+deleted (the remote copy is kept as the sprint record). `.env` now configures live public MCP
+endpoints (see the restart instructions below) — never commit `.env` itself (already gitignored).
+
+## What SPRINT-18 delivered
+- **CAP-000** carried pending `main` work (SE80 HTML parser, critical findings in Copilot context).
+- **CAP-001** pt-BR output: v2 prompts append `ai/language.PT_BR_OUTPUT_RULE`; deterministic strings translated.
+- **CAP-002** ADR-018 7-category Clean Core taxonomy per Application (migration 0017, NULL = "Não classificado").
+- **CAP-003** ADR-019 Dashboard Geral as the single results screen: clickable KPIs → full-page
+  lists (`EntityList`) → full-page details (`DetailPage`), reference panels (inventory, ATC P1/P2/P3,
+  Clean Core donut, ATC bars). Perspective views removed. ATC re-correlation after parse (prerequisite defect).
+- **CAP-004** Copilot catalog context (`CATALOG-*`), deterministic intent routing, tolerant ref
+  sanitization, markdown answers.
+- **CAP-005** Executive Summary stage + `GET/POST .../executive-summary[/regenerate]` + "Resumo Executivo" view (migration 0018).
+- **CAP-006** AI-only reprocessing run (`kind=ai_reprocessing`, `POST .../pipeline-runs/reprocess-ai`, "Reprocessar IA" button).
+- **CAP-007** reprocessing to regenerate pt-BR texts. Demo 1074 done (run 4380). Defects found and
+  fixed on the way: empty AI applications left with stale Clean Core rows are deleted on
+  reclustering; one application is never reused by two clusters when a prior cluster splits;
+  INSUFFICIENT_CONTEXT demotes a previously AI_NAMED app to CANDIDATE; Clean Core
+  `sanitize_result` drops out-of-pool refs per dimension instead of failing the whole analysis.
+  Rodobens 1075 (422 objects) then exposed two more real defects at scale, both fixed (see
+  `SPRINT-18-PROGRESS.yaml` notes for the full detail): (a) `application_discovery`'s
+  `shared_concept` clustering signal chained 421 of 422 objects into one application (Bedrock
+  rejected it: "Input is too long") — removed from `clustering.py` entirely, clustering is now
+  dependency+shared_package only, and both evidence packages (`application_discovery`,
+  `clean_core_analysis`) got a per-pool context budget (ATC/DEP/TF/EVD caps, most-severe-first,
+  `omitted` counts) so no application can overflow the model again; (b) ~30% of Clean Core rows
+  then FAILED because the model routinely writes a rationale for a dimension it left null —
+  `sanitize_result` now drops that leftover text instead of failing. Added a from-applications AI
+  reprocessing option (`kind=ai_reprocessing_applications`, `POST .../reprocess-ai?from_stage=
+  application_discovery`, "Só aplicações → Clean Core → resumo" button) that reuses the
+  already-correct pt-BR object_understanding/business_rule_discovery — used to re-validate both
+  fixes on Rodobens without redoing all 422 objects. Final state on 1075 (run 4518): 105
+  applications (top size 81, no orphans), clean_core_assessment 105/105 rows, 0 FAILED, pt-BR
+  rationales confirmed by Playwright (dashboard/application-detail/executive-summary
+  screenshots in `test-results/s18-cap007-*-rodobens-fixed.png`). Demo 1074 re-verified too (run
+  4519): the 5-object cluster split to 3 applications and the AI now honestly declines to name
+  the former package-only grouping (INSUFFICIENT_CONTEXT) instead of asserting a name without
+  real cohesion — an intended, more conservative outcome, not a regression.
+
+  User follow-up (same CAP-007): the Clean Core category distribution on 1075 was too shallow
+  (only MODERNIZAR/REMEDIAR/Não classificado — never MANTER_AS_IS/DESCONTINUAR/
+  REIMPLEMENTAR_EXTENSAO/SUBSTITUIR_STANDARD/ATUALIZAR_OSS) and mcp-sap-docs/mcp-abap (ADR-007)
+  were never actually consumed (0 `SapKnowledgeReference` rows in the whole DB, no endpoint
+  configured). Fixed: wired the real public no-auth hosted instances
+  (`https://mcp-sap-docs.marianzeis.de/mcp` / `https://mcp-abap.marianzeis.de/mcp`, see
+  `.env.example`) — BL-018 resolved; found and fixed a real decoding bug in `mcp_client.py` in the
+  process (the server's `search` tool returns a JSON `{"results": [...]}` block, not prose;
+  `_parse_search_results_json` now decodes it, with the old heuristic kept as fallback). Bulk-
+  fetched guidance for all 105 Rodobens applications via the existing manual `fetch_guidance`
+  service (one-time operational backfill, not a pipeline/ADR-007 change — 630 references
+  persisted). Added decision heuristics to the clean_core_analysis v2 prompt tying already-
+  determined risk/importance to specific categories. Investigated (read-only) whether Panaya's
+  raw export links SAP Notes/usage to objects anywhere — no verifiable section found, the
+  original export file is no longer present in this environment to check candidates like
+  `SCI_HANA_ISSUES(_DETAILS)` without guessing (BL-026). Re-validated on 1075 (run 4600): 105
+  applications unchanged, 0 FAILED, recommendation distribution now {MODERNIZAR: 20,
+  MANTER_AS_IS: 16, REIMPLEMENTAR_EXTENSAO: 11, REMEDIAR: 7, Não classificado: 51} — 4 categories
+  instead of 2. SAP guidance renders in the UI ("Orientação SAP" panel, real help.sap.com links)
+  but was never cited as recommendation evidence (0/105 — the generic `search` tool's hits were
+  not object-specific enough); BL-027 records `sap_get_object_details`'s real Clean Core A/B/C/D
+  verdicts as the natural next step, not attempted this sprint.
+
+## Restart instructions
+SPRINT-18 has no unfinished work — `docs/delivery/SPRINT-18-PROGRESS.yaml` is `status: completed`
+and all 8 capabilities (CAP-000..CAP-007) are `done`. If resuming this session unexpectedly with
+no sprint branch checked out, `main` is the correct branch to be on. There is no next sprint file
+yet (`docs/delivery/sprints/` ends at `SPRINT-18-final-adjustments.md`) — a new sprint must be
+authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+
+`.env` sets `CCA_SAP_DOCS_MCP_ENDPOINT`/`CCA_ABAP_MCP_ENDPOINT` to the real public
+`mcp-sap-docs`/`mcp-abap` hosted instances (see `.env.example`) — restarting the backend
+(`docker compose up -d backend`) is required to pick this up if it was ever unset. No pipeline run
+is active on 1074/1075 as of this handoff. `POST /assessments/{id}/pipeline-runs/reprocess-ai?
+from_stage=application_discovery` re-runs only application_discovery → clean_core_analysis →
+executive_summary → embeddings (fast, reuses persisted understanding/rules); without `from_stage`
+(or `from_stage=object_understanding`) it redoes every AI stage. Never run pytest while either
+kind is running (BL-008). The Rodobens (1075) 105-application guidance backfill was a one-time
+script over `POST /assessments/{id}/sap-knowledge/applications/{app_id}` per app — not reproduced
+for 1074, and not something the pipeline does automatically (ADR-007).
+
+## Previous sprint (SPRINT-17)
 SPRINT-17 (Demo Readiness) is **completed** — closed by `/clean-core-finish-sprint`.
 `docs/delivery/SPRINT-17-PROGRESS.yaml` is `status: completed`, `progress_percent: 100`,
 `ready_for_review: false`; the result record is `docs/delivery/results/SPRINT-17-RESULT.md`. The

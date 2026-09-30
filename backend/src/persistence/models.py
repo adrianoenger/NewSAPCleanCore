@@ -481,6 +481,8 @@ class WorkItemStatus(str, Enum):
 class PipelineRunKind(str, Enum):
     SOURCE_PROCESSING = "source_processing"
     EVIDENCE_IMPORT = "evidence_import"
+    AI_REPROCESSING = "ai_reprocessing"
+    AI_REPROCESSING_APPLICATIONS = "ai_reprocessing_applications"
 
 
 class PipelineRun(Base):
@@ -1020,11 +1022,15 @@ class ImportanceLevel(str, Enum):
 
 
 class CleanCoreRecommendation(str, Enum):
-    RETAIN = "RETAIN"
-    REMEDIATE = "REMEDIATE"
-    REPLATFORM = "REPLATFORM"
-    RETIRE = "RETIRE"
-    REVIEW = "REVIEW"
+    """ADR-018 7-category taxonomy."""
+
+    MODERNIZAR = "MODERNIZAR"
+    MANTER_AS_IS = "MANTER_AS_IS"
+    REMEDIAR = "REMEDIAR"
+    DESCONTINUAR = "DESCONTINUAR"
+    REIMPLEMENTAR_EXTENSAO = "REIMPLEMENTAR_EXTENSAO"
+    SUBSTITUIR_STANDARD = "SUBSTITUIR_STANDARD"
+    ATUALIZAR_OSS = "ATUALIZAR_OSS"
 
 
 class CleanCoreAssessment(Base):
@@ -1041,9 +1047,9 @@ class CleanCoreAssessment(Base):
     `business_importance_evidence_refs` entry is a quality-gated process/usage/role signal
     (`ai.clean_core_analysis.evidence_package` only ever includes `MATCHED_*` correlations in that
     pool in the first place — this flag is a transparency signal, not an additional gate).
-    `recommendation` includes `REVIEW` as the explicit fallback: forced when `status`
-    is `INSUFFICIENT_CONTEXT`, or chosen by the model itself when risk/importance were determined
-    but the evidence is too conflicting for a confident RETAIN/REMEDIATE/REPLATFORM/RETIRE call.
+    `recommendation` uses the ADR-018 7-category taxonomy and is NULL ("Não classificado") when
+    the analysis failed or could not reach a confident classification — there is no fallback
+    category.
     """
 
     __tablename__ = "clean_core_assessment"
@@ -1065,7 +1071,7 @@ class CleanCoreAssessment(Base):
     business_importance_uses_process_usage_evidence: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
-    recommendation: Mapped[str] = mapped_column(String(20), nullable=False)
+    recommendation: Mapped[str | None] = mapped_column(String(30), nullable=True)
     recommendation_rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     recommendation_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -1086,6 +1092,48 @@ class CleanCoreAssessment(Base):
 
     assessment: Mapped["Assessment"] = relationship("Assessment")
     application: Mapped["Application"] = relationship("Application", back_populates="clean_core_assessment")
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-18 — Executive Summary (ADR-008/ADR-012)
+# ---------------------------------------------------------------------------
+
+
+class ExecutiveSummaryStatus(str, Enum):
+    COMPLETED = "COMPLETED"
+    INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
+    FAILED = "FAILED"
+
+
+class ExecutiveSummary(Base):
+    """The current AI-generated pt-BR executive summary (markdown) of one Assessment. One row per
+    assessment, upserted by the `executive_summary` pipeline stage or the manual regenerate action.
+    `evidence_refs` are the resolved catalog items (`ai.copilot.context.build_assessment_catalog`)
+    the text cites — the summary is interpretation over them, never evidence itself (ADR-008).
+    """
+
+    __tablename__ = "executive_summary"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey("assessment.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_capability: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stage_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    assessment: Mapped["Assessment"] = relationship("Assessment")
 
 
 # ---------------------------------------------------------------------------

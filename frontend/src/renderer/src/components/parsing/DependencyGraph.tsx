@@ -31,7 +31,7 @@ const NODE_STYLE_BASE = {
   padding: 8,
 }
 
-/** Object-level dependency graph for Technical View (CAP-003, SPRINT-17) — replaces the flat
+/** Object-level dependency graph for the object detail page (CAP-003, SPRINT-17) — replaces the flat
  * dependency list with a React Flow diagram centered on the selected object. Target nodes are
  * plain labels (never a navigable SAPObject) since `SAPObjectDependency.target_name` is free
  * text with no resolved target id (pre-existing gap, see BACKLOG BL-022/BL-016) — this graph
@@ -67,7 +67,7 @@ export function DependencyGraph({ assessmentId, object }: Props) {
     return { nodes: [rootNode, ...targetNodes], edges: depEdges }
   }, [data, object])
 
-  if (isLoading) return <div className="text-[11px] text-text-tertiary">Loading dependencies…</div>
+  if (isLoading) return <div className="text-[11px] text-text-tertiary">Carregando dependências…</div>
   if (!data || data.total === 0) return null
 
   return (

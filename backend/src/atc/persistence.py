@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from atc.importer import ImportResult, RawRow, import_workbook
@@ -38,42 +38,93 @@ class ATCImportRejected(ValueError):
         self.warnings = warnings
 
 
+class _ObjectIndex:
+    """Name/type lookup over the assessment's current SAPObjects (ADR-016 correlation rules)."""
+
+    def __init__(self, assessment_id: int, session: Session):
+        self.by_name_type: dict[tuple[str, str], list[int]] = {}
+        self.by_name: dict[str, list[int]] = {}
+        rows = session.execute(
+            select(SAPObject.id, SAPObject.object_name, SAPObject.object_type).where(
+                SAPObject.assessment_id == assessment_id
+            )
+        )
+        for obj_id, name, otype in rows:
+            self.by_name_type.setdefault((name.upper(), otype.upper()), []).append(obj_id)
+            self.by_name.setdefault(name.upper(), []).append(obj_id)
+
+    def match(self, name_raw: str | None, type_raw: str | None) -> tuple[str, int | None]:
+        name = (name_raw or "").strip().upper()
+        otype = (type_raw or "").strip().upper()
+        if not name:
+            return ("UNMATCHED", None)
+        if otype:
+            matches = self.by_name_type.get((name, otype), [])
+            if len(matches) == 1:
+                return ("MATCHED_EXACT", matches[0])
+            if len(matches) > 1:
+                return ("AMBIGUOUS", None)
+        name_matches = self.by_name.get(name, [])
+        if len(name_matches) == 1:
+            return ("MATCHED_HEURISTIC", name_matches[0])
+        if len(name_matches) > 1:
+            return ("AMBIGUOUS", None)
+        return ("UNMATCHED", None)
+
+
 def _correlate_findings(
     assessment_id: int, rows: Sequence[RawRow], session: Session
 ) -> dict[int, tuple[str, int | None]]:
     """Return {row_index: (correlation_status, sap_object_id)} for each row."""
-    objects = list(session.scalars(select(SAPObject).where(SAPObject.assessment_id == assessment_id)))
-    by_name_type: dict[tuple[str, str], list[int]] = {}
-    by_name: dict[str, list[int]] = {}
-    for obj in objects:
-        key = (obj.object_name.upper(), obj.object_type.upper())
-        by_name_type.setdefault(key, []).append(obj.id)
-        by_name.setdefault(obj.object_name.upper(), []).append(obj.id)
+    index = _ObjectIndex(assessment_id, session)
+    return {
+        idx: index.match(row.canonical.get("object_name_raw"), row.canonical.get("object_type_raw"))
+        for idx, row in enumerate(rows)
+    }
 
-    result: dict[int, tuple[str, int | None]] = {}
-    for idx, row in enumerate(rows):
-        name = (row.canonical.get("object_name_raw") or "").strip().upper()
-        otype = (row.canonical.get("object_type_raw") or "").strip().upper()
-        if not name:
-            result[idx] = ("UNMATCHED", None)
-            continue
 
-        if otype:
-            matches = by_name_type.get((name, otype), [])
-            if len(matches) == 1:
-                result[idx] = ("MATCHED_EXACT", matches[0])
-                continue
-            if len(matches) > 1:
-                result[idx] = ("AMBIGUOUS", None)
-                continue
-        name_matches = by_name.get(name, [])
-        if len(name_matches) == 1:
-            result[idx] = ("MATCHED_HEURISTIC", name_matches[0])
-        elif len(name_matches) > 1:
-            result[idx] = ("AMBIGUOUS", None)
-        else:
-            result[idx] = ("UNMATCHED", None)
-    return result
+def recorrelate_atc_findings(assessment_id: int, session: Session) -> int:
+    """Re-correlate every persisted ATC finding of the assessment against the current SAPObjects.
+
+    Correlation is computed at import time, so an ATC file imported before the source was parsed
+    (or before a reprocess changed the object set) would otherwise stay UNMATCHED / point at
+    removed objects forever. Called by `parse_objects` finalize (SPRINT-18). Updates the derived
+    TechnicalFinding.sap_object_id too. Returns how many findings changed.
+    """
+    index = _ObjectIndex(assessment_id, session)
+    findings = session.execute(
+        select(
+            ATCFinding.id,
+            ATCFinding.object_name_raw,
+            ATCFinding.object_type_raw,
+            ATCFinding.correlation_status,
+            ATCFinding.correlated_object_id,
+        ).where(ATCFinding.assessment_id == assessment_id)
+    ).all()
+    changed: list[dict] = []
+    for fid, name, otype, status, obj_id in findings:
+        new_status, new_obj = index.match(name, otype)
+        if (new_status, new_obj) != (status, obj_id):
+            changed.append({"id": fid, "correlation_status": new_status, "correlated_object_id": new_obj})
+    if not changed:
+        return 0
+    session.execute(update(ATCFinding), changed)
+    new_obj_by_finding = {c["id"]: c["correlated_object_id"] for c in changed}
+    derived = session.execute(
+        select(TechnicalFinding.id, TechnicalFinding.atc_finding_id).where(
+            TechnicalFinding.assessment_id == assessment_id,
+            TechnicalFinding.atc_finding_id.is_not(None),
+        )
+    ).all()
+    tf_updates = [
+        {"id": tf_id, "sap_object_id": new_obj_by_finding[af_id]}
+        for tf_id, af_id in derived
+        if af_id in new_obj_by_finding
+    ]
+    if tf_updates:
+        session.execute(update(TechnicalFinding), tf_updates)
+    session.flush()
+    return len(changed)
 
 
 def _upsert_atc_check(check_title: str, session: Session) -> int:
@@ -97,7 +148,7 @@ def _derive_technical_findings(assessment_id: int, atc_run_id: int, session: Ses
     count = 0
     for af in atc_findings:
         severity = _PRIORITY_SEVERITY.get(af.priority or 0, TechnicalFindingSeverity.INFO.value)
-        title = af.check_title or "ATC Finding"
+        title = af.check_title or "Finding ATC"
         if af.object_name_raw:
             title = f"{title}: {af.object_name_raw}"
 

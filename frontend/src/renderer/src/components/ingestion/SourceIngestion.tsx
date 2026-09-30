@@ -244,7 +244,7 @@ export function SourceIngestion({ assessmentId }: Props) {
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-medium">Source Ingestion</h1>
+        <h1 className="text-[22px] font-medium">Ingestão de Código-Fonte</h1>
         <p className="mt-0.5 text-[13px] text-text-tertiary">
           Selecione um diretório de fontes e inicie o scan para gerar o inventário de arquivos.
         </p>

@@ -10,6 +10,9 @@ Each member's persisted `ObjectUnderstanding` and `BusinessRule`s are AI-derived
 from earlier pipeline stages — per ADR-008 they are never citable evidence themselves, so they
 are rendered as prompt *context* only (mirroring `ai.business_rule_discovery.evidence_package`'s
 treatment of `ObjectUnderstanding`).
+
+Like `ai.clean_core_analysis.evidence_package`, the package is bounded (`_MAX_ITEMS`) so a large
+cluster never overflows the model's input; cut items are counted in `omitted` and never citable.
 """
 from __future__ import annotations
 
@@ -34,6 +37,11 @@ from persistence.models import (
 
 _TARGET_SAP_OBJECT = "SAP_OBJECT"
 _MATCHED_STATUSES = (EvidenceCorrelationStatus.MATCHED_EXACT.value, EvidenceCorrelationStatus.MATCHED_HEURISTIC.value)
+
+# Context budget per citable pool / rendered context; objects (OBJ-*) are always all included.
+_MAX_ITEMS = {"DEP": 80, "ATC": 80, "EVD": 60, "SIGNALS": 80}
+_MAX_RULES_PER_MEMBER = 3
+_MAX_PURPOSE_CHARS = 300
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,8 @@ class ApplicationEvidencePackage:
     supplemental_items: list[EvidenceItem]
     members: list[MemberContext] = field(default_factory=list)
     clustering_signals: list[ClusterSignal] = field(default_factory=list)
+    # Items cut by the context budget, per `_MAX_ITEMS` key (never citable).
+    omitted: dict[str, int] = field(default_factory=dict)
 
     def all_items(self) -> list[EvidenceItem]:
         return [*self.object_items, *self.dependency_items, *self.atc_items, *self.supplemental_items]
@@ -101,8 +111,9 @@ def build_application_evidence_package(session: Session, cluster: CandidateClust
             )
         )
 
-    atc_findings = list(
-        session.scalars(select(ATCFinding).where(ATCFinding.correlated_object_id.in_(cluster.object_ids)))
+    atc_findings = sorted(
+        session.scalars(select(ATCFinding).where(ATCFinding.correlated_object_id.in_(cluster.object_ids))),
+        key=lambda f: (f.priority if f.priority is not None else 99, f.id),
     )
     atc_items = [
         EvidenceItem(
@@ -127,6 +138,7 @@ def build_application_evidence_package(session: Session, cluster: CandidateClust
                 EvidenceCorrelation.target_id.in_(cluster.object_ids),
                 EvidenceCorrelation.status.in_(_MATCHED_STATUSES),
             )
+            .order_by(EvidenceRecord.id)
         )
     )
     supplemental_items = [
@@ -157,8 +169,11 @@ def build_application_evidence_package(session: Session, cluster: CandidateClust
             BusinessRule.sap_object_id.in_(cluster.object_ids),
             BusinessRule.status == BusinessRuleStatus.CANDIDATE.value,
         )
+        .order_by(BusinessRule.id)
     ):
-        rules_by_object.setdefault(rule.sap_object_id, []).append(rule)
+        bucket = rules_by_object.setdefault(rule.sap_object_id, [])
+        if len(bucket) < _MAX_RULES_PER_MEMBER:
+            bucket.append(rule)
 
     members = [
         MemberContext(
@@ -171,13 +186,22 @@ def build_application_evidence_package(session: Session, cluster: CandidateClust
         for obj in objects
     ]
 
+    omitted: dict[str, int] = {}
+
+    def cap(key: str, items: list) -> list:
+        limit = _MAX_ITEMS[key]
+        if len(items) > limit:
+            omitted[key] = len(items) - limit
+        return items[:limit]
+
     return ApplicationEvidencePackage(
         object_items=object_items,
-        dependency_items=dependency_items,
-        atc_items=atc_items,
-        supplemental_items=supplemental_items,
+        dependency_items=cap("DEP", dependency_items),
+        atc_items=cap("ATC", atc_items),
+        supplemental_items=cap("EVD", supplemental_items),
         members=members,
-        clustering_signals=cluster.signals,
+        clustering_signals=cap("SIGNALS", cluster.signals),
+        omitted=omitted,
     )
 
 
@@ -193,7 +217,7 @@ def render_prompt(package: ApplicationEvidencePackage) -> str:
         lines.append(f"- {member.object_type} {member.object_name} (ref OBJ-{member.object_id})")
         if member.understanding is not None:
             u = member.understanding
-            purpose = u.functional_purpose or u.technical_purpose
+            purpose = (u.functional_purpose or u.technical_purpose or "")[:_MAX_PURPOSE_CHARS]
             lines.append(f"  Persisted understanding (interpretation, not evidence — ADR-008): {purpose}")
             if u.concepts:
                 lines.append(f"  Concepts: {', '.join(u.concepts)}")
@@ -215,5 +239,8 @@ def render_prompt(package: ApplicationEvidencePackage) -> str:
         lines.append("(none — no object identity, dependency, ATC or supplemental evidence found)")
     for item in package.all_items():
         lines.append(f"- {item.ref_id} [{item.source_type}]: {item.summary}")
+    if package.omitted:
+        cut = ", ".join(f"{key}: +{n}" for key, n in package.omitted.items())
+        lines.append(f"(items omitted by the context budget — omitted ones are NOT citable: {cut})")
 
     return "\n".join(lines)

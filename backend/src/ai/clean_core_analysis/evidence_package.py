@@ -23,6 +23,11 @@ to both dimensions and the recommendation.
 Each member's persisted `ObjectUnderstanding`/`BusinessRule` and the Application's own AI-derived
 name/description/rationale are prior interpretation, not evidence (ADR-008) — rendered as prompt
 context only, exactly like `ai.application_discovery.evidence_package` treats them.
+
+The package is bounded (SPRINT-18: an unbounded 421-object application overflowed the model's
+input): each citable pool keeps at most `_MAX_ITEMS` entries, most severe first, and the number
+cut is recorded in `omitted`. Omitted items are simply not in any pool, so they can never be cited
+(evidence-bound validation is unchanged); full ATC priority totals are still given as context.
 """
 from __future__ import annotations
 
@@ -67,6 +72,12 @@ _TECHNICAL_CAPABILITIES = {
     "S4_CONVERSION_SIGNAL",
 }
 
+# Context budget per citable pool; objects (OBJ-*) are always all included.
+_MAX_ITEMS = {"DEP": 80, "ATC": 80, "TF": 60, "EVD_TECHNICAL": 40, "EVD_BUSINESS": 40}
+_MAX_RULES_PER_MEMBER = 3
+_MAX_PURPOSE_CHARS = 300
+_SEVERITY_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "INFO": 3}
+
 
 @dataclass(frozen=True)
 class EvidenceItem:
@@ -96,6 +107,10 @@ class CleanCoreEvidencePackage:
     technical_items: list[EvidenceItem]
     business_items: list[EvidenceItem]
     guidance_items: list[EvidenceItem]
+    # Items cut by the context budget, per `_MAX_ITEMS` key (never citable).
+    omitted: dict[str, int] = field(default_factory=dict)
+    # Correlated ATC findings of all members by priority (1/2/3, None = unknown), before the cut.
+    atc_priority_totals: dict[int | None, int] = field(default_factory=dict)
 
     def all_items(self) -> list[EvidenceItem]:
         return [*self.technical_items, *self.business_items, *self.guidance_items]
@@ -118,8 +133,20 @@ def build_clean_core_evidence_package(
         for obj in objects
     ]
 
+    omitted: dict[str, int] = {}
+
+    def cap(key: str, items: list[EvidenceItem]) -> list[EvidenceItem]:
+        limit = _MAX_ITEMS[key]
+        if len(items) > limit:
+            omitted[key] = len(items) - limit
+        return items[:limit]
+
     dependency_items: list[EvidenceItem] = []
-    for dep in session.scalars(select(SAPObjectDependency).where(SAPObjectDependency.source_object_id.in_(member_ids))):
+    for dep in session.scalars(
+        select(SAPObjectDependency)
+        .where(SAPObjectDependency.source_object_id.in_(member_ids))
+        .order_by(SAPObjectDependency.id)
+    ):
         source = objects_by_id.get(dep.source_object_id)
         if source is None:
             continue
@@ -132,13 +159,20 @@ def build_clean_core_evidence_package(
             )
         )
 
-    atc_findings = list(session.scalars(select(ATCFinding).where(ATCFinding.correlated_object_id.in_(member_ids))))
+    atc_findings = sorted(
+        session.scalars(select(ATCFinding).where(ATCFinding.correlated_object_id.in_(member_ids))),
+        key=lambda f: (f.priority if f.priority is not None else 99, f.id),
+    )
+    atc_priority_totals: dict[int | None, int] = {}
+    for f in atc_findings:
+        atc_priority_totals[f.priority] = atc_priority_totals.get(f.priority, 0) + 1
     atc_items = [
         EvidenceItem(
             ref_id=f"ATC-{f.id}",
             source_type="ATC_FINDING",
             entity_id=f.id,
             summary=(
+                f"P{f.priority if f.priority is not None else '?'} "
                 f"{f.check_title or 'ATC finding'} on {objects_by_id[f.correlated_object_id].object_name}: "
                 f"{(f.check_message or '').strip()[:200]}"
             ),
@@ -146,7 +180,10 @@ def build_clean_core_evidence_package(
         for f in atc_findings
     ]
 
-    finding_rows = list(session.scalars(select(TechnicalFinding).where(TechnicalFinding.sap_object_id.in_(member_ids))))
+    finding_rows = sorted(
+        session.scalars(select(TechnicalFinding).where(TechnicalFinding.sap_object_id.in_(member_ids))),
+        key=lambda tf: (_SEVERITY_ORDER.get(tf.severity, 9), tf.id),
+    )
     finding_items = [
         EvidenceItem(
             ref_id=f"TF-{tf.id}",
@@ -170,6 +207,7 @@ def build_clean_core_evidence_package(
                 EvidenceCorrelation.target_id.in_(member_ids),
                 EvidenceCorrelation.status.in_(_MATCHED_STATUSES),
             )
+            .order_by(EvidenceRecord.id)
         )
     )
     technical_signal_items: list[EvidenceItem] = []
@@ -218,9 +256,13 @@ def build_clean_core_evidence_package(
     }
     rules_by_object: dict[int, list[BusinessRule]] = {}
     for rule in session.scalars(
-        select(BusinessRule).where(BusinessRule.sap_object_id.in_(member_ids), BusinessRule.status == BusinessRuleStatus.CANDIDATE.value)
+        select(BusinessRule)
+        .where(BusinessRule.sap_object_id.in_(member_ids), BusinessRule.status == BusinessRuleStatus.CANDIDATE.value)
+        .order_by(BusinessRule.id)
     ):
-        rules_by_object.setdefault(rule.sap_object_id, []).append(rule)
+        bucket = rules_by_object.setdefault(rule.sap_object_id, [])
+        if len(bucket) < _MAX_RULES_PER_MEMBER:
+            bucket.append(rule)
 
     members = [
         MemberContext(
@@ -236,9 +278,17 @@ def build_clean_core_evidence_package(
     return CleanCoreEvidencePackage(
         application=application,
         members=members,
-        technical_items=[*object_items, *dependency_items, *atc_items, *finding_items, *technical_signal_items],
-        business_items=[*object_items, *business_signal_items],
+        technical_items=[
+            *object_items,
+            *cap("DEP", dependency_items),
+            *cap("ATC", atc_items),
+            *cap("TF", finding_items),
+            *cap("EVD_TECHNICAL", technical_signal_items),
+        ],
+        business_items=[*object_items, *cap("EVD_BUSINESS", business_signal_items)],
         guidance_items=guidance_items,
+        omitted=omitted,
+        atc_priority_totals=atc_priority_totals,
     )
 
 
@@ -261,7 +311,7 @@ def render_prompt(package: CleanCoreEvidencePackage) -> str:
         lines.append(f"- {member.object_type} {member.object_name} (ref OBJ-{member.object_id})")
         if member.understanding is not None:
             u = member.understanding
-            purpose = u.functional_purpose or u.technical_purpose
+            purpose = (u.functional_purpose or u.technical_purpose or "")[:_MAX_PURPOSE_CHARS]
             lines.append(f"  Persisted understanding (interpretation, not evidence — ADR-008): {purpose}")
         for rule in member.business_rules:
             lines.append(
@@ -269,11 +319,22 @@ def render_prompt(package: CleanCoreEvidencePackage) -> str:
             )
 
     lines.append("")
+    if package.atc_priority_totals:
+        totals = ", ".join(
+            f"P{p if p is not None else '?'}={n}"
+            for p, n in sorted(package.atc_priority_totals.items(), key=lambda kv: (kv[0] is None, kv[0] or 0))
+        )
+        lines.append(f"ATC findings of all members, by priority (full totals, context only): {totals}")
     lines.append("Technical evidence (use only for technical_risk):")
     if not package.technical_items:
         lines.append("(none)")
     for item in package.technical_items:
         lines.append(f"- {item.ref_id} [{item.source_type}]: {item.summary}")
+    if package.omitted:
+        cut = ", ".join(f"{key}: +{n}" for key, n in package.omitted.items())
+        lines.append(
+            f"(items omitted by the context budget — most severe kept, omitted ones are NOT citable: {cut})"
+        )
 
     lines.append("")
     lines.append(

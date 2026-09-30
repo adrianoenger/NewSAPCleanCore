@@ -38,6 +38,8 @@ from persistence.models import (
 from pipeline.engine import create_pipeline_run, run_pipeline
 from settings import get_settings
 
+from fake_outputs import EXECUTIVE_SUMMARY_SCHEMA, INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT
+
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
 _APPLICATION_DISCOVERY_SCHEMA = "application_discovery_result"
@@ -67,7 +69,7 @@ _ONE_RULE_OUTPUT = {
 }
 _INSUFFICIENT_CLEAN_CORE_OUTPUT = {
     "status": "INSUFFICIENT_CONTEXT",
-    "recommendation": "REVIEW",
+    "recommendation": None,
     "recommendation_rationale": "Not enough evidence to determine risk or importance.",
     "confidence": 0.1,
 }
@@ -113,7 +115,7 @@ class _SequencedFakeProvider:
         self._outputs = {_CLEAN_CORE_ANALYSIS_SCHEMA: _INSUFFICIENT_CLEAN_CORE_OUTPUT, **(outputs or {})}
 
     def complete_structured(self, request):
-        output = self._outputs[request.schema_name]
+        output = {EXECUTIVE_SUMMARY_SCHEMA: INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT, **self._outputs}[request.schema_name]
         if callable(output):
             output = output(request)
         return StructuredCompletionResult(
@@ -220,7 +222,9 @@ def test_embeddings_incrementality_skips_unchanged_content(monkeypatch) -> None:
             with get_session_factory()() as session:
                 rows_after_run_1 = {
                     r.entity_type: r.id
-                    for r in session.scalars(select(Embedding).where(Embedding.assessment_id == asmnt_id))
+                    for r in session.scalars(
+                        select(Embedding).where(Embedding.assessment_id == asmnt_id).order_by(Embedding.id)
+                    )
                 }
 
             # A second full reprocessing run over the exact same source/outputs rebuilds identical
@@ -239,7 +243,9 @@ def test_embeddings_incrementality_skips_unchanged_content(monkeypatch) -> None:
 
                 rows_after_run_2 = {
                     r.entity_type: r.id
-                    for r in session.scalars(select(Embedding).where(Embedding.assessment_id == asmnt_id))
+                    for r in session.scalars(
+                        select(Embedding).where(Embedding.assessment_id == asmnt_id).order_by(Embedding.id)
+                    )
                 }
                 assert rows_after_run_2[SemanticEntityType.SAP_OBJECT.value] == rows_after_run_1[SemanticEntityType.SAP_OBJECT.value]
                 assert rows_after_run_2[SemanticEntityType.APPLICATION.value] == rows_after_run_1[SemanticEntityType.APPLICATION.value]

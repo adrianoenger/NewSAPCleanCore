@@ -7,6 +7,7 @@ entry directly.
 from __future__ import annotations
 
 from ai.object_understanding.schema import ObjectUnderstandingResult
+from ai.language import PT_BR_OUTPUT_RULE
 from ai.registry import PromptSchemaVersion, register
 
 CAPABILITY = "object_understanding"
@@ -30,6 +31,18 @@ register(
         capability=CAPABILITY,
         version="v1",
         system_prompt=_SYSTEM_PROMPT_V1,
+        json_schema=ObjectUnderstandingResult.model_json_schema(),
+        schema_name="object_understanding_result",
+    )
+)
+
+_SYSTEM_PROMPT_V2 = _SYSTEM_PROMPT_V1 + PT_BR_OUTPUT_RULE
+
+register(
+    PromptSchemaVersion(
+        capability=CAPABILITY,
+        version="v2",
+        system_prompt=_SYSTEM_PROMPT_V2,
         json_schema=ObjectUnderstandingResult.model_json_schema(),
         schema_name="object_understanding_result",
     )

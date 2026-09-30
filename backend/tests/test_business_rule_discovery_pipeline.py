@@ -27,6 +27,8 @@ from persistence.models import (
 from pipeline.engine import create_pipeline_run, run_pipeline
 from settings import get_settings
 
+from fake_outputs import EXECUTIVE_SUMMARY_SCHEMA, INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT
+
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
 # This file exercises business_rule_discovery only; application_discovery now runs as the next
@@ -48,7 +50,7 @@ _INSUFFICIENT_APPLICATION_OUTPUT = {
 _CLEAN_CORE_ANALYSIS_SCHEMA = "clean_core_analysis_result"
 _INSUFFICIENT_CLEAN_CORE_OUTPUT = {
     "status": "INSUFFICIENT_CONTEXT",
-    "recommendation": "REVIEW",
+    "recommendation": None,
     "recommendation_rationale": "Not enough grouped evidence.",
     "confidence": 0.2,
 }
@@ -118,7 +120,7 @@ class _SequencedFakeProvider:
         if request.schema_name in self._errors:
             raise self._errors[request.schema_name]
         return StructuredCompletionResult(
-            output=self._outputs[request.schema_name],
+            output={EXECUTIVE_SUMMARY_SCHEMA: INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT, **self._outputs}[request.schema_name],
             provider=self.name,
             model_id=self.model_id,
             raw_response={},

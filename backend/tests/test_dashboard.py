@@ -19,11 +19,15 @@ from persistence.database import get_session_factory
 from persistence.models import (
     Assessment,
     AssessmentStatus,
+    ATCFinding,
+    ATCRun,
     Client,
     SAPObject,
 )
 from pipeline.engine import create_pipeline_run, run_pipeline
 from settings import get_settings
+
+from fake_outputs import EXECUTIVE_SUMMARY_SCHEMA, INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT
 
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
@@ -75,7 +79,7 @@ def _high_risk_clean_core_output(request) -> dict:
         "business_importance": "LOW",
         "business_importance_rationale": "No process/usage evidence available.",
         "business_importance_evidence_refs": [ref],
-        "recommendation": "REMEDIATE",
+        "recommendation": "REMEDIAR",
         "recommendation_rationale": "High technical risk should be addressed.",
         "recommendation_evidence_refs": [ref],
         "confidence": 0.7,
@@ -90,7 +94,7 @@ class _SequencedFakeProvider:
         self._outputs = outputs
 
     def complete_structured(self, request):
-        output = self._outputs[request.schema_name]
+        output = {EXECUTIVE_SUMMARY_SCHEMA: INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT, **self._outputs}[request.schema_name]
         if callable(output):
             output = output(request)
         return StructuredCompletionResult(
@@ -187,6 +191,141 @@ def test_dashboard_summary_empty_assessment_returns_zeros(client) -> None:
         assert body["high_impact_objects"] == 0
         assert body["business_rules_identified"] == 0
         assert body["is_stale"] is False
+    finally:
+        with get_session_factory()() as session:
+            _cleanup(session, asmnt_id)
+
+
+def test_dashboard_overview_and_drilldown_lists(client, monkeypatch) -> None:
+    """SPRINT-18 CAP-003 (ADR-019): reference-dashboard panels + drill-down lists over one
+    classified custom object and a current ATC run with a correlated P1 and an uncorrelated P3."""
+    settings = get_settings()
+    with get_session_factory()() as session:
+        asmnt_id = _make_assessment(session)
+
+    scan_root = Path(settings.scan_root)
+    try:
+        with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
+            (Path(tmp) / "a.abap").write_text("REPORT za.")
+            fake = _SequencedFakeProvider(
+                outputs={
+                    _OBJECT_UNDERSTANDING_SCHEMA: _COMPLETED_UNDERSTANDING_OUTPUT,
+                    _BUSINESS_RULE_SCHEMA: _ONE_RULE_OUTPUT,
+                    _APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT,
+                    _CLEAN_CORE_ANALYSIS_SCHEMA: _high_risk_clean_core_output,
+                }
+            )
+            monkeypatch.setattr("pipeline.stages.get_provider", lambda settings: fake)
+            monkeypatch.setattr("pipeline.stages.get_embedding_provider", lambda settings: _FakeEmbeddingProvider())
+            with get_session_factory()() as session:
+                run = create_pipeline_run(session, asmnt_id, tmp)
+                run_id = run.id
+            run_pipeline(run_id, settings.database_url)
+
+            with get_session_factory()() as session:
+                obj = session.scalars(select(SAPObject).where(SAPObject.assessment_id == asmnt_id)).one()
+                object_id = obj.id
+                atc_run = ATCRun(assessment_id=asmnt_id, source_filename="atc.xlsx", validation_status="COMPLETED")
+                session.add(atc_run)
+                session.flush()
+                session.add_all(
+                    [
+                        ATCFinding(
+                            atc_run_id=atc_run.id, assessment_id=asmnt_id, source_row_number=1, priority=1,
+                            check_title="Check A", object_name_raw=obj.object_name, correlated_object_id=object_id,
+                        ),
+                        ATCFinding(
+                            atc_run_id=atc_run.id, assessment_id=asmnt_id, source_row_number=2, priority=3,
+                            check_title="Check B", object_name_raw="ZOTHER",
+                        ),
+                    ]
+                )
+                session.commit()
+
+            body = client.get(f"/assessments/{asmnt_id}/dashboard-overview").json()
+            assert body["objects_total"] == 1
+            assert body["objects_custom"] == 1
+            assert body["objects_by_type"] == {"report": 1}
+            assert body["atc_total"] == 2
+            assert body["atc_by_priority"] == {"1": 1, "3": 1}
+            assert body["objects_classified"] == 1
+            assert body["clean_core_objects"] == {"REMEDIAR": 1}
+            assert body["clean_core_applications"] == {"REMEDIAR": 1}
+
+            listed = client.get(f"/assessments/{asmnt_id}/object-list", params={"recommendation": "REMEDIAR"}).json()
+            assert listed["total"] == 1
+            assert listed["items"][0]["id"] == object_id
+            assert listed["items"][0]["atc_findings"] == 1
+            assert listed["items"][0]["is_custom"] is True
+            assert client.get(
+                f"/assessments/{asmnt_id}/object-list", params={"recommendation": "UNCLASSIFIED"}
+            ).json()["total"] == 0
+            assert client.get(f"/assessments/{asmnt_id}/object-list", params={"high_impact": True}).json()["total"] == 1
+
+            p1 = client.get(f"/assessments/{asmnt_id}/atc-findings", params={"priority": 1}).json()
+            assert p1["total"] == 1
+            assert p1["items"][0]["correlated_object_id"] == object_id
+            by_object = client.get(f"/assessments/{asmnt_id}/atc-findings", params={"object_id": object_id}).json()
+            assert by_object["total"] == 1
+            detail = client.get(f"/assessments/{asmnt_id}/atc-findings/{p1['items'][0]['id']}")
+            assert detail.status_code == 200
+            assert detail.json()["check_title"] == "Check A"
+    finally:
+        with get_session_factory()() as session:
+            _cleanup(session, asmnt_id)
+
+
+def test_atc_imported_before_parse_is_recorrelated_by_parse(client, monkeypatch) -> None:
+    """SPRINT-18: ATC correlation happens at import time; an ATC file imported before the source
+    was parsed must be re-correlated by `parse_objects` finalize (and TechnicalFinding follows)."""
+    settings = get_settings()
+    with get_session_factory()() as session:
+        asmnt_id = _make_assessment(session)
+        atc_run = ATCRun(assessment_id=asmnt_id, source_filename="atc.xlsx", validation_status="COMPLETED")
+        session.add(atc_run)
+        session.flush()
+        session.add_all(
+            [
+                ATCFinding(
+                    atc_run_id=atc_run.id, assessment_id=asmnt_id, source_row_number=1, priority=1,
+                    check_title="Check A", object_name_raw="za", correlation_status="UNMATCHED",
+                ),
+                ATCFinding(
+                    atc_run_id=atc_run.id, assessment_id=asmnt_id, source_row_number=2, priority=2,
+                    check_title="Check B", object_name_raw="ZNOT_IN_SOURCE", correlation_status="UNMATCHED",
+                ),
+            ]
+        )
+        session.commit()
+
+    scan_root = Path(settings.scan_root)
+    try:
+        with tempfile.TemporaryDirectory(dir=scan_root) as tmp:
+            (Path(tmp) / "a.abap").write_text("REPORT za.")
+            fake = _SequencedFakeProvider(
+                outputs={
+                    _OBJECT_UNDERSTANDING_SCHEMA: _COMPLETED_UNDERSTANDING_OUTPUT,
+                    _BUSINESS_RULE_SCHEMA: _ONE_RULE_OUTPUT,
+                    _APPLICATION_DISCOVERY_SCHEMA: _INSUFFICIENT_APPLICATION_OUTPUT,
+                    _CLEAN_CORE_ANALYSIS_SCHEMA: _high_risk_clean_core_output,
+                }
+            )
+            monkeypatch.setattr("pipeline.stages.get_provider", lambda settings: fake)
+            monkeypatch.setattr("pipeline.stages.get_embedding_provider", lambda settings: _FakeEmbeddingProvider())
+            with get_session_factory()() as session:
+                run_id = create_pipeline_run(session, asmnt_id, tmp).id
+            run_pipeline(run_id, settings.database_url)
+
+            with get_session_factory()() as session:
+                obj = session.scalars(select(SAPObject).where(SAPObject.assessment_id == asmnt_id)).one()
+                findings = {
+                    f.check_title: f
+                    for f in session.scalars(select(ATCFinding).where(ATCFinding.assessment_id == asmnt_id))
+                }
+                assert findings["Check A"].correlated_object_id == obj.id
+                assert findings["Check A"].correlation_status == "MATCHED_HEURISTIC"
+                assert findings["Check B"].correlated_object_id is None
+                assert findings["Check B"].correlation_status == "UNMATCHED"
     finally:
         with get_session_factory()() as session:
             _cleanup(session, asmnt_id)

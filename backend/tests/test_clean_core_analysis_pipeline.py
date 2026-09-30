@@ -30,6 +30,8 @@ from persistence.models import (
 from pipeline.engine import create_pipeline_run, run_pipeline
 from settings import get_settings
 
+from fake_outputs import EXECUTIVE_SUMMARY_SCHEMA, INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT
+
 _OBJECT_UNDERSTANDING_SCHEMA = "object_understanding_result"
 _BUSINESS_RULE_SCHEMA = "business_rule_discovery_result"
 _APPLICATION_DISCOVERY_SCHEMA = "application_discovery_result"
@@ -71,7 +73,7 @@ def _completed_clean_core_output_citing_first_object(request) -> dict:
         "business_importance": "LOW",
         "business_importance_rationale": "No process/usage evidence available; based on object identity only.",
         "business_importance_evidence_refs": [ref],
-        "recommendation": "RETAIN",
+        "recommendation": "MANTER_AS_IS",
         "recommendation_rationale": "Low risk, low importance — keep as-is.",
         "recommendation_evidence_refs": [ref],
         "confidence": 0.7,
@@ -80,7 +82,7 @@ def _completed_clean_core_output_citing_first_object(request) -> dict:
 
 _INSUFFICIENT_CLEAN_CORE_OUTPUT = {
     "status": "INSUFFICIENT_CONTEXT",
-    "recommendation": "REVIEW",
+    "recommendation": None,
     "recommendation_rationale": "Not enough evidence to determine risk or importance.",
     "confidence": 0.1,
 }
@@ -117,7 +119,7 @@ class _SequencedFakeProvider:
     def complete_structured(self, request):
         if request.schema_name in self._errors:
             raise self._errors[request.schema_name]
-        output = self._outputs[request.schema_name]
+        output = {EXECUTIVE_SUMMARY_SCHEMA: INSUFFICIENT_EXECUTIVE_SUMMARY_OUTPUT, **self._outputs}[request.schema_name]
         if callable(output):
             output = output(request)
         return StructuredCompletionResult(
@@ -194,7 +196,7 @@ def test_clean_core_analysis_completed_result_persisted(monkeypatch) -> None:
                 assert cca.status == CleanCoreStatus.COMPLETED.value
                 assert cca.technical_risk == "LOW"
                 assert cca.business_importance == "LOW"
-                assert cca.recommendation == "RETAIN"
+                assert cca.recommendation == "MANTER_AS_IS"
                 assert cca.business_importance_uses_process_usage_evidence is False
                 assert cca.technical_risk_evidence_refs == [
                     {"ref_id": f"OBJ-{obj.id}", "source_type": "SAP_OBJECT", "entity_id": obj.id}
@@ -234,7 +236,7 @@ def test_clean_core_analysis_insufficient_context_is_valid_outcome(monkeypatch) 
                     select(CleanCoreAssessment).where(CleanCoreAssessment.application_id == obj.application_id)
                 ).one()
                 assert cca.status == CleanCoreStatus.INSUFFICIENT_CONTEXT.value
-                assert cca.recommendation == "REVIEW"
+                assert cca.recommendation is None
                 assert cca.technical_risk is None
                 assert cca.error is None
     finally:
@@ -313,10 +315,10 @@ def test_get_application_api_embeds_clean_core_assessment(client, monkeypatch) -
             assert body["clean_core"] is not None
             assert body["clean_core"]["status"] == "COMPLETED"
             assert body["clean_core"]["technical_risk"] == "LOW"
-            assert body["clean_core"]["recommendation"] == "RETAIN"
+            assert body["clean_core"]["recommendation"] == "MANTER_AS_IS"
 
             list_resp = client.get(f"/assessments/{asmnt_id}/applications")
-            assert list_resp.json()["applications"][0]["clean_core"]["recommendation"] == "RETAIN"
+            assert list_resp.json()["applications"][0]["clean_core"]["recommendation"] == "MANTER_AS_IS"
     finally:
         with get_session_factory()() as session:
             _cleanup(session, asmnt_id)

@@ -244,7 +244,9 @@ def test_fetch_guidance_target_not_found_raises():
 
 
 def test_get_knowledge_providers_empty_when_unset():
-    settings = Settings()
+    # Explicit None, not bare `Settings()` — this dev environment's own .env may configure the
+    # real public mcp-sap-docs/mcp-abap endpoints (SPRINT-18), which `Settings()` would pick up.
+    settings = Settings(sap_docs_mcp_endpoint=None, abap_mcp_endpoint=None)
     assert get_knowledge_providers(settings) == []
 
 
@@ -311,6 +313,51 @@ def test_mcp_provider_query_returns_references(monkeypatch):
     assert result.references[0].title == "Title line"
     assert result.references[0].summary == "Summary body"
     assert fake_session.last_call == ("search", {"query": "pricing procedure"})
+
+
+def test_mcp_provider_query_parses_verified_search_results_json(monkeypatch):
+    """SPRINT-18: live-captured shape from the real public mcp-sap-docs `search` tool — one text
+    content block is a JSON object with a `results` array, not free-form prose. Verified, not
+    guessed (see ai.knowledge_providers.mcp_client's module docstring)."""
+    raw = (
+        '{"results":['
+        '{"id":"/abap-docs-cloud/ABENCDS","title":"ABENCDS","url":"https://help.sap.com/x.html",'
+        '"library_id":"/abap-docs-cloud","topic":"ABENCDS","snippet":"<b>Clean</b> <b>Core</b> guidance &hellip; more",'
+        '"score":0.04,"metadata":{"rank":1}},'
+        '{"id":"sap-help-abc123","title":"Clean Core Extensibility","url":"https://help.sap.com/y.html",'
+        '"library_id":"/sap-help","topic":"","snippet":"Extend S/4HANA with ABAP based extensions",'
+        '"score":0.03,"metadata":{"rank":2}}'
+        "]}"
+    )
+    fake_session = _FakeSession(_FakeCallToolResult(content=[_FakeContentBlock(raw)]))
+    monkeypatch.setattr("ai.knowledge_providers.mcp_client.streamable_http_client", lambda endpoint: _FakeStreamContext())
+    monkeypatch.setattr("ai.knowledge_providers.mcp_client.ClientSession", lambda read, write: fake_session)
+
+    provider = MCPKnowledgeProvider(name="sap_docs_mcp", endpoint="http://x/mcp", tool_name="search")
+    result = provider.query(KnowledgeQuery(text="clean core extensibility", max_results=5))
+
+    assert len(result.references) == 2
+    first, second = result.references
+    assert first.title == "ABENCDS"
+    assert first.reference == "https://help.sap.com/x.html"
+    assert first.summary == "Clean Core guidance … more"  # HTML tags/entities stripped
+    assert second.title == "Clean Core Extensibility"
+    assert second.reference == "https://help.sap.com/y.html"
+
+
+def test_mcp_provider_query_falls_back_on_unrecognized_json(monkeypatch):
+    """A JSON body that isn't the verified `{"results": [...]}` shape (e.g. a different tool's
+    output) must never be silently dropped — it falls back to the generic first-line heuristic."""
+    raw = '{"status": "ok", "count": 0}'
+    fake_session = _FakeSession(_FakeCallToolResult(content=[_FakeContentBlock(raw)]))
+    monkeypatch.setattr("ai.knowledge_providers.mcp_client.streamable_http_client", lambda endpoint: _FakeStreamContext())
+    monkeypatch.setattr("ai.knowledge_providers.mcp_client.ClientSession", lambda read, write: fake_session)
+
+    provider = MCPKnowledgeProvider(name="sap_docs_mcp", endpoint="http://x/mcp", tool_name="search")
+    result = provider.query(KnowledgeQuery(text="q"))
+
+    assert len(result.references) == 1
+    assert result.references[0].title == raw  # whole (short, single-line) blob as a fallback title
 
 
 def test_mcp_provider_query_wraps_transport_errors(monkeypatch):

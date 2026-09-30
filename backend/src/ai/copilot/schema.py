@@ -39,8 +39,27 @@ class CopilotAnswerResult(BaseModel):
     )
 
 
+def sanitize_result(result: CopilotAnswerResult, context: CopilotContext) -> CopilotAnswerResult:
+    """Drop what cannot be grounded instead of rejecting the whole answer (SPRINT-18 CAP-004).
+
+    Unknown evidence_refs / navigation_ref are removed (never shown as citations), and an
+    INSUFFICIENT_CONTEXT answer loses any refs it cited. Rejecting the full answer for one stray ref
+    made the Copilot fail on most real questions; the remaining refs are still all context-bound.
+    """
+    known_ref_ids = {item.ref_id for item in context.items}
+    refs = list(dict.fromkeys(ref for ref in result.evidence_refs if ref in known_ref_ids))
+    if result.status == CopilotAnswerStatus.INSUFFICIENT_CONTEXT:
+        refs = []
+    navigation_ref = result.navigation_ref if result.navigation_ref in known_ref_ids else None
+    return result.model_copy(update={"evidence_refs": refs, "navigation_ref": navigation_ref})
+
+
 def validate_result(result: CopilotAnswerResult, context: CopilotContext) -> list[str]:
-    """Return domain validation error strings; empty means the result may be returned to the user."""
+    """Return domain validation error strings for a sanitized result; empty means it may be returned.
+
+    Only an ANSWERED result without an answer or without a single grounded ref is rejected — a
+    claim with zero valid evidence is exactly what ADR-012 forbids presenting as grounded.
+    """
     errors: list[str] = []
 
     known_ref_ids = {item.ref_id for item in context.items}
@@ -48,16 +67,10 @@ def validate_result(result: CopilotAnswerResult, context: CopilotContext) -> lis
     if unknown_refs:
         errors.append(f"evidence_refs reference ids not present in the context package: {unknown_refs}")
 
-    if result.navigation_ref is not None and result.navigation_ref not in known_ref_ids:
-        errors.append(f"navigation_ref {result.navigation_ref!r} not present in the context package")
-
     if result.status == CopilotAnswerStatus.ANSWERED:
         if not result.answer.strip():
             errors.append("status=ANSWERED requires a non-empty answer")
         if not result.evidence_refs:
-            errors.append("status=ANSWERED requires at least one evidence_refs entry")
-    else:
-        if result.evidence_refs:
-            errors.append("status=INSUFFICIENT_CONTEXT must not cite evidence_refs")
+            errors.append("status=ANSWERED requires at least one evidence_refs entry present in the context package")
 
     return errors

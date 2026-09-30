@@ -4,13 +4,15 @@ frontend keeps it in the always-mounted CopilotPanel's own state).
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ai.copilot import CAPABILITY as COPILOT_CAPABILITY
 from ai.copilot.context import CopilotSelection, build_context, render_prompt
-from ai.copilot.schema import CopilotAnswerResult, validate_result
+from ai.copilot.schema import CopilotAnswerResult, sanitize_result, validate_result
 from ai.embedding_providers import get_embedding_provider
 from ai.provider import AIProviderError, StructuredCompletionRequest
 from ai.providers import get_provider
@@ -24,6 +26,8 @@ from api.schemas.copilot import (
 from persistence.database import get_session
 from persistence.models import Assessment
 from settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assessments/{assessment_id}/copilot", tags=["copilot"])
 
@@ -69,11 +73,18 @@ def ask(
                 schema_name=prompt_version.schema_name,
             )
         )
-        result = CopilotAnswerResult.model_validate(completion.output)
+        raw = CopilotAnswerResult.model_validate(completion.output)
+        result = sanitize_result(raw, context)
+        if result.evidence_refs != raw.evidence_refs or result.navigation_ref != raw.navigation_ref:
+            logger.info(
+                "Copilot answer refs sanitized (assessment=%s): evidence_refs %s -> %s, navigation_ref %r -> %r",
+                assessment_id, raw.evidence_refs, result.evidence_refs, raw.navigation_ref, result.navigation_ref,
+            )
         domain_errors = validate_result(result, context)
         if domain_errors:
             raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
     except (AIProviderError, ValidationError) as exc:
+        logger.warning("Copilot answer FAILED (assessment=%s): %s", assessment_id, exc)
         return CopilotAskResponse(status="FAILED", answer="", references=[], navigation=None, error=str(exc)[:2000])
 
     items_by_ref = {item.ref_id: item for item in context.items}

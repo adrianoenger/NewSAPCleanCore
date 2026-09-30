@@ -8,7 +8,7 @@ interface Props {
   objectId: number
 }
 
-/** Monaco-backed source viewer for Technical View's object detail (CAP-002, SPRINT-17) — read-only,
+/** Monaco-backed source viewer for the object detail page (CAP-002, SPRINT-17) — read-only,
  * scrolls to and highlights the object's own line range within its source file. */
 export function SourceViewer({ assessmentId, objectId }: Props) {
   const { data, isLoading, isError } = useQuery({
@@ -30,7 +30,7 @@ export function SourceViewer({ assessmentId, objectId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex h-[320px] items-center justify-center rounded border border-border-soft bg-surface-elevated text-[11px] text-text-tertiary">
+      <div className="flex h-[520px] items-center justify-center rounded border border-border-soft bg-surface-elevated text-[11px] text-text-tertiary">
         Carregando código-fonte…
       </div>
     )
@@ -61,7 +61,7 @@ export function SourceViewer({ assessmentId, objectId }: Props) {
       </div>
       <div className="overflow-hidden rounded border border-border-soft">
         <Editor
-          height="320px"
+          height="520px"
           language={data.language}
           value={data.content}
           onMount={handleMount}

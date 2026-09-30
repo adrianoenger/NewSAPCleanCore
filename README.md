@@ -36,7 +36,7 @@ Transform a large set of SAP/ABAP artifacts into structured technical knowledge,
 - Treat ATC XLSX as semi-structured external evidence: preserve raw rows/header mapping and tolerate optional/additional columns.
 - Treat Panaya ETL, SAP Signavio Process Insights and FUE User Validation as optional supplemental evidence datasets behind adapter contracts; preserve provenance/correlation and never make provider schemas part of `SAPObject`.
 - Persist long-running processing state so work can pause, resume, retry and recover.
-- The application opens on Assessments Home; inside an Assessment, results are explored through Dashboard Geral plus Executive, Technical, Functional and Architecture views.
+- The application opens on Assessments Home; inside an Assessment, results are explored through the single Dashboard Geral (clickable KPIs → full-page lists → full-page details, ADR-019) plus the Resumo Executivo (pt-BR markdown).
 - The right side of the application is permanently dedicated to the AI Copilot.
 - LLM providers are **AWS Bedrock** and **Azure AI Foundry** behind a provider abstraction.
 - SAP knowledge uses `mcp-sap-docs` and `mcp-abap`, configurable by URL.

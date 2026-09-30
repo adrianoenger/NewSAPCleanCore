@@ -57,10 +57,11 @@ def _rule(**overrides) -> BusinessRuleCandidate:
 # ---------------------------------------------------------------------------
 
 
-def test_business_rule_discovery_registers_v1():
+def test_business_rule_discovery_registers_v2_pt_br():
     version = get_version(CAPABILITY)
     assert version.capability == "business_rule_discovery"
-    assert version.version == "v1"
+    assert version.version == "v2"
+    assert "pt-BR" in version.system_prompt
     assert version.schema_name == "business_rule_discovery_result"
 
 

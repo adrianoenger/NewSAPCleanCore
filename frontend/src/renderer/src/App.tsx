@@ -5,19 +5,17 @@ import { ResizeHandle } from '@/components/shell/ResizeHandle'
 import { NAV_ITEMS, Sidebar } from '@/components/shell/Sidebar'
 import { Workspace } from '@/components/shell/Workspace'
 import type { AssessmentListItem, ClientRecord } from '@/lib/api'
-import { FOCUS_VIEW, type ResultFocus } from '@/lib/resultNav'
+import { COPILOT_SELECTION_KINDS, type DrillPage, type ResultFocus } from '@/lib/resultNav'
 import type { AssessmentContext } from '@/lib/useClientContext'
 import { useHealth } from '@/lib/useHealth'
 import { useResizableWidth } from '@/lib/useResizableWidth'
 
 /** Permanent two/three-region shell: [Sidebar?] | Main | Copilot. */
 export function App() {
-  const [activeView, setActiveView] = useState(NAV_ITEMS[0].id)
-  const [focus, setFocus] = useState<ResultFocus | null>(null)
-  // Plain in-view selection (SPRINT-16/ADR-010) — distinct from `focus`: clicking an object/rule/
-  // application in its own browser publishes Copilot context without triggering a cross-view
-  // drill-down or clearing on a manual sidebar switch's own focus reset.
-  const [selection, setSelection] = useState<ResultFocus | null>(null)
+  const [activeView, setActiveView] = useState('dashboard')
+  // Dashboard drill-down stack (SPRINT-18/ADR-019): lives here, not in DashboardGeral, so Copilot
+  // navigation from any view can open a detail page inside the Dashboard.
+  const [drill, setDrill] = useState<DrillPage[]>([])
   const [copilotCollapsed, setCopilotCollapsed] = useState(false)
   const health = useHealth()
 
@@ -39,19 +37,36 @@ export function App() {
   const [client, setClientState] = useState<ClientRecord | null>(null)
   const [assessment, setAssessmentState] = useState<AssessmentListItem | null>(null)
 
-  // Sidebar navigation is a plain view switch (SPRINT-15/ADR-009); drill-down navigation
-  // (navigateToFocus) additionally carries which entity the target view should pre-select.
   const selectView = (id: string) => {
     setActiveView(id)
-    setFocus(null)
-    setSelection(null)
+    setDrill([])
+  }
+
+  const pushDrill = (page: DrillPage) => {
+    setDrill((stack) => {
+      const top = stack[stack.length - 1]
+      if (top?.type === 'detail' && page.type === 'detail' && top.focus.kind === page.focus.kind && top.focus.id === page.focus.id)
+        return stack
+      return [...stack, page]
+    })
   }
 
   const navigateToFocus = (target: ResultFocus) => {
-    setFocus(target)
-    setSelection(target)
-    setActiveView(FOCUS_VIEW[target.kind])
+    if (activeView !== 'dashboard') {
+      setActiveView('dashboard')
+      setDrill([{ type: 'detail', focus: target }])
+    } else {
+      pushDrill({ type: 'detail', focus: target })
+    }
   }
+
+  // Copilot context = the detail page currently open in the Dashboard, when the Copilot's context
+  // builder understands that entity kind (ai/copilot/context.py).
+  const topPage = drill[drill.length - 1]
+  const selection =
+    activeView === 'dashboard' && topPage?.type === 'detail' && COPILOT_SELECTION_KINDS.has(topPage.focus.kind)
+      ? topPage.focus
+      : null
 
   const ctx: AssessmentContext = {
     client,
@@ -62,9 +77,8 @@ export function App() {
     },
     setAssessment: (a) => {
       setAssessmentState(a)
-      setFocus(null)
-      setSelection(null)
-      if (a) setActiveView(NAV_ITEMS[0].id)
+      setDrill([])
+      if (a) setActiveView('dashboard')
     },
   }
 
@@ -96,10 +110,9 @@ export function App() {
       {assessment ? (
         <Workspace
           activeView={activeView}
-          focus={focus}
-          onNavigate={navigateToFocus}
-          onSelectView={selectView}
-          onSelectEntity={setSelection}
+          drill={drill}
+          onDrillPush={pushDrill}
+          onDrillPopTo={(depth) => setDrill((stack) => stack.slice(0, depth))}
           health={health}
           ctx={ctx}
         />

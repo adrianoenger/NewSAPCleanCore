@@ -1,16 +1,4 @@
-import {
-  BarChart2,
-  ChevronLeft,
-  Code2,
-  LayoutDashboard,
-  Network,
-  ScrollText,
-  Search,
-  type LucideIcon,
-  UploadCloud,
-  Cpu,
-  BarChart3,
-} from 'lucide-react'
+import { ChevronLeft, Cpu, FileText, LayoutDashboard, ScrollText, Search, type LucideIcon, UploadCloud } from 'lucide-react'
 import type { AssessmentContext } from '@/lib/useClientContext'
 import type { Connectivity } from '@/lib/useHealth'
 import { cn } from '@/lib/utils'
@@ -28,11 +16,14 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'atc', label: '2 - Análise ATC', icon: ScrollText, group: 'clean-core' },
   { id: 'ai-processing', label: '3 - Processamento por IA', icon: Cpu, group: 'clean-core' },
   { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, group: 'resultado' },
-  { id: 'executive', label: 'Executive View', icon: BarChart2, group: 'resultado' },
-  { id: 'technical', label: 'Technical View', icon: Code2, group: 'resultado' },
-  { id: 'functional', label: 'Functional View', icon: BarChart3, group: 'resultado' },
-  { id: 'architecture', label: 'Architecture View', icon: Network, group: 'resultado' },
+  { id: 'executive-summary', label: 'Resumo Executivo', icon: FileText, group: 'resultado' },
   { id: 'semantic-search', label: 'Busca Semântica', icon: Search, group: 'debug' },
+]
+
+const NAV_GROUPS: { group: NavItem['group']; label: string }[] = [
+  { group: 'clean-core', label: 'Clean Core' },
+  { group: 'resultado', label: 'Resultado' },
+  { group: 'debug', label: 'Debug' },
 ]
 
 interface SidebarProps {
@@ -54,9 +45,6 @@ function GroupLabel({ label }: { label: string }) {
 export function Sidebar({ activeId, onSelect, connectivity, ctx, width }: SidebarProps) {
   const { assessment, client } = ctx
 
-  const cleanCoreItems = NAV_ITEMS.filter((i) => i.group === 'clean-core')
-  const resultadoItems = NAV_ITEMS.filter((i) => i.group === 'resultado')
-  const debugItems = NAV_ITEMS.filter((i) => i.group === 'debug')
 
   return (
     <aside
@@ -101,80 +89,32 @@ export function Sidebar({ activeId, onSelect, connectivity, ctx, width }: Sideba
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2" aria-label="Assessment">
-        <GroupLabel label="Clean Core" />
-        {cleanCoreItems.map(({ id, label, icon: Icon }) => {
-          const active = id === activeId
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelect(id)}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
-                active
-                  ? 'bg-surface-elevated text-text-primary'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-              )}
-            >
-              {active && (
-                <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-brand" />
-              )}
-              <Icon className={cn('h-4 w-4 shrink-0', active && 'text-brand-text')} strokeWidth={1.75} />
-              <span className="truncate">{label}</span>
-            </button>
-          )
-        })}
-
-        <GroupLabel label="Resultado" />
-        {resultadoItems.map(({ id, label, icon: Icon }) => {
-          const active = id === activeId
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelect(id)}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
-                active
-                  ? 'bg-surface-elevated text-text-primary'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-              )}
-            >
-              {active && (
-                <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-brand" />
-              )}
-              <Icon className={cn('h-4 w-4 shrink-0', active && 'text-brand-text')} strokeWidth={1.75} />
-              <span className="truncate">{label}</span>
-            </button>
-          )
-        })}
-
-        <GroupLabel label="Debug" />
-        {debugItems.map(({ id, label, icon: Icon }) => {
-          const active = id === activeId
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelect(id)}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
-                active
-                  ? 'bg-surface-elevated text-text-primary'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-              )}
-            >
-              {active && (
-                <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-brand" />
-              )}
-              <Icon className={cn('h-4 w-4 shrink-0', active && 'text-brand-text')} strokeWidth={1.75} />
-              <span className="truncate">{label}</span>
-            </button>
-          )
-        })}
+        {NAV_GROUPS.map(({ group, label: groupLabel }) => (
+          <div key={group}>
+            <GroupLabel label={groupLabel} />
+            {NAV_ITEMS.filter((i) => i.group === group).map(({ id, label, icon: Icon }) => {
+              const active = id === activeId
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onSelect(id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'relative flex h-8 w-full items-center gap-2.5 rounded-control px-2.5 text-left text-[13px] transition-colors',
+                    active
+                      ? 'bg-surface-elevated text-text-primary'
+                      : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+                  )}
+                >
+                  {active && <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-brand" />}
+                  <Icon className={cn('h-4 w-4 shrink-0', active && 'text-brand-text')} strokeWidth={1.75} />
+                  <span className="truncate">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

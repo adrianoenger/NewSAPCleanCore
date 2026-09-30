@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import os
-from dataclasses import dataclass
+import posixpath
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ai.application_discovery import CAPABILITY as APPLICATION_DISCOVERY_CAPABILITY
@@ -36,10 +37,12 @@ from ai.clean_core_analysis import CAPABILITY as CLEAN_CORE_ANALYSIS_CAPABILITY
 from ai.clean_core_analysis.evidence_package import build_clean_core_evidence_package
 from ai.clean_core_analysis.evidence_package import render_prompt as render_clean_core_prompt
 from ai.clean_core_analysis.schema import CleanCoreAnalysisResult, CleanCoreAnalysisStatus
+from ai.clean_core_analysis.schema import sanitize_result as sanitize_clean_core_result
 from ai.clean_core_analysis.schema import validate_result as validate_clean_core_result
 from ai.embedding_provider import EmbeddingRequest
 from ai.embedding_providers import get_embedding_provider
 from ai.embeddings.source_builder import collect_embeddable_entities
+from ai.executive_summary.generator import generate_executive_summary
 from ai.object_understanding import CAPABILITY as OBJECT_UNDERSTANDING_CAPABILITY
 from ai.object_understanding.evidence_package import ObjectEvidencePackage, build_evidence_package, render_prompt
 from ai.object_understanding.schema import ObjectUnderstandingResult, validate_result
@@ -48,18 +51,22 @@ from ai.providers import get_provider
 from ai.registry import get_version
 from evidence.adapters import get_adapter
 from evidence.adapters.base import ImportBatchPlan
+from atc.persistence import recorrelate_atc_findings
 from evidence.correlation import correlate_dataset_records
 from ingestion.classifier import classify
 from parsing.dependency_detector import detect_dependencies
 from parsing.dispatcher import parse_file
+from parsing.se80_html import assemble_class_source, sniff_se80_fragment
 from persistence.models import (
     Application,
     ApplicationStatus,
+    Assessment,
     BusinessRule,
     BusinessRuleStatus,
     CleanCoreAssessment,
     CleanCoreStatus,
     Embedding,
+    SemanticEntityType,
     EvidenceDataset,
     EvidenceDatasetStatus,
     EvidenceRecord,
@@ -208,7 +215,120 @@ def _scan_finalize(stage: StageRun, run: PipelineRun, session: Session) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _se80_group_dir(rel_path: str) -> str | None:
+    """Top-level class directory for a candidate SE80 HTML fragment (`parsing.se80_html`), or
+    None if it sits under a `dictionary/` subpath (DDIC table exports in the same HTML wrapper —
+    out of scope for class/method assembly)."""
+    parts = rel_path.split("/")
+    if any(p.lower() == "dictionary" for p in parts):
+        return None
+    parent = posixpath.dirname(rel_path)
+    grandparent, leaf = posixpath.split(parent)
+    if leaf.lower() in ("public_methods", "private_methods"):
+        return grandparent
+    return parent
+
+
+def _upsert_assembled_source_file(
+    session: Session, run: PipelineRun, scan: SourceScan, rel_path: str, text: str
+) -> None:
+    content_bytes = text.encode("utf-8")
+    digest = hashlib.sha256(content_bytes).hexdigest()
+
+    existing = session.scalars(
+        select(SourceFile).where(SourceFile.scan_id == scan.id, SourceFile.rel_path == rel_path)
+    ).first()
+    if existing is not None and existing.sha256 == digest:
+        return  # unchanged since the last run — nothing to write/re-parse (incrementality)
+
+    abs_path = Path(scan.source_path) / rel_path
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(content_bytes)
+
+    if existing is not None:
+        existing.size_bytes = len(content_bytes)
+        existing.mtime = abs_path.stat().st_mtime
+        existing.sha256 = digest
+    else:
+        session.add(
+            SourceFile(
+                scan_id=scan.id,
+                assessment_id=run.assessment_id,
+                rel_path=rel_path,
+                size_bytes=len(content_bytes),
+                mtime=abs_path.stat().st_mtime,
+                sha256=digest,
+                category="abap_source",
+            )
+        )
+    session.flush()
+
+
+def _assemble_se80_class_exports(session: Session, run: PipelineRun, scan: SourceScan) -> set[int]:
+    """Detect SE80 "Code listing" HTML exports (one file per class definition, one per method —
+    see `parsing.se80_html`) among this scan's `abap_source` files, assemble each class into one
+    real ABAP file the existing plain-text `parsing.abap_class` parser already understands, and
+    persist it as a new `SourceFile` — the normal parse `WorkItem` loop below then parses it
+    completely unmodified. Returns the raw HTML `SourceFile` ids consumed by a successful
+    assembly, so the caller excludes them from getting their own (otherwise always-empty)
+    `WorkItem` (SPRINT-17 follow-up: these files individually parse to zero objects today)."""
+    html_candidates = list(
+        session.scalars(
+            select(SourceFile).where(
+                SourceFile.scan_id == run.source_scan_id,
+                SourceFile.category == "abap_source",
+            )
+        )
+    )
+    html_candidates = [sf for sf in html_candidates if sf.rel_path.lower().endswith((".html", ".htm"))]
+    if not html_candidates:
+        return set()
+
+    groups: dict[str, dict[str, object]] = {}
+    for sf in html_candidates:
+        group_dir = _se80_group_dir(sf.rel_path)
+        if group_dir is None:
+            continue
+        abs_path = os.path.join(scan.source_path, sf.rel_path)
+        try:
+            with open(abs_path, encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        frag = sniff_se80_fragment(content)
+        if frag is None:
+            continue
+        group = groups.setdefault(group_dir, {"class": None, "methods": []})
+        if frag.kind == "class":
+            group["class"] = (sf, frag)
+        else:
+            group["methods"].append((sf, frag))
+
+    consumed: set[int] = set()
+    for group_dir, group in groups.items():
+        class_entry = group["class"]
+        if class_entry is None:
+            continue  # orphan method file(s) with no class-definition sibling — left as-is
+        class_sf, class_frag = class_entry
+        method_pairs = sorted(group["methods"], key=lambda pair: pair[1].name)
+
+        assembled_text = assemble_class_source(
+            class_frag.name, class_frag.body, [frag.body for _, frag in method_pairs]
+        )
+        _upsert_assembled_source_file(
+            session, run, scan, f"{group_dir}/.assembled/{class_frag.name}.abap", assembled_text
+        )
+
+        consumed.add(class_sf.id)
+        consumed.update(sf.id for sf, _ in method_pairs)
+
+    return consumed
+
+
 def _parse_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    scan = session.get(SourceScan, run.source_scan_id) if run.source_scan_id else None
+    consumed_ids = _assemble_se80_class_exports(session, run, scan) if scan is not None else set()
+
     existing_keys = set(
         session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
     )
@@ -222,6 +342,8 @@ def _parse_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
     )
     created = 0
     for sf in files:
+        if sf.id in consumed_ids:
+            continue
         key = str(sf.id)
         if key in existing_keys:
             continue
@@ -330,6 +452,9 @@ def _parse_finalize(stage: StageRun, run: PipelineRun, session: Session) -> None
             # already fixed elsewhere in this sprint for the same underlying reason.
             dataset.status = EvidenceDatasetStatus.FAILED.value
             dataset.error = f"Re-correlation after source reprocessing failed: {exc}"[:2000]
+    # ATC findings are correlated at import time; re-correlate so an ATC file imported before
+    # this parse (or before objects were added/removed) links to the current objects (SPRINT-18).
+    recorrelate_atc_findings(run.assessment_id, session)
     session.commit()
 
 
@@ -761,6 +886,7 @@ def _application_discovery_prepare(stage: StageRun, run: PipelineRun, session: S
         session.scalars(select(WorkItem.item_key).where(WorkItem.stage_run_id == stage.id))
     )
     created = 0
+    claimed_ids: set[int] = set()
 
     for cluster in clusters:
         member_set = set(cluster.object_ids)
@@ -769,10 +895,13 @@ def _application_discovery_prepare(stage: StageRun, run: PipelineRun, session: S
         if any(prior_membership.get(oid) in preserved_ids for oid in member_set):
             continue
 
+        # An application is reused by at most one cluster: when a prior cluster splits on
+        # reprocessing, the later fragments get fresh applications instead of overwriting the
+        # first fragment's signals and re-absorbing their members.
         overlap_counts: dict[int, int] = {}
         for oid in member_set:
             app_id = prior_membership.get(oid)
-            if app_id is not None and app_id not in preserved_ids:
+            if app_id is not None and app_id not in preserved_ids and app_id not in claimed_ids:
                 overlap_counts[app_id] = overlap_counts.get(app_id, 0) + 1
 
         reused_app: Application | None = None
@@ -790,6 +919,7 @@ def _application_discovery_prepare(stage: StageRun, run: PipelineRun, session: S
         ]
         session.flush()
         apps_by_id[app.id] = app
+        claimed_ids.add(app.id)
 
         for oid in member_set:
             session.get(SAPObject, oid).application_id = app.id
@@ -799,6 +929,25 @@ def _application_discovery_prepare(stage: StageRun, run: PipelineRun, session: S
             session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"application_id": app.id}))
             existing_keys.add(key)
             created += 1
+
+    # A non-preserved application left without members after reclustering (e.g. singletons
+    # absorbed into a larger cluster on reprocessing) is an obsolete AI cluster: drop it with its
+    # Clean Core row (cascade) and its embedding, so counts/Copilot/summary never report stale,
+    # empty applications. USER_RENAMED/MERGED applications are never touched.
+    session.flush()
+    for app in existing_apps:
+        if app.id in preserved_ids:
+            continue
+        if session.scalar(select(func.count()).select_from(SAPObject).where(SAPObject.application_id == app.id)):
+            continue
+        session.execute(
+            delete(Embedding).where(
+                Embedding.assessment_id == run.assessment_id,
+                Embedding.entity_type == SemanticEntityType.APPLICATION.value,
+                Embedding.entity_id == app.id,
+            )
+        )
+        session.delete(app)
 
     stage.total_items = created + (stage.total_items or 0)
     session.commit()
@@ -859,7 +1008,9 @@ def _application_discovery_process_item(
         app.status = ApplicationStatus.AI_NAMED.value
     else:
         # INSUFFICIENT_CONTEXT — never a false AI_NAMED (ADR-012); stays CANDIDATE so it is
-        # still browsable/mergeable/renameable manually, without a fabricated name.
+        # still browsable/mergeable/renameable manually, without a fabricated name. A reused
+        # application AI_NAMED by an earlier run is demoted back to CANDIDATE.
+        app.status = ApplicationStatus.CANDIDATE.value
         app.name = ""
         app.description = ""
         app.domain = ""
@@ -930,7 +1081,7 @@ def _upsert_clean_core_assessment(
     business_importance: str | None,
     business_importance_rationale: str,
     business_importance_evidence_refs: list[dict],
-    recommendation: str,
+    recommendation: str | None,
     recommendation_rationale: str,
     recommendation_evidence_refs: list[dict],
     confidence: float | None,
@@ -998,7 +1149,7 @@ def _clean_core_analysis_process_item(
                 schema_name=prompt_version.schema_name,
             )
         )
-        result = CleanCoreAnalysisResult.model_validate(completion.output)
+        result = sanitize_clean_core_result(CleanCoreAnalysisResult.model_validate(completion.output), package)
         domain_errors = validate_clean_core_result(result, package)
         if domain_errors:
             raise AIProviderError(f"Domain validation failed: {'; '.join(domain_errors)}")
@@ -1016,7 +1167,7 @@ def _clean_core_analysis_process_item(
             business_importance=None,
             business_importance_rationale="",
             business_importance_evidence_refs=[],
-            recommendation="REVIEW",
+            recommendation=None,
             recommendation_rationale="",
             recommendation_evidence_refs=[],
             confidence=None,
@@ -1041,7 +1192,7 @@ def _clean_core_analysis_process_item(
         business_importance=result.business_importance.value if result.business_importance else None,
         business_importance_rationale=result.business_importance_rationale,
         business_importance_evidence_refs=_resolve_evidence_refs(result.business_importance_evidence_refs, package),
-        recommendation=result.recommendation.value,
+        recommendation=result.recommendation.value if result.recommendation else None,
         recommendation_rationale=result.recommendation_rationale,
         recommendation_evidence_refs=_resolve_evidence_refs(result.recommendation_evidence_refs, package),
         confidence=result.confidence,
@@ -1051,6 +1202,30 @@ def _clean_core_analysis_process_item(
         prompt_version=prompt_version.version,
         error=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# executive_summary — wraps ai.executive_summary; one ExecutiveSummary row per assessment
+# (SPRINT-18 CAP-005), after clean_core_analysis so it summarizes the final classifications.
+# ---------------------------------------------------------------------------
+
+
+def _executive_summary_prepare(stage: StageRun, run: PipelineRun, session: Session) -> None:
+    key = f"exec-summary-{run.assessment_id}"
+    exists = session.scalar(
+        select(func.count()).select_from(WorkItem).where(WorkItem.stage_run_id == stage.id, WorkItem.item_key == key)
+    )
+    if not exists:
+        session.add(WorkItem(stage_run_id=stage.id, item_key=key, payload={"assessment_id": run.assessment_id}))
+        stage.total_items = (stage.total_items or 0) + 1
+    session.commit()
+
+
+def _executive_summary_process_item(item: WorkItem, stage: StageRun, run: PipelineRun, session: Session) -> None:
+    assessment = session.get(Assessment, run.assessment_id)
+    label = assessment.name if assessment is not None else f"Assessment #{run.assessment_id}"
+    # A FAILED summary is persisted by the generator itself (ADR-012), so it never raises here.
+    generate_executive_summary(session, run.assessment_id, label, get_provider(get_settings()), stage_run_id=stage.id)
 
 
 # ---------------------------------------------------------------------------
@@ -1173,8 +1348,14 @@ SOURCE_PROCESSING_STAGES: list[StageDefinition] = [
         process_item=_clean_core_analysis_process_item,
     ),
     StageDefinition(
-        key="embeddings",
+        key="executive_summary",
         depends_on=("clean_core_analysis",),
+        prepare=_executive_summary_prepare,
+        process_item=_executive_summary_process_item,
+    ),
+    StageDefinition(
+        key="embeddings",
+        depends_on=("executive_summary",),
         prepare=_embeddings_prepare,
         process_item=_embeddings_process_item,
     ),
@@ -1305,7 +1486,42 @@ EVIDENCE_IMPORT_STAGES: list[StageDefinition] = [
     ),
 ]
 
+# ---------------------------------------------------------------------------
+# ai_reprocessing (SPRINT-18 CAP-006) — only the AI stages of source_processing, re-run over the
+# run's (already parsed) source_scan_id: no rescan/reparse. Same stage functions; the first AI
+# stage simply has no upstream dependency inside this run.
+# ---------------------------------------------------------------------------
+
+_AI_STAGE_KEYS = (
+    "object_understanding",
+    "business_rule_discovery",
+    "application_discovery",
+    "clean_core_analysis",
+    "executive_summary",
+    "embeddings",
+)
+
+AI_REPROCESSING_STAGES: list[StageDefinition] = [
+    replace(s, depends_on=()) if s.key == _AI_STAGE_KEYS[0] else s
+    for s in SOURCE_PROCESSING_STAGES
+    if s.key in _AI_STAGE_KEYS
+]
+
+# ai_reprocessing_applications (SPRINT-18 CAP-007 follow-up) — starts at application_discovery,
+# reusing the already-completed object_understanding/business_rule_discovery of the base run.
+# Kept as a distinct, shorter stage key list rather than an `AI_REPROCESSING_STAGES` slice so a
+# resumed run's persisted StageRuns unambiguously belong to one stage set.
+_APPLICATION_STAGE_KEYS = _AI_STAGE_KEYS[2:]  # application_discovery -> embeddings
+
+APPLICATION_REPROCESSING_STAGES: list[StageDefinition] = [
+    replace(s, depends_on=()) if s.key == _APPLICATION_STAGE_KEYS[0] else s
+    for s in SOURCE_PROCESSING_STAGES
+    if s.key in _APPLICATION_STAGE_KEYS
+]
+
 STAGES_BY_KIND: dict[str, list[StageDefinition]] = {
     "source_processing": SOURCE_PROCESSING_STAGES,
     "evidence_import": EVIDENCE_IMPORT_STAGES,
+    "ai_reprocessing": AI_REPROCESSING_STAGES,
+    "ai_reprocessing_applications": APPLICATION_REPROCESSING_STAGES,
 }

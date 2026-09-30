@@ -266,3 +266,6 @@ coverage/
 
 # Pasta com os arquivos origem de clientes
 SAP_Files/
+
+# Local tooling state
+.serena/

@@ -1,5 +1,7 @@
 # Navigation Views
 
+> **Amendment 2026-09-29 (ADR-019, SPRINT-18):** Dashboard Geral is now the single results screen. Its KPIs, panels and chart segments drill down into full-page lists and full-page item details (all analysis per item). The sidebar results group is **Dashboard Geral** + **Resumo Executivo**; the four perspectives below no longer appear in navigation — their content is reused inside the drill-down detail pages. The perspective descriptions remain as content guidance.
+
 The Results area exposes one synthesis page plus four presentation perspectives. They are not access roles.
 
 ## Dashboard Geral

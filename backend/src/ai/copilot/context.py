@@ -12,35 +12,63 @@ Builds one bounded, citable `CopilotContext` per question by combining:
   retrieval" channel);
 - already-retrieved `SapKnowledgeReference` rows for the selection (the "MCP" channel) — read-only
   reuse via `ai.knowledge_service.list_guidance`; a chat question never itself triggers a new MCP
-  query (ADR-007 restricts that to an explicit finding/application detail view).
+  query (ADR-007 restricts that to an explicit finding/application detail view);
+- assessment catalog items (SPRINT-18 CAP-004): the Clean Core distribution, ATC counts, one item
+  per application with its classification/rationale/members, and — when `ai.copilot.intent`
+  detects the question is about objects or a category — the object list itself. Without these the
+  model only had aggregate counts and could not answer "which objects were classified as X?".
+
+Each source has its own budget so the catalog and the selection never crowd each other out.
 
 Every item carries a `ref_id` the model must cite in `evidence_refs`/`navigation_ref`
 (`ai.copilot.schema.validate_result` rejects anything not present here) and, where the item
 corresponds to a navigable entity, a `navigation` target reusing the same three kinds as
 `resultNav.ts::ResultFocus` (sap_object/business_rule/application).
+Summaries are pt-BR (the Copilot always answers in pt-BR, SPRINT-18 CAP-001).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ai.copilot.intent import RECOMMENDATION_LABELS, UNCLASSIFIED_LABEL, CopilotIntent, detect_intent
 from ai.embedding_provider import EmbeddingProvider, EmbeddingProviderError
 from ai.embeddings.search import semantic_search
 from ai.knowledge_service import list_guidance
 from persistence.models import (
     Application,
+    ApplicationStatus,
+    ATCFinding,
     BusinessRule,
+    CleanCoreAssessment,
     ObjectUnderstanding,
     ObjectUnderstandingStatus,
     SAPObject,
     SapKnowledgeTargetType,
+    SourceFile,
+    TechnicalFinding,
+    TechnicalFindingSeverity,
 )
-from pipeline.dashboard_summary import compute_dashboard_summary
+from pipeline.dashboard_summary import (
+    UNCLASSIFIED,
+    DashboardOverview,
+    compute_dashboard_overview,
+)
+from pipeline.status import get_current_scan
 
-_MAX_CONTEXT_ITEMS = 40
+# Per-source budgets (SPRINT-18 CAP-004) instead of one global cut that let a large selection
+# evict the catalog (or vice versa).
+_SELECTION_ITEMS_LIMIT = 30
 _SEMANTIC_HIT_LIMIT = 5
+_CRITICAL_FINDINGS_LIMIT = 5
+_APPLICATION_ITEMS_LIMIT = 40
+_APPLICATION_MEMBERS_SHOWN = 40
+_RATIONALE_CHARS = 600
+_OBJECT_CATALOG_FULL_LIMIT = 1500
+_OBJECT_CATALOG_GROUPED_NAMES = 15
+_TOP_ATC_CHECKS = 10
 
 _SEMANTIC_ENTITY_TO_FOCUS_KIND = {
     "SAP_OBJECT": "sap_object",
@@ -80,32 +108,244 @@ def build_context(
     question: str,
     embedding_provider: EmbeddingProvider,
 ) -> CopilotContext:
-    items: list[CopilotContextItem] = [_summary_item(session, assessment_id)]
+    items = build_assessment_catalog(session, assessment_id, detect_intent(question))
 
     if selection is not None:
-        items.extend(_selection_items(session, assessment_id, selection))
+        items.extend(_selection_items(session, assessment_id, selection)[:_SELECTION_ITEMS_LIMIT])
 
     if question.strip():
         items.extend(_semantic_items(session, assessment_id, question, embedding_provider))
 
-    return CopilotContext(
-        assessment_id=assessment_id, view=view, selection=selection, items=items[:_MAX_CONTEXT_ITEMS]
-    )
+    # The same evidence ref can be inherited from several persisted AI outputs — keep the first.
+    unique: dict[str, CopilotContextItem] = {}
+    for item in items:
+        unique.setdefault(item.ref_id, item)
+    return CopilotContext(assessment_id=assessment_id, view=view, selection=selection, items=list(unique.values()))
 
 
-def _summary_item(session: Session, assessment_id: int) -> CopilotContextItem:
-    summary = compute_dashboard_summary(session, assessment_id)
+def build_assessment_catalog(
+    session: Session, assessment_id: int, intent: CopilotIntent | None = None
+) -> list[CopilotContextItem]:
+    """Assessment-wide citable items (summary, catalog, critical findings sample). Also the
+    evidence package of `ai.executive_summary` (intent=None: every application, no object list),
+    so the Copilot and the Executive Summary cite the very same ref_ids/definitions."""
+    intent = intent or CopilotIntent()
+    overview = compute_dashboard_overview(session, assessment_id)
+    items: list[CopilotContextItem] = [_summary_item(overview)]
+    items.extend(_catalog_items(session, assessment_id, overview, intent))
+    items.extend(_critical_findings_items(session, assessment_id))
+    return items
+
+
+def _summary_item(overview: DashboardOverview) -> CopilotContextItem:
+    summary = overview.summary
     return CopilotContextItem(
         ref_id="SUMMARY-1",
         source_type="STRUCTURED_SUMMARY",
         entity_id=None,
         summary=(
-            f"{summary.objects_analyzed} objects analyzed, {summary.customizations_identified} custom "
-            f"applications identified, {summary.critical_findings} critical ATC findings, "
-            f"{summary.high_impact_objects} high-impact objects, {summary.business_rules_identified} "
-            f"candidate business rules. Results stale (needs reprocessing): {summary.is_stale}."
+            f"{summary.objects_analyzed} objetos analisados ({overview.objects_custom} customizados Z/Y), "
+            f"{summary.customizations_identified} aplicações customizadas identificadas, "
+            f"{summary.critical_findings} findings ATC críticos (prioridade 1), "
+            f"{summary.high_impact_objects} objetos de alto impacto, {summary.business_rules_identified} "
+            f"regras de negócio candidatas. Resultados desatualizados (requer reprocessamento): "
+            f"{'sim' if summary.is_stale else 'não'}."
         ),
     )
+
+
+def _recommendation_label(recommendation: str | None) -> str:
+    if not recommendation or recommendation == UNCLASSIFIED:
+        return UNCLASSIFIED_LABEL
+    return RECOMMENDATION_LABELS.get(recommendation, recommendation)
+
+
+def _application_label(app: Application) -> str:
+    return app.name or f"Aplicação #{app.id} (sem nome)"
+
+
+def _catalog_items(
+    session: Session, assessment_id: int, overview: DashboardOverview, intent: CopilotIntent
+) -> list[CopilotContextItem]:
+    items = [_distribution_item(overview)]
+    if overview.atc_run_id is not None:
+        items.append(_atc_catalog_item(session, overview))
+    items.extend(_application_catalog_items(session, assessment_id, intent))
+    if intent.wants_objects or intent.categories or intent.wants_unclassified:
+        item = _object_catalog_item(session, assessment_id, intent)
+        if item is not None:
+            items.append(item)
+    return items
+
+
+def _distribution_item(overview: DashboardOverview) -> CopilotContextItem:
+    def fmt(counts: dict[str, int]) -> str:
+        parts = [f"{_recommendation_label(k)}: {v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])]
+        return ", ".join(parts) or "nenhum"
+
+    return CopilotContextItem(
+        ref_id="CATALOG-CC-DIST",
+        source_type="CLEAN_CORE_DISTRIBUTION",
+        entity_id=None,
+        summary=(
+            "Distribuição da classificação Clean Core (cada objeto herda a classificação da sua aplicação). "
+            f"Objetos — {fmt(overview.clean_core_objects)}. Aplicações — {fmt(overview.clean_core_applications)}."
+        ),
+    )
+
+
+def _atc_catalog_item(session: Session, overview: DashboardOverview) -> CopilotContextItem:
+    top_checks = session.execute(
+        select(ATCFinding.check_title, func.count(ATCFinding.id))
+        .where(ATCFinding.atc_run_id == overview.atc_run_id)
+        .group_by(ATCFinding.check_title)
+        .order_by(func.count(ATCFinding.id).desc())
+        .limit(_TOP_ATC_CHECKS)
+    ).all()
+    correlated = session.scalar(
+        select(func.count(ATCFinding.id)).where(
+            ATCFinding.atc_run_id == overview.atc_run_id, ATCFinding.correlated_object_id.is_not(None)
+        )
+    )
+    by_priority = ", ".join(
+        f"{'sem prioridade' if p == 'none' else f'P{p}'}: {c}" for p, c in sorted(overview.atc_by_priority.items())
+    )
+    checks = "; ".join(f"{title or 'Finding ATC'} ({count})" for title, count in top_checks)
+    return CopilotContextItem(
+        ref_id="CATALOG-ATC",
+        source_type="ATC_SUMMARY",
+        entity_id=overview.atc_run_id,
+        summary=(
+            f"Importação ATC atual: {overview.atc_total} findings ({by_priority}); {correlated} correlacionados "
+            f"a objetos do código-fonte analisado. Checks mais frequentes: {checks}."
+        ),
+    )
+
+
+def _application_catalog_items(session: Session, assessment_id: int, intent: CopilotIntent) -> list[CopilotContextItem]:
+    rows = session.execute(
+        select(Application, CleanCoreAssessment)
+        .outerjoin(CleanCoreAssessment, CleanCoreAssessment.application_id == Application.id)
+        .where(Application.assessment_id == assessment_id, Application.status != ApplicationStatus.MERGED.value)
+        .order_by(Application.id)
+    ).all()
+    if intent.categories or intent.wants_unclassified:
+        # A category question gets exactly that category's applications (never truncated away).
+        rows = [
+            (app, cc)
+            for app, cc in rows
+            if (cc is not None and cc.recommendation in intent.categories)
+            or (intent.wants_unclassified and (cc is None or cc.recommendation is None))
+        ]
+    rows = rows[:_APPLICATION_ITEMS_LIMIT]
+
+    members_by_app: dict[int, list[str]] = {}
+    if rows:
+        for app_id, name in session.execute(
+            select(SAPObject.application_id, SAPObject.object_name)
+            .where(SAPObject.application_id.in_([app.id for app, _ in rows]))
+            .order_by(SAPObject.object_name)
+        ):
+            members_by_app.setdefault(app_id, []).append(name)
+
+    items: list[CopilotContextItem] = []
+    for app, cc in rows:
+        members = members_by_app.get(app.id, [])
+        shown = ", ".join(members[:_APPLICATION_MEMBERS_SHOWN])
+        if len(members) > _APPLICATION_MEMBERS_SHOWN:
+            shown += f" … (+{len(members) - _APPLICATION_MEMBERS_SHOWN})"
+        if cc is not None:
+            classification = (
+                f"Classificação Clean Core: {_recommendation_label(cc.recommendation)}. "
+                f"Risco técnico: {cc.technical_risk or 'n/d'}. Importância de negócio: {cc.business_importance or 'n/d'}. "
+                f"Justificativa: {(cc.recommendation_rationale or '(sem justificativa)')[:_RATIONALE_CHARS]}"
+            )
+        else:
+            classification = f"Classificação Clean Core: {UNCLASSIFIED_LABEL} (ainda não analisada)."
+        items.append(
+            CopilotContextItem(
+                ref_id=f"CATALOG-CC-{app.id}",
+                source_type="APPLICATION_CLEAN_CORE",
+                entity_id=app.id,
+                summary=f"Aplicação '{_application_label(app)}' ({len(members)} objetos: {shown}). {classification}",
+                navigation=CopilotSelection(kind="application", id=app.id),
+            )
+        )
+    return items
+
+
+def _object_catalog_item(session: Session, assessment_id: int, intent: CopilotIntent) -> CopilotContextItem | None:
+    scan = get_current_scan(session, assessment_id)
+    if scan is None:
+        return None
+    rows = session.execute(
+        select(SAPObject.object_name, SAPObject.object_type, Application, CleanCoreAssessment.recommendation)
+        .join(SourceFile, SAPObject.source_file_id == SourceFile.id)
+        .outerjoin(Application, Application.id == SAPObject.application_id)
+        .outerjoin(CleanCoreAssessment, CleanCoreAssessment.application_id == SAPObject.application_id)
+        .where(SourceFile.scan_id == scan.id)
+        .order_by(SAPObject.object_name)
+    ).all()
+    if intent.categories or intent.wants_unclassified:
+        rows = [r for r in rows if r[3] in intent.categories or (intent.wants_unclassified and r[3] is None)]
+        scope = ", ".join(
+            [_recommendation_label(c) for c in sorted(intent.categories)]
+            + ([UNCLASSIFIED_LABEL] if intent.wants_unclassified else [])
+        )
+        header = f"Objetos classificados como {scope}: {len(rows)}."
+    else:
+        header = f"Todos os objetos analisados: {len(rows)}."
+
+    def app_label(app: Application | None) -> str:
+        return _application_label(app) if app is not None else "sem aplicação"
+
+    if len(rows) <= _OBJECT_CATALOG_FULL_LIMIT:
+        body = " | ".join(
+            f"{name} ({otype}; {app_label(app)}; {_recommendation_label(rec)})" for name, otype, app, rec in rows
+        )
+    else:
+        grouped: dict[str, list[str]] = {}
+        for name, _otype, app, rec in rows:
+            grouped.setdefault(f"{app_label(app)} — {_recommendation_label(rec)}", []).append(name)
+        body = " | ".join(
+            f"{key}: {len(names)} objetos (ex.: {', '.join(names[:_OBJECT_CATALOG_GROUPED_NAMES])})"
+            for key, names in sorted(grouped.items(), key=lambda kv: -len(kv[1]))
+        )
+    return CopilotContextItem(
+        ref_id="CATALOG-OBJECTS",
+        source_type="OBJECT_CATALOG",
+        entity_id=None,
+        summary=f"{header} Formato: nome (tipo; aplicação; classificação Clean Core). {body or '(nenhum)'}",
+    )
+
+
+def _critical_findings_items(session: Session, assessment_id: int) -> list[CopilotContextItem]:
+    """A bounded sample of real HIGH-severity TechnicalFinding rows, always available for
+    citation — before this, the only findings signal in context was `_summary_item`'s aggregate
+    count, so a question like "give me an example of a critical finding" had nothing concrete to
+    cite and the model correctly refused rather than fabricate one. Bounded (not all findings,
+    which can be in the thousands for a real ATC import) per Baseline core rule 10."""
+    findings = list(
+        session.scalars(
+            select(TechnicalFinding)
+            .where(
+                TechnicalFinding.assessment_id == assessment_id,
+                TechnicalFinding.severity == TechnicalFindingSeverity.HIGH.value,
+            )
+            .order_by(TechnicalFinding.id.desc())
+            .limit(_CRITICAL_FINDINGS_LIMIT)
+        )
+    )
+    return [
+        CopilotContextItem(
+            ref_id=f"FINDING-{f.id}",
+            source_type="TECHNICAL_FINDING",
+            entity_id=f.id,
+            summary=f"[{f.severity}/{f.source}] {f.title}",
+            navigation=CopilotSelection(kind="sap_object", id=f.sap_object_id) if f.sap_object_id else None,
+        )
+        for f in findings
+    ]
 
 
 def _resolved_evidence_items(evidence_refs: list[dict]) -> list[CopilotContextItem]:
@@ -120,7 +360,7 @@ def _resolved_evidence_items(evidence_refs: list[dict]) -> list[CopilotContextIt
                 ref_id=ref_id,
                 source_type=source_type,
                 entity_id=ref.get("entity_id"),
-                summary=f"Evidence already cited by prior AI analysis ({source_type}).",
+                summary=f"Evidência já citada por uma análise de IA anterior ({source_type}).",
             )
         )
     return items
@@ -159,7 +399,7 @@ def _sap_object_selection_items(session: Session, assessment_id: int, object_id:
             ref_id="SEL-1",
             source_type="SAP_OBJECT",
             entity_id=obj.id,
-            summary=f"{obj.object_type} {obj.object_name}: {obj.description or '(no description)'}",
+            summary=f"{obj.object_type} {obj.object_name}: {obj.description or '(sem descrição)'}",
             navigation=CopilotSelection(kind="sap_object", id=obj.id),
         )
     ]
@@ -173,7 +413,7 @@ def _sap_object_selection_items(session: Session, assessment_id: int, object_id:
                 ref_id="SEL-1-UNDERSTANDING",
                 source_type="OBJECT_UNDERSTANDING",
                 entity_id=obj.id,
-                summary=f"Functional purpose: {understanding.functional_purpose} Technical purpose: {understanding.technical_purpose}",
+                summary=f"Propósito funcional: {understanding.functional_purpose} Propósito técnico: {understanding.technical_purpose}",
             )
         )
         items.extend(_resolved_evidence_items(understanding.evidence_refs))
@@ -191,7 +431,7 @@ def _business_rule_selection_items(session: Session, assessment_id: int, rule_id
             ref_id="SEL-1",
             source_type="BUSINESS_RULE",
             entity_id=rule.id,
-            summary=f"{rule.rule_type} rule: IF {rule.condition} THEN {rule.action} (confidence {rule.confidence:.2f}).",
+            summary=f"Regra {rule.rule_type}: SE {rule.condition} ENTÃO {rule.action} (confiança {rule.confidence:.2f}).",
             navigation=CopilotSelection(kind="business_rule", id=rule.id),
         )
     ]
@@ -210,7 +450,7 @@ def _application_selection_items(session: Session, assessment_id: int, applicati
             ref_id="SEL-1",
             source_type="APPLICATION",
             entity_id=app.id,
-            summary=f"Application '{app.name}': {app.description or '(no description)'}",
+            summary=f"Aplicação '{_application_label(app)}': {app.description or '(sem descrição)'}",
             navigation=CopilotSelection(kind="application", id=app.id),
         )
     ]
@@ -224,8 +464,8 @@ def _application_selection_items(session: Session, assessment_id: int, applicati
                 source_type="CLEAN_CORE_ASSESSMENT",
                 entity_id=cc.id,
                 summary=(
-                    f"Technical risk: {cc.technical_risk or 'n/a'}. Business importance: "
-                    f"{cc.business_importance or 'n/a'}. Recommendation: {cc.recommendation} — "
+                    f"Risco técnico: {cc.technical_risk or 'n/d'}. Importância de negócio: "
+                    f"{cc.business_importance or 'n/d'}. Classificação: {_recommendation_label(cc.recommendation)} — "
                     f"{cc.recommendation_rationale}"
                 ),
             )

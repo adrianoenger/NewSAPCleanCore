@@ -7,6 +7,7 @@ entry directly.
 from __future__ import annotations
 
 from ai.business_rule_discovery.schema import BusinessRuleDiscoveryResult
+from ai.language import PT_BR_OUTPUT_RULE
 from ai.registry import PromptSchemaVersion, register
 
 CAPABILITY = "business_rule_discovery"
@@ -37,6 +38,18 @@ register(
         capability=CAPABILITY,
         version="v1",
         system_prompt=_SYSTEM_PROMPT_V1,
+        json_schema=BusinessRuleDiscoveryResult.model_json_schema(),
+        schema_name="business_rule_discovery_result",
+    )
+)
+
+_SYSTEM_PROMPT_V2 = _SYSTEM_PROMPT_V1 + PT_BR_OUTPUT_RULE
+
+register(
+    PromptSchemaVersion(
+        capability=CAPABILITY,
+        version="v2",
+        system_prompt=_SYSTEM_PROMPT_V2,
         json_schema=BusinessRuleDiscoveryResult.model_json_schema(),
         schema_name="business_rule_discovery_result",
     )

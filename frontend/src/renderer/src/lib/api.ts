@@ -369,6 +369,7 @@ export interface StageRunRecord {
 export interface PipelineRunRecord {
   id: number
   assessment_id: number
+  kind: 'source_processing' | 'evidence_import' | 'ai_reprocessing' | 'ai_reprocessing_applications'
   source_path: string
   source_scan_id: number | null
   status: 'pending' | 'running' | 'paused' | 'completed' | 'failed'
@@ -421,6 +422,17 @@ async function apiOrDetail<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return response.json() as Promise<T>
 }
+
+/**
+ * SPRINT-18 CAP-006/CAP-007: re-run only the AI stages over the already-parsed current scan.
+ * `fromStage: 'application_discovery'` skips object_understanding/business_rule_discovery,
+ * reusing their already-persisted results — starts at application clustering instead.
+ */
+export const reprocessAI = (
+  assessmentId: number,
+  fromStage: 'object_understanding' | 'application_discovery' = 'object_understanding'
+): Promise<PipelineRunRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/pipeline-runs/reprocess-ai?from_stage=${fromStage}`, { method: 'POST' })
 
 export const startPipelineRun = (
   assessmentId: number,
@@ -689,7 +701,15 @@ export interface CleanCoreAssessmentRecord {
   business_importance_rationale: string
   business_importance_evidence_refs: ApplicationEvidenceRef[]
   business_importance_uses_process_usage_evidence: boolean
-  recommendation: 'RETAIN' | 'REMEDIATE' | 'REPLATFORM' | 'RETIRE' | 'REVIEW'
+  recommendation:
+    | 'MODERNIZAR'
+    | 'MANTER_AS_IS'
+    | 'REMEDIAR'
+    | 'DESCONTINUAR'
+    | 'REIMPLEMENTAR_EXTENSAO'
+    | 'SUBSTITUIR_STANDARD'
+    | 'ATUALIZAR_OSS'
+    | null
   recommendation_rationale: string
   recommendation_evidence_refs: ApplicationEvidenceRef[]
   confidence: number | null
@@ -872,6 +892,109 @@ export interface DashboardSummaryRecord {
 export const fetchDashboardSummary = (assessmentId: number): Promise<DashboardSummaryRecord> =>
   api(`/assessments/${assessmentId}/dashboard-summary`)
 
+// ---------------------------------------------------------------------------
+// Dashboard overview + drill-down lists (SPRINT-18 CAP-003, ADR-019)
+// ---------------------------------------------------------------------------
+
+export interface DashboardOverviewRecord {
+  summary: DashboardSummaryRecord
+  objects_total: number
+  objects_custom: number
+  objects_by_type: Record<string, number>
+  atc_run_id: number | null
+  atc_total: number
+  atc_by_priority: Record<string, number>
+  objects_classified: number
+  clean_core_objects: Record<string, number>
+  clean_core_applications: Record<string, number>
+}
+
+export const fetchDashboardOverview = (assessmentId: number): Promise<DashboardOverviewRecord> =>
+  api(`/assessments/${assessmentId}/dashboard-overview`)
+
+export interface ObjectListItemRecord {
+  id: number
+  object_type: string
+  object_name: string
+  description: string
+  is_custom: boolean
+  application_id: number | null
+  application_name: string | null
+  recommendation: string | null
+  technical_risk: string | null
+  atc_findings: number
+}
+
+export interface ObjectListFilter {
+  object_type?: string
+  recommendation?: string
+  custom_only?: boolean
+  high_impact?: boolean
+  application_id?: number
+}
+
+function toQuery(params: Record<string, string | number | boolean | undefined | null>): string {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '' || value === false) continue
+    qs.set(key, String(value))
+  }
+  const str = qs.toString()
+  return str ? `?${str}` : ''
+}
+
+export const fetchObjectList = (
+  assessmentId: number,
+  filter: ObjectListFilter & { q?: string; limit?: number; offset?: number },
+): Promise<{ items: ObjectListItemRecord[]; total: number }> =>
+  api(`/assessments/${assessmentId}/object-list${toQuery({ ...filter })}`)
+
+export interface ATCFindingListItemRecord {
+  id: number
+  priority: number | null
+  check_title: string | null
+  check_message: string | null
+  object_name_raw: string | null
+  object_type_raw: string | null
+  package_name_raw: string | null
+  correlated_object_id: number | null
+}
+
+export interface ATCFindingDetailRecord extends ATCFindingListItemRecord {
+  atc_run_id: number
+  source_row_number: number
+  exemption_state: string | null
+  contact_person: string | null
+  first_found_on: string | null
+  object_responsible: string | null
+  last_changed_by: string | null
+  sap_note_number: string | null
+  sap_note_short_text: string | null
+  referenced_application_component: string | null
+  referenced_object_type: string | null
+  referenced_object_name: string | null
+  additional_info: string | null
+  simplification_item_category: string | null
+  change_category: string | null
+  change_category_description: string | null
+  remarks: string | null
+  correlation_status: string | null
+}
+
+export interface ATCFindingListFilter {
+  priority?: number
+  object_id?: number
+}
+
+export const fetchCurrentATCFindings = (
+  assessmentId: number,
+  filter: ATCFindingListFilter & { q?: string; limit?: number; offset?: number },
+): Promise<{ atc_run_id: number | null; items: ATCFindingListItemRecord[]; total: number }> =>
+  api(`/assessments/${assessmentId}/atc-findings${toQuery({ ...filter })}`)
+
+export const fetchATCFinding = (assessmentId: number, findingId: number): Promise<ATCFindingDetailRecord> =>
+  api(`/assessments/${assessmentId}/atc-findings/${findingId}`)
+
 export const fetchSemanticSearch = (
   assessmentId: number,
   query: string,
@@ -915,3 +1038,31 @@ export const askCopilot = (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+
+// ---------------------------------------------------------------------------
+// SPRINT-18 CAP-005: Executive Summary
+// ---------------------------------------------------------------------------
+
+export interface ExecutiveSummaryRecord {
+  assessment_id: number
+  status: 'COMPLETED' | 'INSUFFICIENT_CONTEXT' | 'FAILED'
+  markdown: string
+  evidence_refs: { ref_id: string; source_type: string; entity_id: number | null }[]
+  provider: string | null
+  model_id: string | null
+  prompt_version: string | null
+  error: string | null
+  stage_run_id: number | null
+  generated_at: string
+}
+
+/** `null` when the summary was never generated (the backend answers 404). */
+export const fetchExecutiveSummary = async (assessmentId: number): Promise<ExecutiveSummaryRecord | null> => {
+  const response = await fetch(`${BACKEND_URL}/assessments/${assessmentId}/executive-summary`)
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`API executive-summary → ${response.status}`)
+  return response.json() as Promise<ExecutiveSummaryRecord>
+}
+
+export const regenerateExecutiveSummary = (assessmentId: number): Promise<ExecutiveSummaryRecord> =>
+  apiOrDetail(`/assessments/${assessmentId}/executive-summary/regenerate`, { method: 'POST' })

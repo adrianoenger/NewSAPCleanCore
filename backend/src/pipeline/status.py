@@ -16,7 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from persistence.models import PipelineRun, ScanStatus, SourceScan, StageRun
+from persistence.models import PipelineRun, PipelineRunKind, ScanStatus, SourceScan, StageRun
 
 _PROCESSING_STAGES = ("parse", "detect_dependencies")
 
@@ -47,7 +47,13 @@ def get_current_scan(session: Session, assessment_id: int) -> SourceScan | None:
 def _latest_run_for_scan(session: Session, assessment_id: int, scan_id: int) -> PipelineRun | None:
     return session.scalars(
         select(PipelineRun)
-        .where(PipelineRun.assessment_id == assessment_id, PipelineRun.source_scan_id == scan_id)
+        .where(
+            PipelineRun.assessment_id == assessment_id,
+            PipelineRun.source_scan_id == scan_id,
+            # An ai_reprocessing run (SPRINT-18) reuses the scan without parsing it — it never
+            # decides whether the scan itself is processed.
+            PipelineRun.kind == PipelineRunKind.SOURCE_PROCESSING.value,
+        )
         .order_by(PipelineRun.id.desc())
     ).first()
 

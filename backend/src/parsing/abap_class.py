@@ -5,7 +5,7 @@ from parsing.models import ParsedObject
 _CLASS_DEF = re.compile(r"^\s*CLASS\s+(\w+)\s+DEFINITION", re.IGNORECASE)
 _CLASS_IMPL = re.compile(r"^\s*CLASS\s+(\w+)\s+IMPLEMENTATION", re.IGNORECASE)
 _ENDCLASS = re.compile(r"^\s*ENDCLASS\s*\.", re.IGNORECASE)
-_METHOD_DEF = re.compile(r"^\s*METHODS?\s*:\s*(\w+)", re.IGNORECASE)
+_METHOD_DEF = re.compile(r"^\s*METHODS?\s*:?\s*(\w+)", re.IGNORECASE)
 _INHERITING = re.compile(r"INHERITING\s+FROM\s+(\w+)", re.IGNORECASE)
 _SUPERCLASS = re.compile(r"INHERITING\s+FROM\s+(\w+)", re.IGNORECASE)
 

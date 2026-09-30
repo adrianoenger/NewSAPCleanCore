@@ -7,6 +7,7 @@ entry directly.
 from __future__ import annotations
 
 from ai.application_discovery.schema import ApplicationDiscoveryResult
+from ai.language import PT_BR_OUTPUT_RULE
 from ai.registry import PromptSchemaVersion, register
 
 CAPABILITY = "application_discovery"
@@ -33,6 +34,18 @@ register(
         capability=CAPABILITY,
         version="v1",
         system_prompt=_SYSTEM_PROMPT_V1,
+        json_schema=ApplicationDiscoveryResult.model_json_schema(),
+        schema_name="application_discovery_result",
+    )
+)
+
+_SYSTEM_PROMPT_V2 = _SYSTEM_PROMPT_V1.replace('(e.g. "Order Management", "Pricing")', '(e.g. "Gestão de Pedidos", "Precificação")') + PT_BR_OUTPUT_RULE
+
+register(
+    PromptSchemaVersion(
+        capability=CAPABILITY,
+        version="v2",
+        system_prompt=_SYSTEM_PROMPT_V2,
         json_schema=ApplicationDiscoveryResult.model_json_schema(),
         schema_name="application_discovery_result",
     )

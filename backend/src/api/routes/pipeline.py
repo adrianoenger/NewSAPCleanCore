@@ -1,7 +1,9 @@
 """API routes for durable pipeline execution (SPRINT-06 / ADR-005)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path
+from typing import Literal
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,7 +18,7 @@ from api.schemas.pipeline import (
     WorkItemsResponse,
 )
 from persistence.database import get_session
-from persistence.models import Assessment, PipelineRun, StageRun, WorkItem
+from persistence.models import Assessment, PipelineRun, PipelineRunKind, StageRun, WorkItem
 from pipeline.engine import create_pipeline_run, run_pipeline
 from pipeline.status import compute_processing_status
 from settings import get_settings
@@ -24,6 +26,13 @@ from settings import get_settings
 router = APIRouter(prefix="/assessments/{assessment_id}/pipeline-runs", tags=["pipeline"])
 
 _RESUMABLE_STATUSES = ("pending", "paused", "failed")
+# Both kinds only re-run AI stages over an already-parsed scan; either counts as "AI-only" for
+# the "is a full run already running" guard and never blocks/gets blocked by the other.
+_AI_ONLY_KINDS = (PipelineRunKind.AI_REPROCESSING.value, PipelineRunKind.AI_REPROCESSING_APPLICATIONS.value)
+_FROM_STAGE_TO_KIND = {
+    "object_understanding": PipelineRunKind.AI_REPROCESSING.value,
+    "application_discovery": PipelineRunKind.AI_REPROCESSING_APPLICATIONS.value,
+}
 
 
 def _require_assessment(assessment_id: int, session: Session) -> Assessment:
@@ -42,6 +51,7 @@ def _to_record(run: PipelineRun, session: Session) -> PipelineRunRecord:
     return PipelineRunRecord(
         id=run.id,
         assessment_id=run.assessment_id,
+        kind=run.kind,
         source_path=run.source_path,
         source_scan_id=run.source_scan_id,
         status=run.status,
@@ -76,12 +86,70 @@ def start_pipeline_run(
     existing = session.scalars(
         select(PipelineRun).where(
             PipelineRun.assessment_id == assessment_id,
+            PipelineRun.kind == PipelineRunKind.SOURCE_PROCESSING.value,
             PipelineRun.source_path == validated_str,
             PipelineRun.status.in_(["pending", "running", "paused", "failed"]),
         )
     ).first()
 
     run = existing if existing is not None else create_pipeline_run(session, assessment_id, validated_str)
+
+    if run.status != "running":
+        background_tasks.add_task(run_pipeline, run.id, settings.database_url)
+
+    return _to_record(run, session)
+
+
+@router.post("/reprocess-ai", response_model=PipelineRunRecord, status_code=201)
+def reprocess_ai(
+    assessment_id: int,
+    background_tasks: BackgroundTasks,
+    from_stage: Literal["object_understanding", "application_discovery"] = Query("object_understanding"),
+    session: Session = Depends(get_session),
+) -> PipelineRunRecord:
+    """SPRINT-18 CAP-006/CAP-007: re-run only the AI stages over the scan of the latest completed
+    full run (no rescan/reparse). `from_stage=application_discovery` skips object_understanding
+    and business_rule_discovery too, reusing their already-persisted results — useful when only
+    the clustering/Clean Core/summary stages need to regenerate. An unfinished run of the same
+    kind is resumed instead of duplicated."""
+    _require_assessment(assessment_id, session)
+    settings = get_settings()
+    kind = _FROM_STAGE_TO_KIND[from_stage]
+
+    running = session.scalars(
+        select(PipelineRun).where(
+            PipelineRun.assessment_id == assessment_id,
+            PipelineRun.kind.not_in(_AI_ONLY_KINDS),
+            PipelineRun.status == "running",
+        )
+    ).first()
+    if running is not None:
+        raise HTTPException(status_code=409, detail="Há um processamento em execução para este assessment")
+
+    base = session.scalars(
+        select(PipelineRun)
+        .where(
+            PipelineRun.assessment_id == assessment_id,
+            PipelineRun.kind == PipelineRunKind.SOURCE_PROCESSING.value,
+            PipelineRun.status == "completed",
+            PipelineRun.source_scan_id.is_not(None),
+        )
+        .order_by(PipelineRun.id.desc())
+    ).first()
+    if base is None:
+        raise HTTPException(status_code=409, detail="Nenhum processamento completo para reaproveitar — execute o processamento primeiro")
+
+    run = session.scalars(
+        select(PipelineRun).where(
+            PipelineRun.assessment_id == assessment_id,
+            PipelineRun.kind == kind,
+            PipelineRun.status.in_(["pending", "running", "paused", "failed"]),
+        )
+    ).first()
+    if run is None:
+        run = create_pipeline_run(session, assessment_id, base.source_path, kind=kind)
+        run.source_scan_id = base.source_scan_id
+        session.commit()
 
     if run.status != "running":
         background_tasks.add_task(run_pipeline, run.id, settings.database_url)

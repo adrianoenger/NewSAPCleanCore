@@ -19,11 +19,12 @@ rather than forced conclusions" intent. Each dimension is now independently null
   guidance is allowed for business_importance) is required;
 - whenever it is left `None`, its rationale/evidence_refs must be empty — never assert without
   determining;
-- `recommendation` is always required. A non-`REVIEW` recommendation requires its own rationale +
-  evidence; `REVIEW` — the explicit fallback — requires only a rationale explaining why (evidence
-  may be empty), and is the only valid value when the model could determine neither dimension;
-- `status=COMPLETED` iff at least one dimension was determined or the recommendation is not
-  `REVIEW`; `status=INSUFFICIENT_CONTEXT` iff nothing at all could be determined.
+- `recommendation` (ADR-018, 7 categories) is independently nullable too: when set it requires
+  its own rationale + at least one evidence ref from any pool; when left `None` (the analysis
+  could not reach a confident classification — there is no fallback category) its evidence_refs
+  must be empty, while a rationale explaining why is allowed;
+- `status=COMPLETED` iff at least one of the three was determined; `status=INSUFFICIENT_CONTEXT`
+  iff nothing at all could be determined.
 """
 from __future__ import annotations
 
@@ -54,11 +55,13 @@ class ImportanceLevel(str, Enum):
 
 
 class CleanCoreRecommendation(str, Enum):
-    RETAIN = "RETAIN"
-    REMEDIATE = "REMEDIATE"
-    REPLATFORM = "REPLATFORM"
-    RETIRE = "RETIRE"
-    REVIEW = "REVIEW"
+    MODERNIZAR = "MODERNIZAR"
+    MANTER_AS_IS = "MANTER_AS_IS"
+    REMEDIAR = "REMEDIAR"
+    DESCONTINUAR = "DESCONTINUAR"
+    REIMPLEMENTAR_EXTENSAO = "REIMPLEMENTAR_EXTENSAO"
+    SUBSTITUIR_STANDARD = "SUBSTITUIR_STANDARD"
+    ATUALIZAR_OSS = "ATUALIZAR_OSS"
 
 
 class CleanCoreAnalysisResult(BaseModel):
@@ -77,12 +80,66 @@ class CleanCoreAnalysisResult(BaseModel):
     business_importance_evidence_refs: list[str] = Field(
         default_factory=list, description="ref_id values from the business evidence pool only."
     )
-    recommendation: CleanCoreRecommendation
+    recommendation: CleanCoreRecommendation | None = Field(
+        default=None, description="Null if no confident Clean Core classification is warranted — never guess."
+    )
     recommendation_rationale: str = Field(default="")
     recommendation_evidence_refs: list[str] = Field(
         default_factory=list, description="ref_id values from any pool (technical, business or SAP guidance)."
     )
     confidence: float = Field(ge=0.0, le=1.0)
+
+
+def sanitize_result(result: CleanCoreAnalysisResult, package: CleanCoreEvidencePackage) -> CleanCoreAnalysisResult:
+    """Drop refs cited outside each dimension's allowed pool (SPRINT-18, mirrors the Copilot), and
+    drop a leftover rationale/refs the model attached to a dimension it itself left null.
+
+    A dimension whose evidence refs are all dropped loses its value and rationale instead of
+    failing the whole analysis — nothing is ever asserted without in-pool evidence, but one
+    misplaced ref (e.g. a DEP-* cited for business importance) no longer discards a valid
+    technical risk/recommendation. `status` is re-derived; `validate_result` still runs after.
+
+    Rodobens 1075 (105 real applications) showed the model routinely writes a short explanation
+    for *why* technical_risk/business_importance is null even though the prompt says to leave the
+    rationale empty in that case (~30% of applications, e.g. "não há evidência suficiente de
+    processo/negócio para este módulo") — a real, harmless (non-asserting) text the strict
+    validator was rejecting as a domain violation. It is dropped here rather than failing the
+    whole analysis; `recommendation`'s rationale is explicitly allowed to stay when null (ADR-018
+    docstring above), so only its evidence_refs are cleared.
+    """
+    technical = {item.ref_id for item in package.technical_items}
+    business = {item.ref_id for item in package.business_items} | {item.ref_id for item in package.guidance_items}
+    every = technical | business
+
+    def keep(refs: list[str], allowed: set[str]) -> list[str]:
+        return [ref for ref in dict.fromkeys(refs) if ref in allowed]
+
+    update: dict = {
+        "technical_risk_evidence_refs": keep(result.technical_risk_evidence_refs, technical),
+        "business_importance_evidence_refs": keep(result.business_importance_evidence_refs, business),
+        "recommendation_evidence_refs": keep(result.recommendation_evidence_refs, every),
+    }
+    if result.technical_risk is not None and not update["technical_risk_evidence_refs"]:
+        update |= {"technical_risk": None, "technical_risk_rationale": ""}
+    if result.business_importance is not None and not update["business_importance_evidence_refs"]:
+        update |= {"business_importance": None, "business_importance_rationale": ""}
+    if result.technical_risk is None and (result.technical_risk_rationale.strip() or update["technical_risk_evidence_refs"]):
+        update |= {"technical_risk_rationale": "", "technical_risk_evidence_refs": []}
+    if result.business_importance is None and (
+        result.business_importance_rationale.strip() or update["business_importance_evidence_refs"]
+    ):
+        update |= {"business_importance_rationale": "", "business_importance_evidence_refs": []}
+    if result.recommendation is None and update["recommendation_evidence_refs"]:
+        update |= {"recommendation_evidence_refs": []}
+    if result.recommendation is not None and not update["recommendation_evidence_refs"]:
+        update |= {"recommendation": None}
+    sanitized = result.model_copy(update=update)
+    determined = any(
+        v is not None for v in (sanitized.technical_risk, sanitized.business_importance, sanitized.recommendation)
+    )
+    return sanitized.model_copy(
+        update={"status": CleanCoreAnalysisStatus.COMPLETED if determined else CleanCoreAnalysisStatus.INSUFFICIENT_CONTEXT}
+    )
 
 
 def validate_result(result: CleanCoreAnalysisResult, package: CleanCoreEvidencePackage) -> list[str]:
@@ -126,17 +183,19 @@ def validate_result(result: CleanCoreAnalysisResult, package: CleanCoreEvidenceP
     elif result.business_importance_rationale.strip() or result.business_importance_evidence_refs:
         errors.append("business_importance_rationale/business_importance_evidence_refs must be empty when business_importance is null")
 
-    # recommendation is always required; REVIEW is the fallback when a confident non-REVIEW call
-    # is not warranted (independent of whether either dimension above was determined).
-    if not result.recommendation_rationale.strip():
-        errors.append("recommendation_rationale is always required")
-    if result.recommendation != CleanCoreRecommendation.REVIEW and not result.recommendation_evidence_refs:
-        errors.append("a non-REVIEW recommendation requires at least one recommendation_evidence_refs entry")
+    # recommendation: independently nullable (ADR-018 — no fallback category).
+    if result.recommendation is not None:
+        if not result.recommendation_rationale.strip():
+            errors.append("a non-null recommendation requires a non-empty recommendation_rationale")
+        if not result.recommendation_evidence_refs:
+            errors.append("a non-null recommendation requires at least one recommendation_evidence_refs entry")
+    elif result.recommendation_evidence_refs:
+        errors.append("recommendation_evidence_refs must be empty when recommendation is null")
 
     determined_something = (
         result.technical_risk is not None
         or result.business_importance is not None
-        or result.recommendation != CleanCoreRecommendation.REVIEW
+        or result.recommendation is not None
     )
     expected_status = CleanCoreAnalysisStatus.COMPLETED if determined_something else CleanCoreAnalysisStatus.INSUFFICIENT_CONTEXT
     if result.status != expected_status:

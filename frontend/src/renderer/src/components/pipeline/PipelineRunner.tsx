@@ -20,12 +20,14 @@ import {
   AlertTriangle,
   RotateCcw,
   Inbox,
+  Sparkles,
 } from 'lucide-react'
 import {
   fetchPipelineRuns,
   fetchPipelineWorkItems,
   fetchProcessingStatus,
   pausePipelineRun,
+  reprocessAI,
   resumePipelineRun,
   retryWorkItem,
   startPipelineRun,
@@ -47,6 +49,8 @@ const STAGE_LABELS: Record<string, string> = {
   business_rule_discovery: 'Descoberta de Regras de Negócio',
   application_discovery: 'Descoberta de Aplicações',
   clean_core_analysis: 'Análise Clean Core',
+  executive_summary: 'Resumo Executivo',
+  embeddings: 'Embeddings (busca semântica)',
 }
 
 const RUN_LABELS: Record<PipelineRunRecord['status'], string> = {
@@ -104,6 +108,7 @@ export function PipelineRunner({ assessmentId }: Props) {
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmAI, setConfirmAI] = useState(false)
   const prevScanIdRef = useRef<number | null | undefined>(undefined)
 
   const isRunActive = (runs: PipelineRunRecord[]) =>
@@ -173,6 +178,21 @@ export function PipelineRunner({ assessmentId }: Props) {
     }
   }
 
+  async function handleReprocessAI(fromStage: 'object_understanding' | 'application_discovery') {
+    setConfirmAI(false)
+    setBusy(true)
+    setActionError(null)
+    try {
+      const run = await reprocessAI(assessmentId, fromStage)
+      setActiveRunId(run.id)
+      await refresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handlePause() {
     if (activeRunId == null) return
     setBusy(true)
@@ -220,6 +240,7 @@ export function PipelineRunner({ assessmentId }: Props) {
   const canPause = !busy && activeRun?.status === 'running'
   const canResume = !busy && (activeRun?.status === 'paused' || activeRun?.status === 'failed')
   const startLabel = processingStatus?.is_processed ? 'Reprocessar' : 'Iniciar Processamento'
+  const canReprocessAI = canStart && processingStatus?.is_processed === true
 
   return (
     <div className="h-full overflow-y-auto">
@@ -271,15 +292,69 @@ export function PipelineRunner({ assessmentId }: Props) {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleStart}
-              disabled={!canStart}
-              className="flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-[13px] font-medium text-white hover:bg-brand/90 disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {startLabel}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={!canStart}
+                className="flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-[13px] font-medium text-white hover:bg-brand/90 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {startLabel}
+              </button>
+              {canReprocessAI && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmAI(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-border-default px-4 py-2 text-[13px] text-text-secondary hover:border-brand/50 hover:text-text-primary"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Reprocessar IA
+                </button>
+              )}
+            </div>
+
+            {confirmAI && (
+              <div
+                data-testid="reprocess-ai-warning"
+                className="mt-3 rounded-md border border-attention/30 bg-attention/5 px-3 py-2 text-[12px] text-attention"
+              >
+                <p className="mb-1 font-medium">Reprocessar somente as etapas de IA?</p>
+                <p className="mb-2 text-text-secondary">
+                  Refaz entendimento, regras de negócio, aplicações, Clean Core, resumo executivo e embeddings sobre a
+                  ingestão já processada (sem novo scan/parsing). Faz uma chamada de IA por objeto — em assessments
+                  grandes pode levar horas e gerar custo no provedor; a execução pode ser pausada e retomada. Regras
+                  validadas manualmente e aplicações renomeadas/mescladas são preservadas.
+                </p>
+                <p className="mb-2 text-text-secondary">
+                  Se o entendimento e as regras de negócio já estão corretos, é possível refazer só a partir das
+                  aplicações (agrupamento, Clean Core, resumo executivo e embeddings) — mais rápido e mais barato.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleReprocessAI('object_understanding')}
+                    className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90"
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReprocessAI('application_discovery')}
+                    className="rounded-md border border-border-default px-3 py-1.5 text-[12px] font-medium text-text-secondary hover:border-brand/50 hover:text-text-primary"
+                  >
+                    Só aplicações → Clean Core → resumo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmAI(false)}
+                    className="rounded-md border border-border-default px-3 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {actionError && (
               <div className="mt-2 flex items-start gap-2 rounded-md border border-risk/30 bg-risk/5 px-3 py-2">
@@ -297,6 +372,11 @@ export function PipelineRunner({ assessmentId }: Props) {
               <div className="flex items-center gap-2">
                 <RunStatusIcon status={activeRun.status} />
                 <h2 className="text-[14px] font-medium">{RUN_LABELS[activeRun.status]}</h2>
+                {(activeRun.kind === 'ai_reprocessing' || activeRun.kind === 'ai_reprocessing_applications') && (
+                  <span className="rounded-chip border border-border-default px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                    Somente IA
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {canPause && (

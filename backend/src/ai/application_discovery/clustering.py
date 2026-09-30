@@ -11,9 +11,11 @@ Signals used:
   resolution happens here, scoped to this scan's objects only). Primary signal.
 - ``shared_package``: two objects each have a `MATCHED_*` correlation to the same non-null
   package name, via `ATCFinding.package_name_raw` or `EvidenceRecord.package_name`.
-- ``shared_concept``: two objects' persisted `ObjectUnderstanding.concepts` share a tag that is
-  not so common across this scan's understood objects that it stops being distinguishing
-  (`_MAX_CONCEPT_SHARE`).
+
+AI-generated `ObjectUnderstanding.concepts` are deliberately NOT a union signal: they are free
+text interpretation (not evidence) and generic tags ("RFC", "BAdI", "integração") chain almost
+every object together through the transitive union (SPRINT-18: 421 of 422 Rodobens objects in
+one cluster). Concepts are only shown to the naming step as context.
 
 Baseline also allows clustering on "transactions" and "reliable process/usage correlations when
 available" — the current `EvidenceRecord`/`EvidenceCorrelation` schema has no generic
@@ -36,7 +38,6 @@ from persistence.models import (
     EvidenceCorrelation,
     EvidenceCorrelationStatus,
     EvidenceRecord,
-    ObjectUnderstanding,
     SAPObject,
     SAPObjectDependency,
     SourceFile,
@@ -45,14 +46,10 @@ from persistence.models import (
 _TARGET_SAP_OBJECT = "SAP_OBJECT"
 _MATCHED_STATUSES = (EvidenceCorrelationStatus.MATCHED_EXACT.value, EvidenceCorrelationStatus.MATCHED_HEURISTIC.value)
 
-# A concept tag shared by more than this fraction of the scan's understood objects is too
-# generic (e.g. "sap", "abap") to be a distinguishing clustering signal.
-_MAX_CONCEPT_SHARE = 0.5
-
 
 @dataclass(frozen=True)
 class ClusterSignal:
-    signal_type: str  # "dependency" | "shared_package" | "shared_concept"
+    signal_type: str  # "dependency" | "shared_package"
     description: str
     dependency_id: int | None = None
 
@@ -104,7 +101,6 @@ def build_candidate_clusters(session: Session, assessment_id: int, scan_id: int)
 
     _link_dependencies(session, by_id, by_canonical_key, link)
     _link_shared_packages(session, object_ids, link)
-    _link_shared_concepts(session, object_ids, link)
 
     groups: dict[int, list[int]] = {}
     for oid in object_ids:
@@ -188,23 +184,4 @@ def _link_shared_packages(session, object_ids, link) -> None:
             continue
         anchor = oids[0]
         for other in oids[1:]:
-            link(anchor, other, ClusterSignal(signal_type="shared_package", description=f"package {pkg}"))
-
-
-def _link_shared_concepts(session, object_ids, link) -> None:
-    understandings = list(
-        session.scalars(select(ObjectUnderstanding).where(ObjectUnderstanding.sap_object_id.in_(object_ids)))
-    )
-    concept_by_object = {u.sap_object_id: set(u.concepts or []) for u in understandings}
-    concept_to_objects: dict[str, list[int]] = {}
-    for oid, concepts in concept_by_object.items():
-        for concept in concepts:
-            concept_to_objects.setdefault(concept, []).append(oid)
-
-    considered_objects = len(concept_by_object) or 1
-    for concept, oids in concept_to_objects.items():
-        if len(oids) < 2 or (len(oids) / considered_objects) > _MAX_CONCEPT_SHARE:
-            continue
-        anchor = oids[0]
-        for other in oids[1:]:
-            link(anchor, other, ClusterSignal(signal_type="shared_concept", description=f"concept '{concept}'"))
+            link(anchor, other, ClusterSignal(signal_type="shared_package", description=f"pacote {pkg}"))

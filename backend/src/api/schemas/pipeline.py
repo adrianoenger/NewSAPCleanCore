@@ -29,6 +29,7 @@ class StageRunRecord(BaseModel):
 class PipelineRunRecord(BaseModel):
     id: int
     assessment_id: int
+    kind: str
     source_path: str
     source_scan_id: int | None
     status: str
