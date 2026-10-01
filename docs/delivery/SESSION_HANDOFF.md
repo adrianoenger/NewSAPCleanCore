@@ -1,15 +1,61 @@
 # Session Handoff
 
 ## Current state
-No sprint is currently active. SPRINT-18 (Final Adjustments) is **completed** — closed by
-`/clean-core-finish-sprint`. A new sprint has been **planned but not started**:
-`docs/delivery/sprints/SPRINT-19-panaya-evidence-signals.md`, `EXECUTION_STATE.yaml`'s
-`next_sprint: SPRINT-19` / `next_sprint_slug: panaya-evidence-signals`. It curates two more real,
-verified Panaya sections (`SCI_HANA_ISSUES(_DETAILS)`, `WHERE_USED_TABLE`) into
-`evidence/adapters/panaya.py`, closing `BL-009` and the actionable part of `BL-026` — see the sprint
-file's "Confirmed findings" section for what was verified against the real T-Systems/Panaya export
-ABAP program and the customer's `Z_MASS_ABAP_DOWNLOAD` program (both reviewed outside this repo,
-2026-09-30). Run `/clean-core-run-sprint` to start it.
+No sprint is currently active. SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed
+by `/clean-core-finish-sprint`. `EXECUTION_STATE.yaml`'s `next_sprint` is `null` — a new sprint file
+must be authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+
+## Previous sprint (SPRINT-19)
+SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed by
+`/clean-core-finish-sprint`. `docs/delivery/SPRINT-19-PROGRESS.yaml` is `status: completed`,
+`progress_percent: 100`, `ready_for_review: false`; the result record is
+`docs/delivery/results/SPRINT-19-RESULT.md`. The sprint branch was pushed and merged into `main` by
+fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint record).
+
+## What SPRINT-19 delivered
+Curates two more real, verified Panaya sections into `evidence/adapters/panaya.py::_CURATED_SECTIONS`:
+`SCI_HANA_ISSUES`/`SCI_HANA_ISSUES_DETAILS` (`S4_CONVERSION_SIGNAL`, `OBJTYPE`/`OBJNAME`/`DEVCLASS`)
+and `WHERE_USED_TABLE` (`DEPENDENCY_SIGNAL`, `INCLUDE` only — deliberately never `NAME`, a compound
+`OTYPE`-dependent cross-reference token, not a plain object name). Both were verified two ways before
+any code was written: reading the real T-Systems/Panaya ABAP export program, then a read-only
+`inspect()`/attribute-sampling pass against the real customer export
+(`SAP_Files/SAP Extra/Panaya/ETL_QAS_20260916_150001.xml`, 2.8GB, gitignored — `BL-026`'s "file no
+longer present" blocker no longer applies). No `evidence_package.py` change was needed:
+`S4_CONVERSION_SIGNAL`/`DEPENDENCY_SIGNAL` were already in its `_TECHNICAL_CAPABILITIES` whitelist.
+
+- 7/7 `test_evidence_panaya.py` (1 new contract test), 265/265 full backend suite.
+- **Live validation went beyond a fixture**: backfilled the real, already-imported `PANAYA_ETL`
+  `EvidenceDataset` (id 389, Assessment01/Rodobens, id 1075) against the real 2.8GB file via a fresh
+  `PipelineRun(kind=evidence_import)` (437s; idempotent re-run of the 5 pre-existing batches, first
+  real run of the 3 new ones — no duplicate dataset/records). Real results: `SCI_HANA_ISSUES`
+  5280/5280, `SCI_HANA_ISSUES_DETAILS` 7038/7038, `WHERE_USED_TABLE` 20000/1,182,072 (correctly
+  truncated with a warning, same cap the pre-existing curated sections already hit). 124 real
+  `MATCHED_HEURISTIC` correlations to real Rodobens `SAPObject`s (heuristic not exact — pre-existing
+  `BL-005` case-normalization gap, not a new defect). Confirmed via `build_clean_core_evidence_package`
+  (no AI call) that a real `panaya_sci_hana_issue` (HANA/custom-code issue on customer class
+  `ZCLRNIPS_ASSIST_CONF`) is cited in the technical pool for real `Application` id 2820.
+- `BL-009` and the actionable part of `BL-026` resolved in `BACKLOG.md` with the confirmed root cause
+  (`NOTES_HEADER` genuinely has no object-linkage anywhere in the vendor export program — permanent,
+  not fixable from our side). Two new backlog notes: `BL-028` (`WHERE_USED_METHOD_MAP`'s real shape
+  not independently confirmed, do not guess) and `BL-029` (`Z_MASS_ABAP_DOWNLOAD`, filtered by the
+  same `DEVCLASS` values, reproduces an equivalent source-object universe to Panaya's
+  `REPOSITORY_OBJECTS`/`PROGRAMS`/`FUNCTIONS` — operational note only).
+- A follow-up live `ai_reprocessing_applications` run (`PipelineRun` id 4854, assessment 1075) was
+  started post-review to let Rodobens' existing Clean Core rows pick up the new signals, then
+  deliberately left in a safe `paused` state at 25/105 `application_discovery` items (durable,
+  resumable — not required for this sprint's own demonstrable outcome, already confirmed directly).
+  Resume it with the same `POST /assessments/1075/pipeline-runs/reprocess-ai?from_stage=
+  application_discovery`-created run (just re-invoke `pipeline.engine.run_pipeline` on run id 4854,
+  or build a UI/API resume action) if a fully-updated Rodobens Clean Core distribution is wanted.
+
+## Restart instructions
+SPRINT-19 has no unfinished work — `docs/delivery/SPRINT-19-PROGRESS.yaml` is `status: completed`
+and all 4 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+checked out, `main` is the correct branch to be on. There is no next sprint file yet
+(`docs/delivery/sprints/` ends at `SPRINT-19-panaya-evidence-signals.md`) — a new sprint must be
+authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one. The Docker
+stack (`postgres`+`backend`) is running in this environment from this session's live validation
+work; the paused Rodobens reprocessing run above is the only non-idle state left behind.
 
 ## Previous sprint (SPRINT-18)
 SPRINT-18 (Final Adjustments) is **completed** — closed by `/clean-core-finish-sprint`.

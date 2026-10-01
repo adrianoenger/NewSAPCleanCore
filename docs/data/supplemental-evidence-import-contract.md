@@ -90,6 +90,25 @@ naive all-at-once correlation pass to ~20GB of process memory before this was fi
 - Batch commits/checkpoints are required for large files; one batch = one curated top-level section, since random access into a multi-gigabyte file isn't practical.
 - Initial extraction priorities: technical object metadata, source/code sections where available, dependencies/where-used, usage signals, S/4 conversion/simplification/code-inspection signals.
 - Do not make the complete Panaya schema a hard dependency of the domain model; map recognized sections into capability-specific records and preserve unknown section statistics/warnings. Given real exports can have single sections in the single-digit millions of rows, a curated section's import is capped with an explicit truncation warning rather than unbounded.
+- **Curated sections (`evidence/adapters/panaya.py::_CURATED_SECTIONS`), verified against a real
+  ~2.8GB customer export (SPRINT-08, extended SPRINT-19):**
+  - `REPOSITORY_OBJECTS` (`TADIR`-shaped: `OBJ_NAME`/`OBJECT`/`DEVCLASS`) — `TECHNICAL_OBJECT_METADATA`.
+  - `PROGRAMS` (`NAME`), `FUNCTIONS` (`FUNCNAME`) — `TECHNICAL_OBJECT_METADATA`.
+  - `MODIFICATIONS` (`OBJ_NAME`/`OBJ_TYPE`) — `SOURCE_CODE`.
+  - `NOTES_HEADER` (`NUMM`/`VERSNO`/`MYEAR`/`INCOMPLETE`, no object linkage — see BL-026) — `S4_CONVERSION_SIGNAL`.
+  - `SCI_HANA_ISSUES`/`SCI_HANA_ISSUES_DETAILS` (HANA/custom-code readiness issues; `OBJTYPE`/
+    `OBJNAME`/`DEVCLASS` on the parent check, `DETAILS_REF`/`TEXT`/`INCLUDE`/`LINE` on the detail row
+    — the detail row correlates via `INCLUDE`, and joins back to its parent by `DETAILS_REF` inside
+    `normalized_payload`, no special join code) — `S4_CONVERSION_SIGNAL`.
+  - `WHERE_USED_TABLE` (`WBCROSSGT`+`CROSS`, `SELECT *` shape: `OTYPE`/`NAME`/`INCLUDE`/`DIRECT`) —
+    `DEPENDENCY_SIGNAL`. Correlate only on `INCLUDE` (the referencing program/include). **Never use
+    `NAME`** as an object-name key: it is a compound cross-reference token whose structure depends on
+    `OTYPE` (e.g. a data-object/variable path like `CLASS\ME:METHOD\DA:VAR`, not a bare object name)
+    — treating it as one would manufacture false-confidence correlations.
+  - Not yet curated (counted in the manifest only): `WHERE_USED_METHOD_MAP` (real shape not yet
+    independently confirmed — do not guess), `SI_CHECKS` (has 3 differently-shaped sub-tags inside
+    one parent element, not a single flat row shape like the sections above), and the remaining ~80
+    sections.
 
 ## Signavio Process Insights profile
 - ZIP containing system XML metadata (ABAP-serialized `<asx:abap>`/`<item><KEY>/<VALUE>` pairs, not simple attributes) and many chunked JSON files.

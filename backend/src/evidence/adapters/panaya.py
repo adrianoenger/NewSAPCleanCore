@@ -75,6 +75,29 @@ _CURATED_SECTIONS: dict[str, dict[str, str]] = {
     "NOTES_HEADER": {
         "capability": "S4_CONVERSION_SIGNAL", "record_type": "panaya_sap_note",
     },
+    # Verified 2026-09-30 against a real ~2.8GB customer export (SPRINT-19): TS_HANAA_SCI_CHECK
+    # really exports OBJTYPE/OBJNAME/DEVCLASS (same shape as REPOSITORY_OBJECTS) plus a DETAILS_REF
+    # key, preserved in normalized_payload alongside every other attribute — no special join code
+    # needed for a details row to be traced back to its parent check.
+    "SCI_HANA_ISSUES": {
+        "capability": "S4_CONVERSION_SIGNAL", "record_type": "panaya_sci_hana_issue",
+        "object_name_attr": "OBJNAME", "object_type_attr": "OBJTYPE", "package_attr": "DEVCLASS",
+    },
+    # TS_HANA_SCI_CHECK_DETAILS really exports DETAILS_REF/TEXT/INCLUDE/LINE (no PROGRAM attribute
+    # observed in the real export) — INCLUDE is the only correlatable object name here.
+    "SCI_HANA_ISSUES_DETAILS": {
+        "capability": "S4_CONVERSION_SIGNAL", "record_type": "panaya_sci_hana_issue_detail",
+        "object_name_attr": "INCLUDE",
+    },
+    # WBCROSSGT/CROSS (SELECT * shape) really export OTYPE/NAME/INCLUDE/DIRECT. INCLUDE (the
+    # referencing program/include) is a clean, correlatable object name — NAME is deliberately NOT
+    # used here: it is a compound cross-reference token whose structure depends on OTYPE (e.g. a
+    # data-object/variable path like "CLASS\ME:METHOD\DA:VAR", not a bare object name), and treating
+    # it as one would manufacture false-confidence correlations (the exact failure ADR-017 forbids).
+    "WHERE_USED_TABLE": {
+        "capability": "DEPENDENCY_SIGNAL", "record_type": "panaya_where_used",
+        "object_name_attr": "INCLUDE",
+    },
 }
 
 

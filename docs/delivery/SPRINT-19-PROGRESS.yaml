@@ -1,0 +1,33 @@
+sprint: SPRINT-19
+branch: sprint/19-panaya-evidence-signals
+status: completed
+progress_percent: 100
+started_at: "2026-09-30T19:47:00"
+completed_at: "2026-10-01T00:50:00"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: Curate SCI_HANA_ISSUES/SCI_HANA_ISSUES_DETAILS in evidence/adapters/panaya.py (S4_CONVERSION_SIGNAL capability)
+    status: done
+    validation: "backend/tests/test_evidence_panaya.py — inspect/plan_batches/import_batch tests updated and passing (7/7 in this file)"
+  - id: CAP-002
+    description: Curate WHERE_USED_TABLE (object_name_attr=INCLUDE only) under the DEPENDENCY_SIGNAL capability
+    status: done
+    validation: "same test file — asserts object_name resolves via INCLUDE and NAME is never used as a correlation key"
+  - id: CAP-003
+    description: Contract tests proving the new records correlate to SAPObject and surface in clean_core_analysis evidence_package's technical pool
+    status: done
+    validation: "test_new_curated_sections_correlate_and_surface_in_clean_core_technical_pool passing — confirmed _TECHNICAL_CAPABILITIES already includes S4_CONVERSION_SIGNAL/DEPENDENCY_SIGNAL, no evidence_package.py change needed"
+  - id: CAP-004
+    description: Documentation closure - supplemental-evidence-import-contract.md, BACKLOG.md BL-009/BL-026, two new backlog notes
+    status: done
+    validation: "docs/data/supplemental-evidence-import-contract.md Panaya profile updated; BACKLOG.md BL-009 and BL-026 marked Resolved with rationale; BL-028 (WHERE_USED_METHOD_MAP shape unconfirmed) and BL-029 (Z_MASS_ABAP_DOWNLOAD DEVCLASS-alignment note) recorded"
+blocking_issues: []
+architectural_conflicts: []
+failed_checks: []
+backlog_items_created: [BL-028, BL-029]
+notes:
+  - "2026-09-30: sprint started. Plan already de-risked during pre-sprint planning: a read-only inspect()/attribute-sampling pass against the real Panaya export (SAP_Files/SAP Extra/Panaya/ETL_QAS_20260916_150001.xml, gitignored) confirmed real section counts (matching BL-026's recorded numbers exactly) and real attribute shapes for SCI_HANA_ISSUES/SCI_HANA_ISSUES_DETAILS/WHERE_USED_TABLE — see SPRINT-19-panaya-evidence-signals.md's 'Confirmed findings' section for the exact verified shapes (including the WHERE_USED_TABLE NAME-vs-INCLUDE refinement)."
+  - "2026-09-30: CAP-001/002 implemented (evidence/adapters/panaya.py::_CURATED_SECTIONS +3 entries). CAP-003 contract test added (test_evidence_panaya.py::test_new_curated_sections_correlate_and_surface_in_clean_core_technical_pool) confirming S4_CONVERSION_SIGNAL/DEPENDENCY_SIGNAL were already in evidence_package.py's _TECHNICAL_CAPABILITIES whitelist — zero evidence_package.py changes needed. 7/7 test_evidence_panaya.py tests pass; full backend suite 265/265 pass (1008s, includes pre-existing live-Bedrock tests per BL-014)."
+  - "2026-09-30: went beyond the fixture-only validation the sprint file allowed for — dataset id 389 (real PANAYA_ETL dataset, already imported against this exact file for the real Assessment01/Rodobens assessment, id 1075, in a prior sprint) was backfilled live: created a fresh PipelineRun(kind=evidence_import, evidence_dataset_id=389, source_path=the real 2.8GB file) via pipeline.engine.create_pipeline_run + run_pipeline (437s, idempotent re-run of the 5 pre-existing batches + first real run of the 3 new ones — no duplicate EvidenceDataset row, no duplicate EvidenceRecords per the adapter's own fingerprint dedup). Real result: SCI_HANA_ISSUES 5280/5280 imported (no truncation), SCI_HANA_ISSUES_DETAILS 7038/7038 imported, WHERE_USED_TABLE 20000/1182072 imported (correctly truncated with a warning, per _MAX_RECORDS_PER_SECTION — same cap the 4 pre-existing curated sections already hit). 124 real MATCHED_HEURISTIC correlations to real Rodobens SAPObjects across the 3 new record types (MATCHED_HEURISTIC not MATCHED_EXACT — pre-existing BL-005 CLAS-vs-class case-normalization gap, not a new defect). Confirmed live via build_clean_core_evidence_package (no AI call) that a real panaya_sci_hana_issue record (a genuine HANA/custom-code readiness issue on customer class ZCLRNIPS_ASSIST_CONF) is cited in the technical pool for real Application id 2820 ('Gestão de Projetos e Estruturas Analíticas (PS)') — the sprint's demonstrable outcome, achieved against real customer data rather than only the crafted fixture. Dataset 389 remains IMPORTED_PARTIAL (correct — truncation warnings are expected, not a failure)."

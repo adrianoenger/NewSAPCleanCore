@@ -46,6 +46,15 @@ _XML = """<?xml version="1.0" encoding="UTF-8"?>
 <NOTES_HEADER>
 <CWBNTHEAD NUMM="0000012345" VERSNO="0001"/>
 </NOTES_HEADER>
+<SCI_HANA_ISSUES>
+<TS_HANAA_SCI_CHECK OBJTYPE="CLAS" OBJNAME="ZCL_ORDER" DEVCLASS="ZPKG" AUTHOR="DEV1" KIND="N" TEXT="READ TABLE without INDEX" DETAILS_REF="1"/>
+</SCI_HANA_ISSUES>
+<SCI_HANA_ISSUES_DETAILS>
+<TS_HANA_SCI_CHECK_DETAILS DETAILS_REF="1" TEXT="+CALL_METHOD" INCLUDE="ZPROGRAM_REPORT" LINE="317"/>
+</SCI_HANA_ISSUES_DETAILS>
+<WHERE_USED_TABLE>
+<WBCROSSGT OTYPE="DA" NAME="ZCL_ORDER\\ME:METHOD\\DA:VAR" INCLUDE="ZPROGRAM_REPORT" DIRECT="X"/>
+</WHERE_USED_TABLE>
 <UNRECOGNIZED_SECTION>
 <SOME_ROW FOO="bar"/>
 </UNRECOGNIZED_SECTION>
@@ -116,8 +125,13 @@ def test_inspect_counts_every_section_and_curated_capabilities(tmp_path: Path) -
     assert result.manifest["section_counts"]["FUNCTIONS"] == 1
     assert result.manifest["section_counts"]["MODIFICATIONS"] == 1
     assert result.manifest["section_counts"]["NOTES_HEADER"] == 1
+    assert result.manifest["section_counts"]["SCI_HANA_ISSUES"] == 1
+    assert result.manifest["section_counts"]["SCI_HANA_ISSUES_DETAILS"] == 1
+    assert result.manifest["section_counts"]["WHERE_USED_TABLE"] == 1
     assert result.manifest["section_counts"]["UNRECOGNIZED_SECTION"] == 1  # counted, not dropped silently
-    assert set(result.capabilities) == {"TECHNICAL_OBJECT_METADATA", "SOURCE_CODE", "S4_CONVERSION_SIGNAL"}
+    assert set(result.capabilities) == {
+        "TECHNICAL_OBJECT_METADATA", "SOURCE_CODE", "S4_CONVERSION_SIGNAL", "DEPENDENCY_SIGNAL",
+    }
     assert result.source_system_hint == "QAS"
     assert result.source_client_hint == "300"
 
@@ -128,6 +142,7 @@ def test_import_persists_curated_sections_with_correlatable_object_names(tmp_pat
     batches = panaya.plan_batches(xml_path, inspection)
     assert {b.batch_key for b in batches} == {
         "REPOSITORY_OBJECTS", "PROGRAMS", "FUNCTIONS", "MODIFICATIONS", "NOTES_HEADER",
+        "SCI_HANA_ISSUES", "SCI_HANA_ISSUES_DETAILS", "WHERE_USED_TABLE",
     }  # UNRECOGNIZED_SECTION never gets a batch
 
     with get_session_factory()() as session:
@@ -142,7 +157,9 @@ def test_import_persists_curated_sections_with_correlatable_object_names(tmp_pat
                 total += outcome.records_imported
                 assert outcome.warnings == []  # nothing near the truncation cap in this fixture
             session.commit()
-            assert total == 6  # 2 repo objects + 1 program + 1 function + 1 modification + 1 note
+            # 2 repo objects + 1 program + 1 function + 1 modification + 1 note
+            # + 1 SCI HANA issue + 1 SCI HANA issue detail + 1 where-used row
+            assert total == 9
 
             records = list(session.scalars(select(EvidenceRecord).where(EvidenceRecord.dataset_id == ds_id)))
             repo_objects = {r.object_name: r.object_type for r in records if r.record_type == "panaya_repository_object"}
@@ -155,11 +172,76 @@ def test_import_persists_curated_sections_with_correlatable_object_names(tmp_pat
             assert note.object_name is None  # SAP Notes don't correlate to a SAPObject by name
             assert note.normalized_payload["NUMM"] == "0000012345"
 
+            sci_issue = next(r for r in records if r.record_type == "panaya_sci_hana_issue")
+            assert (sci_issue.object_name, sci_issue.object_type, sci_issue.package_name) == ("ZCL_ORDER", "CLAS", "ZPKG")
+            assert sci_issue.normalized_payload["DETAILS_REF"] == "1"  # preserved for manual join to the detail row
+
+            sci_detail = next(r for r in records if r.record_type == "panaya_sci_hana_issue_detail")
+            assert sci_detail.object_name == "ZPROGRAM_REPORT"  # correlates via INCLUDE
+            assert sci_detail.normalized_payload["DETAILS_REF"] == "1"  # joins back to the parent check above
+
+            where_used = next(r for r in records if r.record_type == "panaya_where_used")
+            assert where_used.object_name == "ZPROGRAM_REPORT"  # correlates via INCLUDE, never NAME
+            assert where_used.object_type is None  # OTYPE describes NAME's cross-ref kind, not INCLUDE's type
+            assert where_used.normalized_payload["NAME"] == "ZCL_ORDER\\ME:METHOD\\DA:VAR"  # preserved as context only
+
             # Idempotent re-run.
             repo_batch = next(b for b in batches if b.batch_key == "REPOSITORY_OBJECTS")
             outcome_again = panaya.import_batch(xml_path, dataset, repo_batch, session)
             session.commit()
             assert outcome_again.records_imported == 0
+        finally:
+            _cleanup(session, asmnt_id)
+
+
+def test_new_curated_sections_correlate_and_surface_in_clean_core_technical_pool(tmp_path: Path) -> None:
+    """SPRINT-19 CAP-003 — SCI_HANA_ISSUES(_DETAILS)/WHERE_USED_TABLE must reach SAPObject
+    correlation via the existing generic evidence.correlation pipeline (no new correlation logic)
+    and surface, unmodified, in ai.clean_core_analysis.evidence_package's technical pool (both
+    S4_CONVERSION_SIGNAL and DEPENDENCY_SIGNAL are already-recognized technical capabilities)."""
+    from evidence.correlation import correlate_dataset_records
+    from ai.clean_core_analysis.evidence_package import build_clean_core_evidence_package
+    from persistence.models import Application, ScanStatus, SourceFile, SourceScan
+
+    xml_path = _make_xml(tmp_path)
+    inspection = panaya.inspect(xml_path)
+    batches = panaya.plan_batches(xml_path, inspection)
+
+    with get_session_factory()() as session:
+        try:
+            asmnt_id = _make_assessment(session)
+            ds_id = _make_dataset(session, asmnt_id)
+            dataset = session.get(EvidenceDataset, ds_id)
+            for batch in batches:
+                panaya.import_batch(xml_path, dataset, batch, session)
+            session.commit()
+
+            scan = SourceScan(assessment_id=asmnt_id, source_path="/tmp", status=ScanStatus.COMPLETED.value,
+                               total_files=2, scanned_files=2)
+            session.add(scan)
+            session.flush()
+            sf = SourceFile(scan_id=scan.id, assessment_id=asmnt_id, rel_path="x.abap", size_bytes=0,
+                             mtime=0.0, sha256="a" * 64, category="abap_source")
+            session.add(sf)
+            session.flush()
+            from persistence.models import SAPObject
+            report_obj = SAPObject(assessment_id=asmnt_id, source_file_id=sf.id, object_type="report",
+                                    object_name="ZPROGRAM_REPORT", canonical_key="REPORT::ZPROGRAM_REPORT",
+                                    description="", line_start=1, attributes={})
+            class_obj = SAPObject(assessment_id=asmnt_id, source_file_id=sf.id, object_type="class",
+                                   object_name="ZCL_ORDER", canonical_key="CLASS::ZCL_ORDER",
+                                   description="", line_start=1, attributes={})
+            app = Application(assessment_id=asmnt_id, name="App")
+            session.add_all([report_obj, class_obj, app])
+            session.commit()
+
+            correlate_dataset_records(ds_id, asmnt_id, session)
+            session.commit()
+
+            package = build_clean_core_evidence_package(session, app, [report_obj.id, class_obj.id])
+            supplemental = [i for i in package.technical_items if i.source_type == "SUPPLEMENTAL_EVIDENCE"]
+            record_types_seen = {s.split(" / ")[1].split(" (")[0] for s in (i.summary for i in supplemental)}
+            assert {"panaya_sci_hana_issue", "panaya_sci_hana_issue_detail", "panaya_where_used"} <= record_types_seen
         finally:
             _cleanup(session, asmnt_id)
 
