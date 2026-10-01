@@ -2,8 +2,40 @@
 
 ## Current state
 No sprint is currently active. SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed
-by `/clean-core-finish-sprint`. `EXECUTION_STATE.yaml`'s `next_sprint` is `null` — a new sprint file
-must be authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one.
+by `/clean-core-finish-sprint`. SPRINT-20 (Panaya Usage/Repository XLSX Import) is **planned but not
+started** — `docs/delivery/sprints/SPRINT-20-panaya-usage-xlsx-import.md` is authored,
+`EXECUTION_STATE.yaml`'s `next_sprint` is `SPRINT-20`. Next action is `/clean-core-run-sprint`.
+
+### SPRINT-20 planning context (2026-10-01)
+A new real Panaya file was received from the user: `SAP_Files/SAP Extra/export T-systems.xlsx`
+(gitignored, 143,086 rows). Inspected read-only (no DB writes): single-sheet flat XLSX, header
+`OBJECT NAME`/`OBJECT DESCRIPTION`/`MODULE`/`USAGE LEVEL`/`PACKAGE`/`OBJECT TYPE`/`OBJECT SUB TYPE`/
+`ORIGIN`/`LAST USED`/`LAST CHANGED BY` — a Panaya "usage/repository" report, structurally unrelated to
+the already-curated multi-gigabyte XML `PANAYA_ETL` export (`ETL_QAS_20260916_150001.xml`). Carries a
+real `USAGE LEVEL` (Unused/Unknown/Normally Used/...) and `ORIGIN` (Customer/SAP Standard/
+3rdPartDomain) dimension per object that no currently curated XML section has — directly maps to the
+already-defined `USAGE_SIGNAL` capability. **Not importable today**:
+`evidence.adapters.panaya.detect()` only recognizes `.xml`/`.zip` carrying the `EXPORT_TOOL_VERSION`
+signature, and `evidence.adapters.detect_adapter()`'s other 3 adapters (Signavio ZIP, HANA Sizing
+text, Readiness Check `.docx`) don't match either — uploading this file today would be unrecognized.
+Plan: extend the same `panaya.py`/`PANAYA_ETL` adapter with content-sniffed, schema-tolerant XLSX
+header-signature detection (never filename- or exact-column-based — same tolerance principle ADR-016
+already established for ATC), mapping rows to `USAGE_SIGNAL`/`TECHNICAL_OBJECT_METADATA`
+`EvidenceRecord`s, plus an ADR-017 Panaya-section amendment documenting this second real format
+(kept under the existing `PANAYA_ETL` dataset_type rather than a new one, since it's still
+Panaya-sourced landscape data about the same kind of SAP objects — see the sprint file's "Confirmed
+findings" for the full rationale). Full capability breakdown in
+`docs/delivery/sprints/SPRINT-20-panaya-usage-xlsx-import.md`.
+
+**CAP-005 added (same day, user follow-up)**: the usage-level data would otherwise only be visible
+through the generic evidence-citation drill-down, so the plan now includes a dedicated Dashboard
+Geral surface (ADR-019) — a new "Utilização de Objetos" panel (usage-level breakdown, drills into the
+existing `objects` list) and a 6th KPI "Objetos customizados sem uso" (custom objects with a
+correlated `Unused` `USAGE_SIGNAL` record). Backed by a `usage_signal_by_level`/
+`unused_custom_objects` addition to `pipeline/dashboard_summary.py::compute_dashboard_overview`
+(grouped directly off `EvidenceRecord.normalized_payload`, no new column/migration) and a
+`usage_level` filter/field on `/object-list`. No new ADR impact, no new drill-down entity — purely a
+read-model/UI layer over data the rest of SPRINT-20 already persists and correlates.
 
 ## Previous sprint (SPRINT-19)
 SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed by
