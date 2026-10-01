@@ -17,6 +17,9 @@ from persistence.models import (
     BusinessRule,
     BusinessRuleStatus,
     CleanCoreAssessment,
+    EvidenceCorrelation,
+    EvidenceCorrelationStatus,
+    EvidenceRecord,
     RiskLevel,
     SAPObject,
     SourceFile,
@@ -116,6 +119,69 @@ def compute_dashboard_summary(session: Session, assessment_id: int) -> Dashboard
 
 UNCLASSIFIED = "UNCLASSIFIED"
 
+_MATCHED_STATUSES = (EvidenceCorrelationStatus.MATCHED_EXACT.value, EvidenceCorrelationStatus.MATCHED_HEURISTIC.value)
+_TARGET_SAP_OBJECT = "SAP_OBJECT"
+_USAGE_LEVEL_KEY = "USAGE LEVEL"
+_UNUSED_LEVEL = "Unused"
+
+
+def _usage_signal_correlation_rows():
+    """Base `(SAPObject id, USAGE LEVEL)` query shared by the dashboard aggregation and the
+    `/object-list` drill-down filter (SPRINT-20, Panaya usage/repository XLSX profile — ADR-017
+    amendment).
+
+    Filters on the `normalized_payload` JSONB key actually being present rather than on any
+    provider-specific `record_type`, so a HANA Sizing Report `USAGE_SIGNAL` row (per-table sizing
+    metrics, no `USAGE LEVEL` key) is naturally excluded without hard-coding provider identity —
+    consistent with ADR-017's capability-oriented, provider-agnostic evidence model. Reuses the
+    existing generic `evidence.correlation` pipeline's `MATCHED_*` correlations unchanged (no new
+    correlation logic).
+    """
+    return (
+        select(EvidenceCorrelation.target_id.label("object_id"), EvidenceRecord.normalized_payload[_USAGE_LEVEL_KEY].astext.label("usage_level"))
+        .join(EvidenceRecord, EvidenceCorrelation.evidence_record_id == EvidenceRecord.id)
+        .where(
+            EvidenceCorrelation.target_type == _TARGET_SAP_OBJECT,
+            EvidenceCorrelation.status.in_(_MATCHED_STATUSES),
+            EvidenceRecord.capability == "USAGE_SIGNAL",
+            EvidenceRecord.normalized_payload[_USAGE_LEVEL_KEY].astext.is_not(None),
+        )
+    )
+
+
+def usage_signal_object_ids_by_level(session: Session, in_scan) -> dict[str, set[int]]:
+    """Current-scan `SAPObject` ids grouped by their correlated `USAGE_SIGNAL` evidence's
+    `USAGE LEVEL`. An object can carry more than one matching record (e.g. a re-import); each
+    object is counted once per level via the `set`, never once per record."""
+    rows = session.execute(_usage_signal_correlation_rows().where(EvidenceCorrelation.target_id.in_(in_scan))).all()
+    by_level: dict[str, set[int]] = {}
+    for obj_id, level in rows:
+        if obj_id is None:
+            continue
+        by_level.setdefault(level, set()).add(obj_id)
+    return by_level
+
+
+def usage_level_correlation_subquery():
+    """One row per correlated object (`object_id`, `usage_level`) for an outer-join drill-down
+    filter/column — `usage_level` is a `MAX` tie-break on the rare chance more than one distinct
+    level somehow correlates to the same object; the realistic case is exactly one."""
+    return (
+        select(
+            EvidenceCorrelation.target_id.label("object_id"),
+            func.max(EvidenceRecord.normalized_payload[_USAGE_LEVEL_KEY].astext).label("usage_level"),
+        )
+        .join(EvidenceRecord, EvidenceCorrelation.evidence_record_id == EvidenceRecord.id)
+        .where(
+            EvidenceCorrelation.target_type == _TARGET_SAP_OBJECT,
+            EvidenceCorrelation.status.in_(_MATCHED_STATUSES),
+            EvidenceRecord.capability == "USAGE_SIGNAL",
+            EvidenceRecord.normalized_payload[_USAGE_LEVEL_KEY].astext.is_not(None),
+        )
+        .group_by(EvidenceCorrelation.target_id)
+        .subquery()
+    )
+
 
 def custom_object_filter():
     """Customer-namespace objects: Z*/Y* or a registered `/NAMESPACE/` prefix (SAP convention)."""
@@ -144,6 +210,8 @@ class DashboardOverview:
     objects_classified: int
     clean_core_objects: dict[str, int]
     clean_core_applications: dict[str, int]
+    usage_signal_by_level: dict[str, int]
+    unused_custom_objects: int
 
 
 def compute_dashboard_overview(session: Session, assessment_id: int) -> DashboardOverview:
@@ -153,6 +221,8 @@ def compute_dashboard_overview(session: Session, assessment_id: int) -> Dashboar
     objects_by_type: dict[str, int] = {}
     objects_custom = 0
     clean_core_objects: dict[str, int] = {}
+    usage_signal_by_level: dict[str, int] = {}
+    unused_custom_objects = 0
     if current_scan is not None:
         in_scan = (
             select(SAPObject.id)
@@ -182,6 +252,19 @@ def compute_dashboard_overview(session: Session, assessment_id: int) -> Dashboar
         ).all():
             key = recommendation or UNCLASSIFIED
             clean_core_objects[key] = clean_core_objects.get(key, 0) + count
+
+        usage_object_ids_by_level = usage_signal_object_ids_by_level(session, in_scan)
+        usage_signal_by_level = {level: len(ids) for level, ids in usage_object_ids_by_level.items()}
+        unused_object_ids = usage_object_ids_by_level.get(_UNUSED_LEVEL)
+        if unused_object_ids:
+            unused_custom_objects = (
+                session.scalar(
+                    select(func.count(SAPObject.id)).where(
+                        SAPObject.id.in_(unused_object_ids), custom_object_filter()
+                    )
+                )
+                or 0
+            )
 
     clean_core_applications: dict[str, int] = {}
     for recommendation, count in session.execute(
@@ -214,5 +297,7 @@ def compute_dashboard_overview(session: Session, assessment_id: int) -> Dashboar
         atc_by_priority=atc_by_priority,
         objects_classified=sum(c for k, c in clean_core_objects.items() if k != UNCLASSIFIED),
         clean_core_objects=clean_core_objects,
+        usage_signal_by_level=usage_signal_by_level,
+        unused_custom_objects=unused_custom_objects,
         clean_core_applications=clean_core_applications,
     )

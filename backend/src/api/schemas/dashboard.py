@@ -29,6 +29,8 @@ class DashboardOverviewRead(BaseModel):
     objects_classified: int
     clean_core_objects: dict[str, int]
     clean_core_applications: dict[str, int]
+    usage_signal_by_level: dict[str, int]
+    unused_custom_objects: int
 
 
 class ObjectListItem(BaseModel):
@@ -42,6 +44,7 @@ class ObjectListItem(BaseModel):
     recommendation: str | None
     technical_risk: str | None
     atc_findings: int
+    usage_level: str | None
 
 
 class ObjectListResponse(BaseModel):

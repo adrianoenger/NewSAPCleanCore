@@ -1,0 +1,39 @@
+sprint: SPRINT-20
+branch: sprint/20-panaya-usage-xlsx-import
+status: completed
+progress_percent: 100
+started_at: "2026-10-01"
+completed_at: "2026-10-01T16:30:00Z"
+current_checkpoint: null
+ready_for_review: false
+capabilities:
+  - id: CAP-001
+    description: panaya.py detect()/inspect() recognize the Panaya usage/repository XLSX profile (schema-tolerant header signature, TECHNICAL_OBJECT_METADATA + USAGE_SIGNAL capabilities)
+    status: done
+    validation: "test_evidence_panaya.py: test_detect_recognizes_usage_xlsx_regardless_of_filename, test_detect_tolerates_reordered_and_extra_columns, test_detect_rejects_unrelated_xlsx, test_inspect_usage_xlsx_counts_rows_and_distributions. Also manually inspect()-ed against the real file (read-only): row_count=143086, usage_level_counts/origin_counts match planning findings exactly."
+  - id: CAP-002
+    description: plan_batches()/import_batch() stream the XLSX sheet in bounded row-range batches into EvidenceRecord rows (full import, no truncation at this scale)
+    status: done
+    validation: "test_evidence_panaya.py::test_import_usage_xlsx_persists_records_and_is_idempotent. plan_batches() against the real file produces 8 batches of <=20000 rows (143086 total), verified manually read-only."
+  - id: CAP-003
+    description: correlation + evidence-package contract tests for the new USAGE_SIGNAL records
+    status: done
+    validation: "test_evidence_panaya.py::test_usage_xlsx_records_correlate_and_surface_in_clean_core_business_pool — correlates via evidence.correlation.correlate_dataset_records (no new logic) and surfaces in build_clean_core_evidence_package's business_items as PROCESS_USAGE_EVIDENCE."
+  - id: CAP-004
+    description: amend ADR-017 and the supplemental evidence import contract documenting the new XLSX profile
+    status: done
+    validation: "docs/adr/017-supplemental-evidence-datasets.md and docs/data/supplemental-evidence-import-contract.md both amended; BL-030 recorded (LAST USED/LAST CHANGED BY not surfaced in UI, too sparse in the real sample to justify it this sprint)."
+  - id: CAP-005
+    description: Dashboard Geral usage-signal panel + KPI (usage_signal_by_level, unused_custom_objects, usage_level object-list filter, UsagePanel)
+    status: done
+    validation: "Backend (pipeline/dashboard_summary.py, api/routes/dashboard.py, api/schemas/dashboard.py) and frontend (charts.tsx::UsagePanel, DashboardGeral.tsx 6th KPI, EntityList.tsx column/filter, lib/api.ts types) implemented. Frontend tsc/build clean. tests/test_dashboard.py::test_usage_signal_overview_and_object_list_filter passes. Full backend suite 272/272 (265 baseline + 7 new this sprint). Live-validated against the real file end-to-end via the actual HTTP API against the persistent Acme assessment (id 75): inspect() returned the exact planning-time counts (143086 rows, same distributions); full import reached IMPORTED_FULL with records_count=143086 across 8 batches; correlation ran automatically — result was 143086/143086 UNMATCHED (expected and documented: Acme's 6 demo object names have zero overlap with this real T-Systems export's object names); /dashboard-overview correctly showed a genuine zero state (usage_signal_by_level={}, unused_custom_objects=0) rather than a fabricated number, and the pre-existing HANA Sizing dataset's own USAGE_SIGNAL rows (no 'USAGE LEVEL' key) were correctly excluded from that aggregation. Disposable validation dataset deleted afterward (cascade-verified) to leave the persistent Acme demo unchanged. The positive-match (non-zero) path is covered by the automated test above."
+blocking_issues: []
+architectural_conflicts: []
+failed_checks:
+  - "Full-suite run before any sprint changes landed showed 7 failures, all in tests/test_sprint06.py, tests/test_sprint07.py, tests/test_object_understanding_pipeline.py (pipeline pause/resume/retry) — none in files this sprint touched. Re-ran those 3 files in isolation: 25/25 passed. Confirmed pre-existing BL-008-style shared-dev-DB flakiness, not a regression; a subsequent full clean run (after CAP-005 landed) passed 272/272 with 0 failures."
+backlog_items_created:
+  - "BL-030 — Panaya usage-report LAST USED/LAST CHANGED BY imported but not surfaced in any UI (see BACKLOG.md)."
+notes:
+  - "Sprint started from docs/delivery/sprints/SPRINT-20-panaya-usage-xlsx-import.md. Planning commit b773f93 on main (docs: plan SPRINT-20). Branch created from synced main."
+  - "alembic check: only the pre-existing BL-013 drift (sap_object canonical_key index/constraint, technical_finding atc_finding_id index) — no new drift, no migration this sprint (no model/schema change)."
+  - "All 5 planned capabilities (CAP-001..CAP-005) implemented and validated. Demonstrable outcome reproduced (real-file import end to end); ready for /clean-core-review-sprint."

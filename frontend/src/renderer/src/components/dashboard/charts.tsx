@@ -218,6 +218,65 @@ export function CleanCoreDonut({ data, onOpenList }: { data: DashboardOverviewRe
   )
 }
 
+// Panaya usage/repository XLSX profile (SPRINT-20, ADR-017 amendment) — the only levels observed
+// in the real export; an unanticipated level still renders (falls back to a neutral gray dot),
+// never dropped.
+const USAGE_LEVEL_COLORS: Record<string, string> = {
+  Unused: '#e74c3c',
+  Unknown: '#95a5a6',
+  'Normally Used': '#2ecc71',
+  'Frequently Used': '#3498db',
+  'Rarely Used': '#f1c40f',
+}
+
+export function UsagePanel({ data, onOpenList }: { data: DashboardOverviewRecord; onOpenList: OpenList }) {
+  const levels = Object.entries(data.usage_signal_by_level).sort((a, b) => b[1] - a[1])
+  const total = levels.reduce((acc, [, n]) => acc + n, 0)
+  const open = (level: string) =>
+    onOpenList({ type: 'list', entity: 'objects', filter: { usage_level: level }, title: `Objetos — Uso: ${level}` })
+
+  return (
+    <Panel title="Utilização de Objetos (Panaya)">
+      {total === 0 ? (
+        <div className="text-[12px] text-text-tertiary">
+          Nenhum sinal de uso correlacionado ainda — importe um export Panaya de uso/repositório (passo 1) e reprocesse.
+        </div>
+      ) : (
+        <>
+          <Row
+            label="Objetos customizados sem uso"
+            value={data.unused_custom_objects}
+            bold
+            onClick={() =>
+              onOpenList({
+                type: 'list',
+                entity: 'objects',
+                filter: { usage_level: 'Unused', custom_only: true },
+                title: 'Objetos customizados sem uso',
+              })
+            }
+          />
+          <div className="my-1 border-t border-border-soft" />
+          {levels.map(([level, count]) => (
+            <Row
+              key={level}
+              indent
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: USAGE_LEVEL_COLORS[level] ?? '#7f8c8d' }} />
+                  {level}
+                </span>
+              }
+              value={count}
+              onClick={() => open(level)}
+            />
+          ))}
+        </>
+      )}
+    </Panel>
+  )
+}
+
 export function AtcPriorityBars({ data, onOpenList }: { data: DashboardOverviewRecord; onOpenList: OpenList }) {
   const bars = ['1', '2', '3'].map((p) => ({ key: p, label: `P${p}`, value: data.atc_by_priority[p] ?? 0 }))
   return (

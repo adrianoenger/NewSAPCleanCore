@@ -5,8 +5,8 @@
  * (so Copilot navigation can push onto it) rendered here with a breadcrumb and a Voltar button.
  */
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, Boxes, ChevronRight, ScrollText, Sparkles, TrendingUp } from 'lucide-react'
-import { AtcPanel, AtcPriorityBars, CleanCoreDonut, InventoryPanel } from '@/components/dashboard/charts'
+import { AlertTriangle, Archive, ArrowLeft, Boxes, ChevronRight, ScrollText, Sparkles, TrendingUp } from 'lucide-react'
+import { AtcPanel, AtcPriorityBars, CleanCoreDonut, InventoryPanel, UsagePanel } from '@/components/dashboard/charts'
 import { DetailPage } from '@/components/dashboard/DetailPage'
 import { EntityList } from '@/components/dashboard/EntityList'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -82,7 +82,7 @@ function DashboardRoot({ assessmentId, onOpenList }: { assessmentId: number; onO
 
       <div>
         <div className="mb-2 text-[12px] font-medium text-text-secondary">Resumo do processamento</div>
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
           <KpiCard
             icon={Boxes}
             label="Objetos analisados"
@@ -117,6 +117,19 @@ function DashboardRoot({ assessmentId, onOpenList }: { assessmentId: number; onO
             value={s.business_rules_identified}
             onClick={() => onOpenList({ type: 'list', entity: 'business_rules', filter: {}, title: 'Regras de negócio' })}
           />
+          <KpiCard
+            icon={Archive}
+            label="Objetos customizados sem uso"
+            value={data.unused_custom_objects}
+            onClick={() =>
+              onOpenList({
+                type: 'list',
+                entity: 'objects',
+                filter: { usage_level: 'Unused', custom_only: true },
+                title: 'Objetos customizados sem uso',
+              })
+            }
+          />
         </div>
       </div>
 
@@ -125,6 +138,7 @@ function DashboardRoot({ assessmentId, onOpenList }: { assessmentId: number; onO
         <AtcPanel data={data} onOpenList={onOpenList} />
         <CleanCoreDonut data={data} onOpenList={onOpenList} />
         <AtcPriorityBars data={data} onOpenList={onOpenList} />
+        <UsagePanel data={data} onOpenList={onOpenList} />
       </div>
     </div>
   )

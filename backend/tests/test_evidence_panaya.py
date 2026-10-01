@@ -279,3 +279,166 @@ def test_import_survives_illegal_characters_in_real_style_data(tmp_path: Path) -
     result = panaya.inspect(xml_path)
     assert result.warnings == []
     assert result.manifest["section_counts"]["REPOSITORY_OBJECTS"] == 2
+
+
+# ---------------------------------------------------------------------------
+# SPRINT-20 — Panaya usage/repository XLSX profile (ADR-017 amendment).
+#
+# A second, real, independently-verified Panaya export format: a flat XLSX "usage/repository"
+# report (verified against a real ~143k-row customer export, `export T-systems.xlsx`) — one
+# sheet, one header row, one row per SAP object, carrying a per-object usage level and origin no
+# curated XML section above has. Detected by header-row signature, never filename or an
+# exact-column-match requirement (only one real sample has been reviewed).
+# ---------------------------------------------------------------------------
+
+_USAGE_XLSX_HEADERS = [
+    "OBJECT NAME", "OBJECT DESCRIPTION", "MODULE", "USAGE LEVEL", "PACKAGE",
+    "OBJECT TYPE", "OBJECT SUB TYPE", "ORIGIN", "LAST USED", "LAST CHANGED BY",
+]
+
+
+def _make_usage_xlsx(
+    tmp_path: Path, headers: list[str] | None = None, rows: list[list] | None = None, name: str = "export.xlsx",
+) -> Path:
+    import openpyxl as _openpyxl
+
+    wb = _openpyxl.Workbook()
+    ws = wb.active
+    ws.append(headers if headers is not None else _USAGE_XLSX_HEADERS)
+    for row in rows or []:
+        ws.append(row)
+    path = tmp_path / name
+    wb.save(path)
+    return path
+
+
+_USAGE_SAMPLE_ROWS = [
+    ["ZCL_ORDER", "Order handling", "Custom-Code", "Unused", "ZPKG", "Class", "", "Customer", "", "DEV1"],
+    ["ZPROGRAM_REPORT", "", "Custom-Code", "Normally Used", "ZPKG", "Program", "", "Customer", "20-Jun-2026", "DEV2"],
+    ["SAPMV45A", "Sales order", "SD", "Unknown", "", "Program", "", "SAP Standard", "", ""],
+]
+
+
+def test_detect_recognizes_usage_xlsx_regardless_of_filename(tmp_path: Path) -> None:
+    path = _make_usage_xlsx(tmp_path, rows=_USAGE_SAMPLE_ROWS, name="export T-systems.xlsx")
+    assert panaya.detect("export T-systems.xlsx", path)
+    assert panaya.detect("anything_else.xlsx", path)  # content-sniffed, never filename-dependent
+
+
+def test_detect_tolerates_reordered_and_extra_columns(tmp_path: Path) -> None:
+    """Only one real sample has been reviewed — detection must key off the header *signature*,
+    tolerant of column reordering and extra columns, never an exact-match requirement
+    (ADR-016/ADR-017's shared principle)."""
+    reordered = ["ORIGIN", "OBJECT TYPE", "EXTRA COLUMN", "USAGE LEVEL", "OBJECT NAME"]
+    row = ["Customer", "Class", "unused info", "Unused", "ZCL_ORDER"]
+    path = _make_usage_xlsx(tmp_path, headers=reordered, rows=[row])
+    assert panaya.detect("whatever.xlsx", path)
+
+
+def test_detect_rejects_unrelated_xlsx(tmp_path: Path) -> None:
+    path = _make_usage_xlsx(tmp_path, headers=["Priority", "Check Title", "Object name"], rows=[[1, "x", "ZCL_A"]])
+    assert not panaya.detect("atc_export.xlsx", path)
+
+
+def test_inspect_usage_xlsx_counts_rows_and_distributions(tmp_path: Path) -> None:
+    path = _make_usage_xlsx(tmp_path, rows=_USAGE_SAMPLE_ROWS)
+    result = panaya.inspect(path)
+
+    assert result.warnings == []
+    assert set(result.capabilities) == {"TECHNICAL_OBJECT_METADATA", "USAGE_SIGNAL"}
+    assert result.manifest["source_format"] == "xlsx_usage_report"
+    assert result.manifest["row_count"] == 3
+    assert result.manifest["usage_level_counts"] == {"Unused": 1, "Normally Used": 1, "Unknown": 1}
+    assert result.manifest["origin_counts"] == {"Customer": 2, "SAP Standard": 1}
+    # No system/client header metadata exists in this format — a real limitation, not guessed.
+    assert result.source_system_hint is None
+    assert result.source_client_hint is None
+
+
+def test_import_usage_xlsx_persists_records_and_is_idempotent(tmp_path: Path) -> None:
+    path = _make_usage_xlsx(tmp_path, rows=_USAGE_SAMPLE_ROWS)
+    inspection = panaya.inspect(path)
+    batches = panaya.plan_batches(path, inspection)
+    assert len(batches) == 1  # 3 rows, well under the 20,000-row batch size
+
+    with get_session_factory()() as session:
+        try:
+            asmnt_id = _make_assessment(session)
+            ds_id = _make_dataset(session, asmnt_id)
+            dataset = session.get(EvidenceDataset, ds_id)
+
+            outcome = panaya.import_batch(path, dataset, batches[0], session)
+            session.commit()
+            assert outcome.records_imported == 3
+            assert outcome.warnings == []
+
+            records = {
+                r.object_name: r
+                for r in session.scalars(select(EvidenceRecord).where(EvidenceRecord.dataset_id == ds_id))
+            }
+            assert records.keys() == {"ZCL_ORDER", "ZPROGRAM_REPORT", "SAPMV45A"}
+            unused = records["ZCL_ORDER"]
+            assert unused.capability == "USAGE_SIGNAL"
+            assert unused.record_type == "panaya_usage_object"
+            assert unused.object_type == "Class"
+            assert unused.package_name == "ZPKG"
+            assert unused.normalized_payload["USAGE LEVEL"] == "Unused"
+            assert unused.normalized_payload["ORIGIN"] == "Customer"
+            assert "OBJECT DESCRIPTION" not in records["ZPROGRAM_REPORT"].normalized_payload or \
+                records["ZPROGRAM_REPORT"].normalized_payload.get("OBJECT DESCRIPTION")  # blank cells omitted, never fabricated
+            assert records["ZPROGRAM_REPORT"].normalized_payload["LAST USED"] == "20-Jun-2026"
+
+            # Idempotent re-run.
+            outcome_again = panaya.import_batch(path, dataset, batches[0], session)
+            session.commit()
+            assert outcome_again.records_imported == 0
+        finally:
+            _cleanup(session, asmnt_id)
+
+
+def test_usage_xlsx_records_correlate_and_surface_in_clean_core_business_pool(tmp_path: Path) -> None:
+    """SPRINT-20 CAP-003 — usage-level records must reach SAPObject correlation via the existing
+    generic evidence.correlation pipeline (no new correlation logic) and surface, unmodified, in
+    ai.clean_core_analysis.evidence_package's *business* pool (USAGE_SIGNAL is already a
+    recognized business/PROCESS_USAGE_EVIDENCE capability)."""
+    from evidence.correlation import correlate_dataset_records
+    from ai.clean_core_analysis.evidence_package import build_clean_core_evidence_package
+    from persistence.models import Application, SAPObject, ScanStatus, SourceFile, SourceScan
+
+    path = _make_usage_xlsx(tmp_path, rows=_USAGE_SAMPLE_ROWS)
+    inspection = panaya.inspect(path)
+    batches = panaya.plan_batches(path, inspection)
+
+    with get_session_factory()() as session:
+        try:
+            asmnt_id = _make_assessment(session)
+            ds_id = _make_dataset(session, asmnt_id)
+            dataset = session.get(EvidenceDataset, ds_id)
+            for batch in batches:
+                panaya.import_batch(path, dataset, batch, session)
+            session.commit()
+
+            scan = SourceScan(assessment_id=asmnt_id, source_path="/tmp", status=ScanStatus.COMPLETED.value,
+                               total_files=1, scanned_files=1)
+            session.add(scan)
+            session.flush()
+            sf = SourceFile(scan_id=scan.id, assessment_id=asmnt_id, rel_path="x.abap", size_bytes=0,
+                             mtime=0.0, sha256="a" * 64, category="abap_source")
+            session.add(sf)
+            session.flush()
+            order_obj = SAPObject(assessment_id=asmnt_id, source_file_id=sf.id, object_type="class",
+                                   object_name="ZCL_ORDER", canonical_key="CLASS::ZCL_ORDER",
+                                   description="", line_start=1, attributes={})
+            app = Application(assessment_id=asmnt_id, name="App")
+            session.add_all([order_obj, app])
+            session.commit()
+
+            correlate_dataset_records(ds_id, asmnt_id, session)
+            session.commit()
+
+            package = build_clean_core_evidence_package(session, app, [order_obj.id])
+            business = [i for i in package.business_items if i.source_type == "PROCESS_USAGE_EVIDENCE"]
+            record_types_seen = {s.split(" / ")[1].split(" (")[0] for s in (i.summary for i in business)}
+            assert "panaya_usage_object" in record_types_seen
+        finally:
+            _cleanup(session, asmnt_id)

@@ -147,6 +147,17 @@ const RECOMMENDATION_OPTIONS = [
   { value: UNCLASSIFIED, label: UNCLASSIFIED_CONFIG.label },
 ]
 
+// Panaya usage/repository XLSX profile (SPRINT-20) — the only levels observed in the real
+// export; the filter still accepts any value typed via URL/drill-down, this is just the picker.
+const USAGE_LEVEL_OPTIONS = [
+  { value: '', label: 'Qualquer uso' },
+  { value: 'Unused', label: 'Sem uso' },
+  { value: 'Unknown', label: 'Uso desconhecido' },
+  { value: 'Normally Used', label: 'Uso normal' },
+  { value: 'Frequently Used', label: 'Uso frequente' },
+  { value: 'Rarely Used', label: 'Uso raro' },
+]
+
 function Pager({ total, offset, onOffset }: { total: number; offset: number; onOffset: (o: number) => void }) {
   if (total <= PAGE_SIZE) return <div className="text-[11px] text-text-tertiary">{total.toLocaleString('pt-BR')} itens</div>
   const page = Math.floor(offset / PAGE_SIZE) + 1
@@ -226,6 +237,11 @@ const OBJECT_COLUMNS: Column<ObjectListItemRecord>[] = [
     className: 'text-right',
     cell: (o) => <span className="font-mono text-text-secondary">{o.atc_findings.toLocaleString('pt-BR')}</span>,
   },
+  {
+    id: 'usage',
+    header: 'Uso (Panaya)',
+    cell: (o) => <span className="text-text-secondary">{o.usage_level ?? <span className="text-text-tertiary">—</span>}</span>,
+  },
 ]
 
 const TYPE_OPTIONS = [
@@ -238,6 +254,7 @@ function ObjectsList({ assessmentId, initial, onOpenDetail }: { assessmentId: nu
   const [objectType, setObjectType] = useState(initial.object_type ?? '')
   const [recommendation, setRecommendation] = useState(initial.recommendation ?? '')
   const [customOnly, setCustomOnly] = useState(initial.custom_only ?? false)
+  const [usageLevel, setUsageLevel] = useState(initial.usage_level ?? '')
   const [offset, setOffset] = useState(0)
   const filter = {
     object_type: objectType || undefined,
@@ -245,6 +262,7 @@ function ObjectsList({ assessmentId, initial, onOpenDetail }: { assessmentId: nu
     custom_only: customOnly,
     high_impact: initial.high_impact,
     application_id: initial.application_id,
+    usage_level: usageLevel || undefined,
     q: q.trim() || undefined,
     limit: PAGE_SIZE,
     offset,
@@ -264,6 +282,7 @@ function ObjectsList({ assessmentId, initial, onOpenDetail }: { assessmentId: nu
       <Toolbar q={q} onQ={reset(setQ)}>
         <Select value={objectType} onChange={reset(setObjectType)} options={TYPE_OPTIONS} />
         <Select value={recommendation} onChange={reset(setRecommendation)} options={RECOMMENDATION_OPTIONS} />
+        <Select value={usageLevel} onChange={reset(setUsageLevel)} options={USAGE_LEVEL_OPTIONS} />
         <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
           <input type="checkbox" checked={customOnly} onChange={(e) => reset(setCustomOnly)(e.target.checked)} />
           Somente customizados

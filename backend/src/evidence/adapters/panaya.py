@@ -33,13 +33,16 @@ tag is consumed (sections earlier in the document finish fast; a late section li
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
+import openpyxl
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
+from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -51,6 +54,20 @@ IMPORTER_VERSION = "2.0"
 
 _SIGNATURE = b"EXPORT_TOOL_VERSION"
 _MAX_RECORDS_PER_SECTION = 20000
+
+# A second, real, independently-verified Panaya export format (ADR-017 amendment, SPRINT-20): a
+# flat XLSX "usage/repository" report — one sheet, one header row, one row per SAP object, with a
+# per-object usage level (Unused/Normally Used/...) and origin (Customer/SAP Standard/
+# 3rdPartDomain) that no curated XML section above carries. Verified against a real
+# ~143k-row customer export (`export T-systems.xlsx`). Detected by header-row *signature*
+# (tolerant of column reordering/extra columns), never by filename or an exact-match requirement
+# — only one real sample has been reviewed, and ADR-016/ADR-017 both forbid hard-coding the one
+# reviewed sample as the only valid schema. Kept under this same `PANAYA_ETL` dataset_type/adapter
+# module rather than a second Panaya dataset_type, since it is still Panaya-sourced landscape data
+# about the same kind of SAP objects.
+_USAGE_XLSX_HEADER_SIGNATURE = {"OBJECT NAME", "OBJECT TYPE", "USAGE LEVEL", "ORIGIN"}
+_USAGE_XLSX_FORMAT = "xlsx_usage_report"
+_USAGE_XLSX_BATCH_SIZE = 20000
 
 # Verified against the real export — only sections with a confirmed, correlatable attribute
 # shape are listed. Everything else is counted (inspect()'s manifest) but not persisted as
@@ -103,6 +120,11 @@ _CURATED_SECTIONS: dict[str, dict[str, str]] = {
 
 def detect(filename: str, file_path: Path) -> bool:
     lower = filename.lower()
+    # .xlsx is only ever matched by real header-row content (never by filename) — the XML/ZIP
+    # fast path below is deliberately not reused here, since a file merely named "...panaya...xlsx"
+    # is not necessarily this real usage-report shape.
+    if lower.endswith(".xlsx"):
+        return _usage_xlsx_header(file_path) is not None
     if "panaya" in lower:
         return True
     if not (lower.endswith(".xml") or lower.endswith(".zip")):
@@ -113,6 +135,39 @@ def detect(filename: str, file_path: Path) -> bool:
     except (zipfile.BadZipFile, ValueError, OSError):
         return False
     return _SIGNATURE in head
+
+
+def _usage_xlsx_header(file_path: Path) -> list[str] | None:
+    """Return the header row (original casing/order, blanks as `""`) if `file_path` is a
+    workbook whose first sheet's header row carries the known usage-report column signature —
+    tolerant of extra/reordered columns, never an exact-match requirement (ADR-016/ADR-017's
+    shared "never hard-code the one reviewed sample as the only valid schema" principle). `None`
+    if the file can't be read as a workbook or the signature isn't present."""
+    try:
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    except (InvalidFileException, zipfile.BadZipFile, KeyError, OSError):
+        return None
+    try:
+        ws = wb.worksheets[0]
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+    finally:
+        wb.close()
+    if not header_row:
+        return None
+    headers = [str(h).strip() if h is not None else "" for h in header_row]
+    if _USAGE_XLSX_HEADER_SIGNATURE.issubset({h.upper() for h in headers if h}):
+        return headers
+    return None
+
+
+def _usage_xlsx_cell(value: object) -> object:
+    """JSONB-safe cell value — openpyxl can hand back `datetime.date`/`datetime.datetime` for a
+    date-formatted cell; every value observed in the real sample was already a plain string, but
+    normalized_payload must stay JSON-serializable regardless of a future export's cell
+    formatting."""
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.isoformat()
+    return value
 
 
 def _local_tag(tag: str) -> str:
@@ -153,6 +208,9 @@ def _open_xml_stream(file_path: Path):
 
 
 def inspect(file_path: Path) -> InspectionResult:
+    if file_path.suffix.lower() == ".xlsx":
+        return _inspect_usage_xlsx(file_path)
+
     header_attrs: dict[str, str] = {}
     section_counts: dict[str, int] = {}
     depth = 0
@@ -212,7 +270,75 @@ def inspect(file_path: Path) -> InspectionResult:
     )
 
 
+def _inspect_usage_xlsx(file_path: Path) -> InspectionResult:
+    headers = _usage_xlsx_header(file_path)
+    if headers is None:
+        return InspectionResult(
+            dataset_type=DATASET_TYPE, display_name=file_path.name,
+            warnings=["XLSX header row does not carry the recognized Panaya usage-report column signature"],
+        )
+    col_index = {h.upper(): i for i, h in enumerate(headers) if h}
+
+    def _counter_for(column: str) -> dict[str, int] | None:
+        return {} if column in col_index else None
+
+    origin_counts = _counter_for("ORIGIN")
+    usage_counts = _counter_for("USAGE LEVEL")
+    type_counts = _counter_for("OBJECT TYPE")
+    module_counts = _counter_for("MODULE")
+
+    row_count = 0
+    try:
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        ws = wb.worksheets[0]
+        try:
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                row_count += 1
+                for counts, column in (
+                    (origin_counts, "ORIGIN"), (usage_counts, "USAGE LEVEL"),
+                    (type_counts, "OBJECT TYPE"), (module_counts, "MODULE"),
+                ):
+                    if counts is None:
+                        continue
+                    idx = col_index[column]
+                    value = str(row[idx]) if idx < len(row) and row[idx] not in (None, "") else "(vazio)"
+                    counts[value] = counts.get(value, 0) + 1
+        finally:
+            wb.close()
+    except (InvalidFileException, zipfile.BadZipFile, OSError) as exc:
+        return InspectionResult(dataset_type=DATASET_TYPE, display_name=file_path.name, warnings=[f"Cannot read XLSX: {exc}"])
+
+    return InspectionResult(
+        dataset_type=DATASET_TYPE,
+        display_name=file_path.name,
+        capabilities=["TECHNICAL_OBJECT_METADATA", "USAGE_SIGNAL"],
+        manifest={
+            "source_format": _USAGE_XLSX_FORMAT,
+            "headers": headers,
+            "row_count": row_count,
+            "origin_counts": origin_counts or {},
+            "usage_level_counts": usage_counts or {},
+            "object_type_counts": type_counts or {},
+            "module_counts": module_counts or {},
+        },
+        # No system/client header metadata exists in this format (unlike the XML export's
+        # <HEADER SYSTEM_ID=... CLIENT=... />) — a real limitation of the format, not guessed.
+        source_system_hint=None,
+        source_client_hint=None,
+        warnings=[],
+    )
+
+
 def plan_batches(file_path: Path, inspection: InspectionResult) -> list[ImportBatchPlan]:
+    if inspection.manifest.get("source_format") == _USAGE_XLSX_FORMAT:
+        row_count = inspection.manifest.get("row_count", 0)
+        return [
+            ImportBatchPlan(
+                batch_key=f"usage_rows:{start}",
+                payload={"start_row": start, "end_row": min(start + _USAGE_XLSX_BATCH_SIZE, row_count)},
+            )
+            for start in range(0, row_count, _USAGE_XLSX_BATCH_SIZE)
+        ]
     counts = inspection.manifest.get("section_counts", {})
     return [
         ImportBatchPlan(batch_key=name, payload={"section": name})
@@ -221,9 +347,67 @@ def plan_batches(file_path: Path, inspection: InspectionResult) -> list[ImportBa
     ]
 
 
+def _import_usage_xlsx_batch(
+    file_path: Path, dataset: EvidenceDataset, batch: ImportBatchPlan, session: Session
+) -> ImportBatchOutcome:
+    start_row = batch.payload["start_row"]
+    end_row = batch.payload["end_row"]
+
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        ws = wb.worksheets[0]
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        headers = [str(h).strip() if h is not None else "" for h in header_row]
+
+        imported = 0
+        idx = start_row
+        # Sheet rows are 1-indexed with row 1 as the header; `start_row`/`end_row` are 0-indexed
+        # data-row offsets, so the first data row (offset 0) is sheet row 2.
+        for row in ws.iter_rows(min_row=2 + start_row, max_row=1 + end_row, values_only=True):
+            attrs = {
+                headers[i]: _usage_xlsx_cell(row[i])
+                for i in range(len(headers))
+                if i < len(row) and row[i] not in (None, "")
+            }
+            source_key = f"usage_row:{idx}"
+            fingerprint = hashlib.sha256(source_key.encode()).hexdigest()[:32]
+            already = session.execute(
+                select(EvidenceRecord.id).where(
+                    EvidenceRecord.dataset_id == dataset.id, EvidenceRecord.record_fingerprint == fingerprint
+                )
+            ).first()
+            if already is None:
+                session.add(
+                    EvidenceRecord(
+                        dataset_id=dataset.id,
+                        record_type="panaya_usage_object",
+                        capability="USAGE_SIGNAL",
+                        source_key=source_key,
+                        record_fingerprint=fingerprint,
+                        object_name=attrs.get("OBJECT NAME") or None,
+                        object_type=attrs.get("OBJECT TYPE") or None,
+                        package_name=attrs.get("PACKAGE") or None,
+                        normalized_payload=attrs,
+                        source_locator={"row_index": idx},
+                    )
+                )
+                imported += 1
+                if imported % 500 == 0:
+                    session.flush()
+            idx += 1
+    finally:
+        wb.close()
+
+    session.flush()
+    return ImportBatchOutcome(records_imported=imported, warnings=[])
+
+
 def import_batch(
     file_path: Path, dataset: EvidenceDataset, batch: ImportBatchPlan, session: Session
 ) -> ImportBatchOutcome:
+    if "start_row" in batch.payload:
+        return _import_usage_xlsx_batch(file_path, dataset, batch, session)
+
     section = batch.payload["section"]
     info = _CURATED_SECTIONS[section]
     rows: list[tuple[int, dict]] = []

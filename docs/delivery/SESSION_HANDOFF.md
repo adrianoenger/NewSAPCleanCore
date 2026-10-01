@@ -1,41 +1,71 @@
 # Session Handoff
 
 ## Current state
-No sprint is currently active. SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed
-by `/clean-core-finish-sprint`. SPRINT-20 (Panaya Usage/Repository XLSX Import) is **planned but not
-started** — `docs/delivery/sprints/SPRINT-20-panaya-usage-xlsx-import.md` is authored,
-`EXECUTION_STATE.yaml`'s `next_sprint` is `SPRINT-20`. Next action is `/clean-core-run-sprint`.
+No sprint is currently active. SPRINT-20 (Panaya Usage/Repository XLSX Import) is **completed** —
+closed by `/clean-core-finish-sprint`. `EXECUTION_STATE.yaml`'s `next_sprint` is `null` — a new
+sprint file must be authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can
+start one.
 
-### SPRINT-20 planning context (2026-10-01)
-A new real Panaya file was received from the user: `SAP_Files/SAP Extra/export T-systems.xlsx`
-(gitignored, 143,086 rows). Inspected read-only (no DB writes): single-sheet flat XLSX, header
-`OBJECT NAME`/`OBJECT DESCRIPTION`/`MODULE`/`USAGE LEVEL`/`PACKAGE`/`OBJECT TYPE`/`OBJECT SUB TYPE`/
-`ORIGIN`/`LAST USED`/`LAST CHANGED BY` — a Panaya "usage/repository" report, structurally unrelated to
-the already-curated multi-gigabyte XML `PANAYA_ETL` export (`ETL_QAS_20260916_150001.xml`). Carries a
-real `USAGE LEVEL` (Unused/Unknown/Normally Used/...) and `ORIGIN` (Customer/SAP Standard/
-3rdPartDomain) dimension per object that no currently curated XML section has — directly maps to the
-already-defined `USAGE_SIGNAL` capability. **Not importable today**:
-`evidence.adapters.panaya.detect()` only recognizes `.xml`/`.zip` carrying the `EXPORT_TOOL_VERSION`
-signature, and `evidence.adapters.detect_adapter()`'s other 3 adapters (Signavio ZIP, HANA Sizing
-text, Readiness Check `.docx`) don't match either — uploading this file today would be unrecognized.
-Plan: extend the same `panaya.py`/`PANAYA_ETL` adapter with content-sniffed, schema-tolerant XLSX
-header-signature detection (never filename- or exact-column-based — same tolerance principle ADR-016
-already established for ATC), mapping rows to `USAGE_SIGNAL`/`TECHNICAL_OBJECT_METADATA`
-`EvidenceRecord`s, plus an ADR-017 Panaya-section amendment documenting this second real format
-(kept under the existing `PANAYA_ETL` dataset_type rather than a new one, since it's still
-Panaya-sourced landscape data about the same kind of SAP objects — see the sprint file's "Confirmed
-findings" for the full rationale). Full capability breakdown in
-`docs/delivery/sprints/SPRINT-20-panaya-usage-xlsx-import.md`.
+## Previous sprint (SPRINT-20)
+SPRINT-20 (Panaya Usage/Repository XLSX Import) is **completed** — closed by
+`/clean-core-finish-sprint`. `docs/delivery/SPRINT-20-PROGRESS.yaml` is `status: completed`,
+`progress_percent: 100`, `ready_for_review: false`; the result record is
+`docs/delivery/results/SPRINT-20-RESULT.md`. The sprint branch was pushed and merged into `main` by
+fast-forward; the local sprint branch was deleted (the remote copy is kept as the sprint record).
 
-**CAP-005 added (same day, user follow-up)**: the usage-level data would otherwise only be visible
-through the generic evidence-citation drill-down, so the plan now includes a dedicated Dashboard
-Geral surface (ADR-019) — a new "Utilização de Objetos" panel (usage-level breakdown, drills into the
-existing `objects` list) and a 6th KPI "Objetos customizados sem uso" (custom objects with a
-correlated `Unused` `USAGE_SIGNAL` record). Backed by a `usage_signal_by_level`/
-`unused_custom_objects` addition to `pipeline/dashboard_summary.py::compute_dashboard_overview`
-(grouped directly off `EvidenceRecord.normalized_payload`, no new column/migration) and a
-`usage_level` filter/field on `/object-list`. No new ADR impact, no new drill-down entity — purely a
-read-model/UI layer over data the rest of SPRINT-20 already persists and correlates.
+## What SPRINT-20 delivered
+- **CAP-001/002** — `evidence/adapters/panaya.py` now recognizes a second real Panaya export
+  format: a flat XLSX "usage/repository" report (`export T-systems.xlsx`, 143,086 rows), detected
+  by header-row signature (`OBJECT NAME`/`OBJECT TYPE`/`USAGE LEVEL`/`ORIGIN`, tolerant of
+  reordering/extra columns — never filename-based), kept under the same `PANAYA_ETL` dataset_type.
+  `inspect()`/`plan_batches()`/`import_batch()` dispatch internally between this and the pre-existing
+  XML path; the XLSX path streams via `openpyxl` `read_only` mode in 20,000-row batches, one
+  `EvidenceRecord` per row (`capability="USAGE_SIGNAL"`, `record_type="panaya_usage_object"`),
+  imported in full (no truncation at this row count).
+- **CAP-003** — reuses the existing generic `evidence.correlation` pipeline unchanged; new records
+  surface in `ai.clean_core_analysis.evidence_package`'s business pool (`USAGE_SIGNAL` was already
+  whitelisted).
+- **CAP-004** — ADR-017 and `docs/data/supplemental-evidence-import-contract.md` both amended with
+  the new profile; `BL-030` recorded (`LAST USED`/`LAST CHANGED BY` imported but not surfaced in any
+  UI — too sparse in the real sample, 165/143,086 rows, to justify a dashboard surface this sprint).
+- **CAP-005** (user-requested mid-planning, "evaluate the best way to demonstrate the usage data,
+  adjust the dashboard if needed") — Dashboard Geral gained: `pipeline/dashboard_summary.py`'s
+  `usage_signal_object_ids_by_level`/`usage_level_correlation_subquery` (query
+  `EvidenceRecord.normalized_payload` JSONB directly for a present `USAGE LEVEL` key — no new
+  column/migration, and this naturally excludes HANA Sizing Report's own differently-shaped
+  `USAGE_SIGNAL` rows without hard-coding provider identity); `DashboardOverview`/`-Read` gained
+  `usage_signal_by_level`/`unused_custom_objects`; `/object-list` gained a `usage_level` filter +
+  field. Frontend: `charts.tsx::UsagePanel` (same `Panel`/`Row` pattern as `InventoryPanel`/
+  `AtcPanel`), a 6th KPI card "Objetos customizados sem uso", a `usage_level` column/filter in
+  `EntityList.tsx`'s object list.
+- **Validation**: 272/272 backend pytest (265 baseline + 7 new: 6 in `test_evidence_panaya.py`, 1 in
+  `test_dashboard.py`), frontend `tsc`/`build` clean, `alembic check` shows only the pre-existing
+  BL-013 drift (no schema change this sprint). **Live-validated against the real file** end to end
+  through the actual HTTP API on the persistent Acme assessment (id 75): `inspect()` matched planning
+  exactly (143,086 rows, same distributions); full import reached `IMPORTED_FULL`
+  (`records_count=143086`, 8 batches); correlation ran automatically — `143086 UNMATCHED` (expected:
+  zero object-name overlap between this real T-Systems export and Acme's 6 tiny demo objects, exactly
+  the caveat the sprint plan anticipated); `/dashboard-overview` correctly rendered a genuine zero
+  state (`usage_signal_by_level: {}`, `unused_custom_objects: 0`) rather than fabricating a number.
+  The validation dataset was deleted afterward (cascade-verified) to leave Acme unchanged. The
+  positive-match (non-zero) path is covered by the automated test instead.
+- **Transient full-suite flakiness, not a regression**: one full-suite run mid-sprint showed 7
+  failures, all in `test_sprint06.py`/`test_sprint07.py`/`test_object_understanding_pipeline.py`
+  (pipeline pause/resume/retry) — none in files this sprint touched. Re-ran those 3 files alone:
+  25/25 passed. A later full clean run was 272/272 — confirmed pre-existing `BL-008`-style shared-dev-
+  DB flakiness.
+
+## Restart instructions
+SPRINT-20 has no unfinished work — `docs/delivery/SPRINT-20-PROGRESS.yaml` is `status: completed`
+and all 5 capabilities are `done`. If resuming this session unexpectedly with no sprint branch
+checked out, `main` is the correct branch to be on. There is no next sprint file yet
+(`docs/delivery/sprints/` ends at `SPRINT-20-panaya-usage-xlsx-import.md`) — a new sprint must be
+authored under `docs/delivery/sprints/` before `/clean-core-run-sprint` can start one. The real
+Panaya usage/repository XLSX file used for live validation
+(`SAP_Files/SAP Extra/export T-systems.xlsx`, gitignored) is still present on disk if further
+real-data validation is ever needed, but no evidence dataset from it remains persisted in any
+assessment — the one used for live validation (Acme, id 75) was deleted after confirming the
+import/dashboard behavior.
 
 ## Previous sprint (SPRINT-19)
 SPRINT-19 (Panaya Evidence Signal Curation) is **completed** — closed by

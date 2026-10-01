@@ -109,6 +109,28 @@ naive all-at-once correlation pass to ~20GB of process memory before this was fi
     independently confirmed — do not guess), `SI_CHECKS` (has 3 differently-shaped sub-tags inside
     one parent element, not a single flat row shape like the sections above), and the remaining ~80
     sections.
+- **Second real Panaya format, verified SPRINT-20 against a real ~143k-row export
+  (`export T-systems.xlsx`): a flat XLSX "usage/repository" report**, structurally unrelated to the
+  XML ETL dump above — one sheet, one header row, one row per SAP object. Kept under the same
+  `PANAYA_ETL` dataset_type/adapter module (still Panaya-sourced landscape data about the same kind
+  of objects), with `detect`/`inspect`/`plan_batches`/`import_batch` dispatching internally on which
+  real format is present.
+  - Columns: `OBJECT NAME`, `OBJECT DESCRIPTION`, `MODULE`, `USAGE LEVEL`, `PACKAGE`, `OBJECT TYPE`,
+    `OBJECT SUB TYPE`, `ORIGIN`, `LAST USED`, `LAST CHANGED BY`. Detected by header-row *signature*
+    (`OBJECT NAME`/`OBJECT TYPE`/`USAGE LEVEL`/`ORIGIN`), tolerant of column reordering/extra
+    columns, never by filename or an exact-column-match requirement (only one real sample reviewed).
+  - Every row becomes one `EvidenceRecord` (`capability="USAGE_SIGNAL"`,
+    `record_type="panaya_usage_object"`, `object_name`/`object_type`/`package_name` from the
+    matching columns, full row in `normalized_payload`) — imported in full (no truncation at this
+    format's realistic row counts), streamed via `openpyxl` `read_only` mode in 20,000-row batches.
+  - `USAGE LEVEL` (`Unused`/`Unknown`/`Normally Used`/`Frequently Used`/`Rarely Used`) and `ORIGIN`
+    (`Customer`/`SAP Standard`/`3rdPartDomain`) are a usage/provenance dimension no curated XML
+    section above carries.
+  - No system/client header metadata exists in this format — `source_system_hint`/
+    `source_client_hint` are always `None` for this profile (a real format limitation, not guessed).
+  - `OBJECT TYPE` is Panaya's own human-readable vocabulary (`Program`, `Class`, `Role`, ...), not
+    this application's internal `SAPObject.object_type` vocabulary — correlation realistically
+    produces `MATCHED_HEURISTIC` (name-only), same as every other curated Panaya section.
 
 ## Signavio Process Insights profile
 - ZIP containing system XML metadata (ABAP-serialized `<asx:abap>`/`<item><KEY>/<VALUE>` pairs, not simple attributes) and many chunked JSON files.

@@ -41,6 +41,7 @@ from pipeline.dashboard_summary import (
     compute_dashboard_summary,
     custom_object_filter,
     get_current_atc_run,
+    usage_level_correlation_subquery,
 )
 from pipeline.status import get_current_scan
 
@@ -84,6 +85,7 @@ def list_objects_for_drilldown(
     custom_only: bool = False,
     high_impact: bool = False,
     application_id: int | None = None,
+    usage_level: str | None = Query(None, description="A correlated Panaya USAGE_SIGNAL level, e.g. 'Unused'."),
     q: str | None = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -103,6 +105,7 @@ def list_objects_for_drilldown(
         .group_by(ATCFinding.correlated_object_id)
         .subquery()
     )
+    usage_sub = usage_level_correlation_subquery()
     is_custom = custom_object_filter()
     base = (
         select(
@@ -112,11 +115,13 @@ def list_objects_for_drilldown(
             CleanCoreAssessment.recommendation,
             CleanCoreAssessment.technical_risk,
             func.coalesce(atc_counts.c.n, 0),
+            usage_sub.c.usage_level,
         )
         .join(SourceFile, SAPObject.source_file_id == SourceFile.id)
         .outerjoin(Application, Application.id == SAPObject.application_id)
         .outerjoin(CleanCoreAssessment, CleanCoreAssessment.application_id == SAPObject.application_id)
         .outerjoin(atc_counts, atc_counts.c.object_id == SAPObject.id)
+        .outerjoin(usage_sub, usage_sub.c.object_id == SAPObject.id)
         .where(SourceFile.scan_id == current_scan.id)
     )
     if object_type:
@@ -131,6 +136,8 @@ def list_objects_for_drilldown(
         base = base.where(CleanCoreAssessment.technical_risk.in_([RiskLevel.HIGH.value, RiskLevel.CRITICAL.value]))
     if application_id is not None:
         base = base.where(SAPObject.application_id == application_id)
+    if usage_level:
+        base = base.where(usage_sub.c.usage_level == usage_level)
     if q:
         pattern = f"%{q}%"
         base = base.where(or_(SAPObject.object_name.ilike(pattern), SAPObject.description.ilike(pattern)))
@@ -149,8 +156,9 @@ def list_objects_for_drilldown(
             recommendation=rec,
             technical_risk=risk,
             atc_findings=n,
+            usage_level=usage,
         )
-        for obj, custom, app_name, rec, risk, n in rows
+        for obj, custom, app_name, rec, risk, n, usage in rows
     ]
     return ObjectListResponse(items=items, total=total)
 

@@ -907,6 +907,8 @@ export interface DashboardOverviewRecord {
   objects_classified: number
   clean_core_objects: Record<string, number>
   clean_core_applications: Record<string, number>
+  usage_signal_by_level: Record<string, number>
+  unused_custom_objects: number
 }
 
 export const fetchDashboardOverview = (assessmentId: number): Promise<DashboardOverviewRecord> =>
@@ -923,6 +925,7 @@ export interface ObjectListItemRecord {
   recommendation: string | null
   technical_risk: string | null
   atc_findings: number
+  usage_level: string | null
 }
 
 export interface ObjectListFilter {
@@ -931,6 +934,7 @@ export interface ObjectListFilter {
   custom_only?: boolean
   high_impact?: boolean
   application_id?: number
+  usage_level?: string
 }
 
 function toQuery(params: Record<string, string | number | boolean | undefined | null>): string {

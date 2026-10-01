@@ -329,3 +329,103 @@ def test_atc_imported_before_parse_is_recorrelated_by_parse(client, monkeypatch)
     finally:
         with get_session_factory()() as session:
             _cleanup(session, asmnt_id)
+
+
+def test_usage_signal_overview_and_object_list_filter(client) -> None:
+    """SPRINT-20 CAP-005 — Dashboard Geral's usage-signal panel/KPI/object-list filter over a
+    real correlated Panaya USAGE_SIGNAL EvidenceRecord. No AI stage involved: usage-signal
+    correlation only depends on SourceScan/SAPObject + the existing generic
+    evidence.correlation pipeline, so this builds that minimal state directly rather than
+    running the full fake-AI pipeline the other tests in this file need."""
+    from evidence.adapters import panaya
+    from evidence.correlation import correlate_dataset_records
+    from persistence.models import (
+        EvidenceDataset,
+        EvidenceDatasetStatus,
+        EvidenceRecord,
+        ScanStatus,
+        SourceFile,
+        SourceScan,
+    )
+
+    with get_session_factory()() as session:
+        asmnt_id = _make_assessment(session)
+    try:
+        with get_session_factory()() as session:
+            scan = SourceScan(
+                assessment_id=asmnt_id, source_path="/tmp", status=ScanStatus.COMPLETED.value,
+                total_files=1, scanned_files=1,
+            )
+            session.add(scan)
+            session.flush()
+            sf = SourceFile(
+                scan_id=scan.id, assessment_id=asmnt_id, rel_path="x.abap", size_bytes=0,
+                mtime=0.0, sha256="a" * 64, category="abap_source",
+            )
+            session.add(sf)
+            session.flush()
+            unused_obj = SAPObject(
+                assessment_id=asmnt_id, source_file_id=sf.id, object_type="report",
+                object_name="ZUNUSED", canonical_key="REPORT::ZUNUSED",
+                description="", line_start=1, attributes={},
+            )
+            used_obj = SAPObject(
+                assessment_id=asmnt_id, source_file_id=sf.id, object_type="report",
+                object_name="ZUSED", canonical_key="REPORT::ZUSED",
+                description="", line_start=1, attributes={},
+            )
+            session.add_all([unused_obj, used_obj])
+            session.commit()
+
+            ds = EvidenceDataset(
+                assessment_id=asmnt_id, dataset_type=panaya.DATASET_TYPE,
+                display_name="export.xlsx", source_filename="export.xlsx", source_sha256="b" * 64,
+                source_size_bytes=10, importer_name="panaya", importer_version=panaya.IMPORTER_VERSION,
+                status=EvidenceDatasetStatus.IMPORTING.value,
+            )
+            session.add(ds)
+            session.flush()
+            session.add_all(
+                [
+                    EvidenceRecord(
+                        dataset_id=ds.id, record_type="panaya_usage_object", capability="USAGE_SIGNAL",
+                        source_key="usage_row:0", record_fingerprint="f" * 32,
+                        object_name="ZUNUSED", object_type="Report", package_name="ZPKG",
+                        normalized_payload={"OBJECT NAME": "ZUNUSED", "USAGE LEVEL": "Unused", "ORIGIN": "Customer"},
+                        source_locator={"row_index": 0},
+                    ),
+                    EvidenceRecord(
+                        dataset_id=ds.id, record_type="panaya_usage_object", capability="USAGE_SIGNAL",
+                        source_key="usage_row:1", record_fingerprint="g" * 32,
+                        object_name="ZUSED", object_type="Report", package_name="ZPKG",
+                        normalized_payload={"OBJECT NAME": "ZUSED", "USAGE LEVEL": "Normally Used", "ORIGIN": "Customer"},
+                        source_locator={"row_index": 1},
+                    ),
+                ]
+            )
+            session.commit()
+
+            correlate_dataset_records(ds.id, asmnt_id, session)
+            session.commit()
+
+            body = client.get(f"/assessments/{asmnt_id}/dashboard-overview").json()
+            assert body["usage_signal_by_level"] == {"Unused": 1, "Normally Used": 1}
+            assert body["unused_custom_objects"] == 1  # both objects are Z* custom; only ZUNUSED is Unused
+
+            unused_list = client.get(f"/assessments/{asmnt_id}/object-list", params={"usage_level": "Unused"}).json()
+            assert unused_list["total"] == 1
+            assert unused_list["items"][0]["object_name"] == "ZUNUSED"
+            assert unused_list["items"][0]["usage_level"] == "Unused"
+
+            used_list = client.get(
+                f"/assessments/{asmnt_id}/object-list", params={"usage_level": "Normally Used"}
+            ).json()
+            assert used_list["total"] == 1
+            assert used_list["items"][0]["object_name"] == "ZUSED"
+
+            # Genuine zero state when no USAGE_SIGNAL evidence correlates at all.
+            none_list = client.get(f"/assessments/{asmnt_id}/object-list", params={"usage_level": "Rarely Used"}).json()
+            assert none_list["total"] == 0
+    finally:
+        with get_session_factory()() as session:
+            _cleanup(session, asmnt_id)

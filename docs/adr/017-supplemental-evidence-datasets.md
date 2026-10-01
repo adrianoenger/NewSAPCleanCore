@@ -102,6 +102,37 @@ Two real, load-bearing findings the original (invented) profile never anticipate
    batch = one curated section, re-streamed from the top and stopped as soon as that section's
    closing tag is consumed.
 
+**Amendment (2026-10-01, SPRINT-20) — second real Panaya export format, a flat XLSX
+usage/repository report:** a real customer file (`export T-systems.xlsx`, ~143k rows) turned out
+to be a completely different Panaya export *format* from the XML ETL dump above — one sheet, one
+header row, one row per SAP object (`OBJECT NAME`, `OBJECT DESCRIPTION`, `MODULE`, `USAGE LEVEL`,
+`PACKAGE`, `OBJECT TYPE`, `OBJECT SUB TYPE`, `ORIGIN`, `LAST USED`, `LAST CHANGED BY`). It carries a
+per-object usage level (`Unused`/`Unknown`/`Normally Used`/`Frequently Used`/`Rarely Used`) and
+origin (`Customer`/`SAP Standard`/`3rdPartDomain`) — a `USAGE_SIGNAL` dimension no curated XML
+section above has. Kept under the same `PANAYA_ETL` dataset_type and the same `panaya.py` adapter
+module — still Panaya-sourced landscape data about the same kind of SAP objects, not a reason to
+multiply dataset_type/adapter registry entries — with `detect()`/`inspect()`/`plan_batches()`/
+`import_batch()` each dispatching internally on which real format is present:
+- **Detection** is by header-row *signature* (`OBJECT NAME`/`OBJECT TYPE`/`USAGE LEVEL`/`ORIGIN`),
+  tolerant of column reordering and extra columns, **never** by filename or an exact-column-match
+  requirement — only one real sample has been reviewed, the same "never hard-code the one reviewed
+  sample as the only valid schema" principle ADR-016 established for ATC's XLSX import.
+- **Import** streams the sheet with `openpyxl`'s `read_only` mode in bounded row-range batches
+  (20,000 rows per batch, mirroring the XML path's per-section cap size) — one `EvidenceRecord`
+  per row (`capability="USAGE_SIGNAL"`, `record_type="panaya_usage_object"`), full row preserved in
+  `normalized_payload`. Unlike the XML path's per-section truncation cap, this format's realistic
+  row counts (low hundreds of thousands) are imported in full.
+- **No system/client header metadata** exists in this format (unlike the XML export's `<HEADER
+  SYSTEM_ID=... CLIENT=... />`) — `source_system_hint`/`source_client_hint` are `None` for this
+  profile. A real limitation of the format, not an adapter gap, and never guessed from the
+  filename.
+- **Correlation** reuses the existing generic `object_name`/`object_type` matching unchanged — no
+  new correlation logic. Because this format's `OBJECT TYPE` values are Panaya's own human-readable
+  vocabulary (`Program`, `Class`, `Role`, `Data Element`, ...) rather than this application's
+  internal `SAPObject.object_type` vocabulary, an exact name+type match is coincidental; the
+  realistic common case is a name-only `MATCHED_HEURISTIC` correlation, same as every other curated
+  Panaya section whose own `OBJTYPE`/`OBJECT` vocabulary already differs from the internal one.
+
 ### Signavio Process Insights
 - Read package/system metadata and chunked JSON datasets.
 - Preserve `keyFigureId`, dataset/service identity, timestamp, header definition and source member provenance.
